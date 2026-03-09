@@ -12,6 +12,7 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
+          <Route path="/certificate-test" element={<Certificate />} />
           <Route path="/" element={<Navigate to="/login" />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
