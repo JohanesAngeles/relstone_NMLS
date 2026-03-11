@@ -10,6 +10,8 @@ import {
   X,
   Search,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import API from "../../api/axios";
 
@@ -35,6 +37,8 @@ const Courses = () => {
   const [showCart, setShowCart] = useState(false);
   const [ordering, setOrdering] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
+
+  const [openModules, setOpenModules] = useState({});
 
   useEffect(() => {
     fetchCourses();
@@ -77,9 +81,21 @@ const Courses = () => {
     );
   };
 
+  const toggleModules = (courseId) => {
+    setOpenModules((prev) => ({
+      ...prev,
+      [courseId]: !prev[courseId],
+    }));
+  };
+
   const total = useMemo(() => {
-    const sum = cart.reduce((acc, c) => acc + Number(c.price || 0) + (c.include_textbook ? Number(c.textbook_price || 0) : 0), 0);
-    return sum;
+    return cart.reduce(
+      (acc, c) =>
+        acc +
+        Number(c.price || 0) +
+        (c.include_textbook ? Number(c.textbook_price || 0) : 0),
+      0
+    );
   }, [cart]);
 
   const handleCheckout = async () => {
@@ -106,11 +122,19 @@ const Courses = () => {
   const filteredCourses = useMemo(() => {
     if (!q.trim()) return courses;
     const needle = q.toLowerCase();
+
     return courses.filter((c) => {
       const title = String(c.title || "").toLowerCase();
       const desc = String(c.description || "").toLowerCase();
-      const states = Array.isArray(c.states_approved) ? c.states_approved.join(",").toLowerCase() : "";
-      return title.includes(needle) || desc.includes(needle) || states.includes(needle);
+      const states = Array.isArray(c.states_approved)
+        ? c.states_approved.join(", ").toLowerCase()
+        : "";
+
+      return (
+        title.includes(needle) ||
+        desc.includes(needle) ||
+        states.includes(needle)
+      );
     });
   }, [courses, q]);
 
@@ -118,11 +142,14 @@ const Courses = () => {
     <div style={S.page}>
       <style>{css}</style>
 
-      {/* Top bar */}
       <header style={S.topbar}>
         <div style={S.topbarInner}>
           <div style={S.left}>
-            <button style={S.backBtn} onClick={() => navigate("/dashboard")} type="button">
+            <button
+              style={S.backBtn}
+              onClick={() => navigate("/dashboard")}
+              type="button"
+            >
               <ArrowLeft size={16} />
               <span>Dashboard</span>
             </button>
@@ -134,17 +161,22 @@ const Courses = () => {
           </div>
 
           <div style={S.right}>
-            <button style={S.cartBtn} onClick={() => setShowCart(true)} type="button">
+            <button
+              style={S.cartBtn}
+              onClick={() => setShowCart(true)}
+              type="button"
+            >
               <ShoppingCart size={18} />
               <span>Cart</span>
               <span style={S.cartCount}>{cart.length}</span>
-              {cart.length > 0 && <span style={S.cartTotalPill}>${total.toFixed(2)}</span>}
+              {cart.length > 0 && (
+                <span style={S.cartTotalPill}>${total.toFixed(2)}</span>
+              )}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Success toast */}
       {orderSuccess && (
         <div style={S.toastWrap}>
           <div style={S.toast}>
@@ -154,10 +186,16 @@ const Courses = () => {
               </div>
               <div>
                 <div style={S.toastTitle}>Order placed successfully</div>
-                <div style={S.toastSub}>Check your dashboard for your courses.</div>
+                <div style={S.toastSub}>
+                  Check your dashboard for your courses.
+                </div>
               </div>
             </div>
-            <button style={S.toastClose} onClick={() => setOrderSuccess(false)} type="button">
+            <button
+              style={S.toastClose}
+              onClick={() => setOrderSuccess(false)}
+              type="button"
+            >
               <X size={18} />
             </button>
           </div>
@@ -165,7 +203,6 @@ const Courses = () => {
       )}
 
       <main style={S.shell}>
-        {/* Filters bar */}
         <section style={S.filtersCard}>
           <div style={S.filtersLeft}>
             <div style={S.searchWrap}>
@@ -180,10 +217,13 @@ const Courses = () => {
 
             <div style={S.filterWrap}>
               <Filter size={16} style={{ opacity: 0.7 }} />
+
               <select
                 style={S.select}
                 value={filters.type}
-                onChange={(e) => setFilters({ ...filters, type: e.target.value })}
+                onChange={(e) =>
+                  setFilters({ ...filters, type: e.target.value })
+                }
               >
                 <option value="">All Types</option>
                 <option value="PE">Pre-Licensing (PE)</option>
@@ -193,7 +233,9 @@ const Courses = () => {
               <select
                 style={S.select}
                 value={filters.state}
-                onChange={(e) => setFilters({ ...filters, state: e.target.value })}
+                onChange={(e) =>
+                  setFilters({ ...filters, state: e.target.value })
+                }
               >
                 <option value="">All States</option>
                 {US_STATES.map((s) => (
@@ -220,12 +262,15 @@ const Courses = () => {
 
           <div style={S.filtersRight}>
             <div style={S.countPill}>
-              {loading ? "Loading…" : `${filteredCourses.length} course${filteredCourses.length === 1 ? "" : "s"}`}
+              {loading
+                ? "Loading…"
+                : `${filteredCourses.length} course${
+                    filteredCourses.length === 1 ? "" : "s"
+                  }`}
             </div>
           </div>
         </section>
 
-        {/* Course grid */}
         <section style={S.grid}>
           {loading ? (
             <div style={S.centerMsg}>Loading courses…</div>
@@ -234,11 +279,14 @@ const Courses = () => {
           ) : filteredCourses.length === 0 ? (
             <div style={S.emptyCard}>
               <div style={S.emptyTitle}>No courses found</div>
-              <div style={S.emptySub}>Try adjusting your filters or search keyword.</div>
+              <div style={S.emptySub}>
+                Try adjusting your filters or search keyword.
+              </div>
             </div>
           ) : (
             filteredCourses.map((course) => {
               const inCart = cart.some((c) => c._id === course._id);
+              const isOpen = !!openModules[course._id];
 
               return (
                 <div key={course._id} style={S.courseCard}>
@@ -247,13 +295,16 @@ const Courses = () => {
                       <div style={S.courseIcon}>
                         <BookOpen size={18} />
                       </div>
-                      <div style={{ minWidth: 0 }}>
+
+                      <div style={S.courseTextWrap}>
                         <div style={S.courseTitle}>{course.title}</div>
                         <div style={S.courseDesc}>{course.description}</div>
                       </div>
                     </div>
 
-                    <span style={badgeStyle(course.type)}>{String(course.type || "").toUpperCase()}</span>
+                    <span style={badgeStyle(course.type)}>
+                      {String(course.type || "").toUpperCase()}
+                    </span>
                   </div>
 
                   <div style={S.metaRow}>
@@ -262,10 +313,11 @@ const Courses = () => {
                       <span>{course.credit_hours} credit hours</span>
                     </span>
 
-                    <span style={S.metaItem}>
+                    <span style={S.metaItemStates}>
                       <MapPin size={14} />
-                      <span className="rs-clamp-1">
-                        {Array.isArray(course.states_approved) && course.states_approved.length > 0
+                      <span style={S.statesText}>
+                        {Array.isArray(course.states_approved) &&
+                        course.states_approved.length > 0
                           ? course.states_approved.join(", ")
                           : "All states"}
                       </span>
@@ -273,28 +325,46 @@ const Courses = () => {
                   </div>
 
                   {Array.isArray(course.modules) && course.modules.length > 0 && (
-                    <details style={S.details}>
-                      <summary style={S.summary}>
-                        View modules ({course.modules.length})
-                        <span style={S.summaryHint}>click</span>
-                      </summary>
-                      <div style={S.modules}>
-                        {course.modules.map((m, i) => (
-                          <div key={i} style={S.moduleRow}>
-                            <span style={S.moduleBadge}>Module {m.order}</span>
-                            <span style={S.moduleTitle}>{m.title}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
+                    <div style={S.detailsBox}>
+                      <button
+                        type="button"
+                        style={S.summaryBtn}
+                        onClick={() => toggleModules(course._id)}
+                      >
+                        <span>View modules ({course.modules.length})</span>
+
+                        <span style={S.summaryRight}>
+                          <span style={S.summaryHint}>
+                            {isOpen ? "hide" : "view"}
+                          </span>
+                          {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </span>
+                      </button>
+
+                      {isOpen && (
+                        <div style={S.modules}>
+                          {course.modules.map((m, i) => (
+                            <div key={i} style={S.moduleRow}>
+                              <span style={S.moduleBadge}>
+                                Module {m.order ?? i + 1}
+                              </span>
+                              <span style={S.moduleTitle}>{m.title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   <div style={S.courseFooter}>
                     <div style={S.priceBlock}>
-                      <div style={S.price}>${Number(course.price || 0).toFixed(2)}</div>
+                      <div style={S.price}>
+                        ${Number(course.price || 0).toFixed(2)}
+                      </div>
                       {course.has_textbook && (
                         <div style={S.textbookNote}>
-                          + Textbook available (${Number(course.textbook_price || 0).toFixed(2)})
+                          + Textbook available ($
+                          {Number(course.textbook_price || 0).toFixed(2)})
                         </div>
                       )}
                     </div>
@@ -317,7 +387,6 @@ const Courses = () => {
         </section>
       </main>
 
-      {/* Drawer cart */}
       {showCart && (
         <>
           <div style={S.overlay} onClick={() => setShowCart(false)} />
@@ -327,7 +396,11 @@ const Courses = () => {
                 <ShoppingCart size={18} />
                 <span>Your Cart</span>
               </div>
-              <button style={S.iconBtn} onClick={() => setShowCart(false)} type="button">
+              <button
+                style={S.iconBtn}
+                onClick={() => setShowCart(false)}
+                type="button"
+              >
                 <X size={18} />
               </button>
             </div>
@@ -344,12 +417,18 @@ const Courses = () => {
                     <div key={c._id} style={S.cartItem}>
                       <div style={S.cartTop}>
                         <div style={S.cartName}>{c.title}</div>
-                        <button style={S.removeBtn} onClick={() => removeFromCart(c._id)} type="button">
+                        <button
+                          style={S.removeBtn}
+                          onClick={() => removeFromCart(c._id)}
+                          type="button"
+                        >
                           <X size={16} />
                         </button>
                       </div>
 
-                      <div style={S.cartPrice}>${Number(c.price || 0).toFixed(2)}</div>
+                      <div style={S.cartPrice}>
+                        ${Number(c.price || 0).toFixed(2)}
+                      </div>
 
                       {c.has_textbook && (
                         <label style={S.textbookCheck}>
@@ -358,7 +437,10 @@ const Courses = () => {
                             checked={!!c.include_textbook}
                             onChange={() => toggleTextbook(c._id)}
                           />
-                          <span>Add textbook (+${Number(c.textbook_price || 0).toFixed(2)})</span>
+                          <span>
+                            Add textbook (+$
+                            {Number(c.textbook_price || 0).toFixed(2)})
+                          </span>
                         </label>
                       )}
                     </div>
@@ -371,11 +453,23 @@ const Courses = () => {
                     <strong>${total.toFixed(2)}</strong>
                   </div>
 
-                  <button style={S.checkoutBtn} onClick={handleCheckout} disabled={ordering} type="button">
-                    {ordering ? "Placing order…" : "Checkout"}
-                  </button>
+                  <button
+                  style={S.checkoutBtn}
+                  onClick={() => {
+                    localStorage.setItem("cart", JSON.stringify(cart));
+                    navigate("/checkout");
+                  }}
+                  disabled={ordering}
+                  type="button"
+                >
+                  Checkout
+                </button>
 
-                  <button style={S.secondaryBtn} onClick={() => setShowCart(false)} type="button">
+                  <button
+                    style={S.secondaryBtn}
+                    onClick={() => setShowCart(false)}
+                    type="button"
+                  >
                     Continue browsing
                   </button>
                 </div>
@@ -387,8 +481,6 @@ const Courses = () => {
     </div>
   );
 };
-
-/* ---------- helpers ---------- */
 
 const badgeStyle = (type) => {
   const t = String(type || "").toUpperCase();
@@ -454,12 +546,17 @@ const css = `
 }
 
 *{box-sizing:border-box}
-body{margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--rs-bg); color: var(--rs-text);}
+body{
+  margin:0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: var(--rs-bg);
+  color: var(--rs-text);
+}
 
-.rs-clamp-1{
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+@media (max-width: 960px){
+  .rs-grid-responsive{
+    grid-template-columns: 1fr !important;
+  }
 }
 `;
 
@@ -501,8 +598,21 @@ const S = {
   },
 
   titleWrap: { display: "grid", gap: 2, minWidth: 0 },
-  title: { fontWeight: 950, letterSpacing: "-0.2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-  subtitle: { fontSize: 12, fontWeight: 700, color: "var(--rs-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+  title: {
+    fontWeight: 950,
+    letterSpacing: "-0.2px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  subtitle: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "var(--rs-muted)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
 
   cartBtn: {
     display: "inline-flex",
@@ -554,7 +664,12 @@ const S = {
     gap: 12,
     flexWrap: "wrap",
   },
-  filtersLeft: { display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" },
+  filtersLeft: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
   filtersRight: { display: "flex", alignItems: "center" },
 
   searchWrap: {
@@ -585,6 +700,7 @@ const S = {
     borderRadius: 999,
     border: "1px solid rgba(2,8,23,0.10)",
     background: "#fff",
+    flexWrap: "wrap",
   },
   select: {
     border: "none",
@@ -621,10 +737,12 @@ const S = {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 12,
+    alignItems: "start",
   },
 
   centerMsg: { padding: 18, color: "rgba(11,18,32,0.55)", fontWeight: 800 },
   centerMsgError: { padding: 18, color: "crimson", fontWeight: 900 },
+
   emptyCard: {
     gridColumn: "1 / -1",
     borderRadius: 22,
@@ -633,7 +751,13 @@ const S = {
     padding: 18,
   },
   emptyTitle: { fontWeight: 950, color: "rgba(11,18,32,0.86)" },
-  emptySub: { marginTop: 6, color: "rgba(11,18,32,0.55)", fontWeight: 700, fontSize: 12, lineHeight: 1.6 },
+  emptySub: {
+    marginTop: 6,
+    color: "rgba(11,18,32,0.55)",
+    fontWeight: 700,
+    fontSize: 12,
+    lineHeight: 1.6,
+  },
 
   courseCard: {
     borderRadius: 22,
@@ -641,11 +765,21 @@ const S = {
     border: "1px solid rgba(2,8,23,0.08)",
     boxShadow: "0 12px 30px rgba(2,8,23,0.08)",
     padding: 14,
-    display: "grid",
+    display: "flex",
+    flexDirection: "column",
     gap: 12,
+    minWidth: 0,
+    alignSelf: "start",
   },
-  courseHead: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" },
+  courseHead: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    alignItems: "flex-start",
+  },
   courseTitleRow: { display: "flex", gap: 10, minWidth: 0, flex: 1 },
+  courseTextWrap: { minWidth: 0, flex: 1 },
+
   courseIcon: {
     width: 40,
     height: 40,
@@ -657,10 +791,27 @@ const S = {
     color: "var(--rs-dark)",
     flexShrink: 0,
   },
-  courseTitle: { fontWeight: 950, color: "rgba(11,18,32,0.88)", lineHeight: 1.2 },
-  courseDesc: { marginTop: 4, color: "rgba(11,18,32,0.55)", fontWeight: 650, fontSize: 12, lineHeight: 1.5 },
+  courseTitle: {
+    fontWeight: 950,
+    color: "rgba(11,18,32,0.88)",
+    lineHeight: 1.2,
+    overflowWrap: "anywhere",
+  },
+  courseDesc: {
+    marginTop: 4,
+    color: "rgba(11,18,32,0.55)",
+    fontWeight: 650,
+    fontSize: 12,
+    lineHeight: 1.5,
+    overflowWrap: "anywhere",
+  },
 
-  metaRow: { display: "flex", gap: 12, flexWrap: "wrap" },
+  metaRow: {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+  alignItems: "flex-start",
+},
   metaItem: {
     display: "inline-flex",
     alignItems: "center",
@@ -673,15 +824,41 @@ const S = {
     fontWeight: 800,
     fontSize: 12,
     minWidth: 0,
+    flexShrink: 0,
+  },
+  metaItemStates: {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "8px 10px",
+  borderRadius: 16,
+  border: "1px solid rgba(2,8,23,0.10)",
+  background: "rgba(2,8,23,0.02)",
+  color: "rgba(11,18,32,0.72)",
+  fontWeight: 800,
+  fontSize: 12,
+  minWidth: 0,
+  flex: "1 1 220px",
+  overflow: "hidden",
+},
+  statesText: {
+    display: "block",
+    minWidth: 0,
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
+    lineHeight: 1.5,
   },
 
-  details: {
+  detailsBox: {
     borderRadius: 18,
     border: "1px solid rgba(2,8,23,0.08)",
     background: "rgba(2,8,23,0.02)",
     padding: 10,
+    minWidth: 0,
   },
-  summary: {
+  summaryBtn: {
+    width: "100%",
     cursor: "pointer",
     fontWeight: 900,
     color: "rgba(11,18,32,0.78)",
@@ -689,15 +866,36 @@ const S = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
-    listStyle: "none",
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    textAlign: "left",
+    fontSize: 15,
+  },
+  summaryRight: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
   },
   summaryHint: {
     fontSize: 12,
     fontWeight: 800,
     color: "rgba(11,18,32,0.45)",
   },
-  modules: { marginTop: 10, display: "grid", gap: 8 },
-  moduleRow: { display: "flex", gap: 10, alignItems: "center" },
+
+  modules: {
+    marginTop: 10,
+    display: "grid",
+    gap: 8,
+    minWidth: 0,
+  },
+  moduleRow: {
+    display: "flex",
+    gap: 10,
+    alignItems: "flex-start",
+    minWidth: 0,
+  },
   moduleBadge: {
     fontSize: 12,
     fontWeight: 950,
@@ -708,46 +906,75 @@ const S = {
     color: "var(--rs-dark)",
     flexShrink: 0,
   },
-  moduleTitle: { fontWeight: 750, color: "rgba(11,18,32,0.78)", fontSize: 13 },
+  moduleTitle: {
+    fontWeight: 750,
+    color: "rgba(11,18,32,0.78)",
+    fontSize: 13,
+    lineHeight: 1.5,
+    minWidth: 0,
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+  },
 
   courseFooter: {
     display: "flex",
     justifyContent: "space-between",
     gap: 12,
-    alignItems: "center",
+    alignItems: "flex-end",
     borderTop: "1px solid rgba(2,8,23,0.06)",
     paddingTop: 12,
+    marginTop: "auto",
+    minWidth: 0,
   },
-  priceBlock: { display: "grid", gap: 4 },
-  price: { fontWeight: 950, fontSize: 18, color: "rgba(11,18,32,0.88)" },
-  textbookNote: { fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.55)" },
+  priceBlock: {
+    display: "grid",
+    gap: 4,
+    minWidth: 0,
+    flex: 1,
+  },
+  price: {
+    fontWeight: 950,
+    fontSize: 18,
+    color: "rgba(11,18,32,0.88)",
+  },
+  textbookNote: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "rgba(11,18,32,0.55)",
+    lineHeight: 1.4,
+  },
 
   addBtn: {
     display: "inline-flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    padding: "10px 12px",
+    padding: "10px 14px",
     borderRadius: 14,
     border: "1px solid rgba(46,171,254,0.22)",
     background: "var(--rs-blue)",
     color: "#fff",
     cursor: "pointer",
     fontWeight: 950,
+    minWidth: 96,
+    flexShrink: 0,
   },
   addedBtn: {
     display: "inline-flex",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    padding: "10px 12px",
+    padding: "10px 14px",
     borderRadius: 14,
     border: "1px solid rgba(0,180,180,0.20)",
     background: "rgba(0,180,180,0.12)",
     color: "rgba(0,140,140,1)",
     cursor: "default",
     fontWeight: 950,
+    minWidth: 96,
+    flexShrink: 0,
   },
 
-  /* drawer */
   overlay: {
     position: "fixed",
     inset: 0,
@@ -776,7 +1003,13 @@ const S = {
     justifyContent: "space-between",
     borderBottom: "1px solid rgba(2,8,23,0.08)",
   },
-  drawerTitle: { display: "inline-flex", alignItems: "center", gap: 10, fontWeight: 950, color: "rgba(11,18,32,0.86)" },
+  drawerTitle: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    fontWeight: 950,
+    color: "rgba(11,18,32,0.86)",
+  },
   iconBtn: {
     width: 38,
     height: 38,
@@ -787,13 +1020,44 @@ const S = {
     display: "grid",
     placeItems: "center",
   },
-  drawerBody: { padding: 14, overflow: "auto", display: "grid", gap: 12, flex: 1 },
-  drawerFoot: { padding: 14, borderTop: "1px solid rgba(2,8,23,0.08)", display: "grid", gap: 10 },
+  drawerBody: {
+  padding: 14,
+  overflow: "auto",
+  display: "grid",
+  gap: 12,
+  flex: 1,
+  alignContent: "start",
+},
+  drawerFoot: {
+    padding: 14,
+    borderTop: "1px solid rgba(2,8,23,0.08)",
+    display: "grid",
+    gap: 10,
+  },
   drawerEmpty: { padding: 18 },
 
-  cartItem: { borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", background: "#fff", padding: 12, display: "grid", gap: 8 },
-  cartTop: { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" },
-  cartName: { fontWeight: 900, color: "rgba(11,18,32,0.84)" },
+  cartItem: {
+  borderRadius: 16,
+  border: "1px solid rgba(2,8,23,0.08)",
+  background: "#fff",
+  padding: 12,
+  display: "grid",
+  gap: 8,
+  alignContent: "start",
+},
+  cartTop: {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 10,
+  alignItems: "flex-start",
+},
+  cartName: {
+  fontWeight: 900,
+  color: "rgba(11,18,32,0.84)",
+  fontSize: 14,
+  lineHeight: 1.35,
+  flex: 1,
+},
   removeBtn: {
     width: 34,
     height: 34,
@@ -805,11 +1069,30 @@ const S = {
     placeItems: "center",
     color: "rgba(11,18,32,0.70)",
   },
-  cartPrice: { fontWeight: 950, color: "rgba(11,18,32,0.80)" },
+  cartPrice: {
+  fontWeight: 950,
+  color: "rgba(11,18,32,0.80)",
+  fontSize: 14,
+  marginTop: 2,
+},
 
-  textbookCheck: { display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 750, color: "rgba(11,18,32,0.70)" },
+  textbookCheck: {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    fontSize: 13,
+    fontWeight: 750,
+    color: "rgba(11,18,32,0.70)",
+  },
 
-  totalRow: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, fontWeight: 850, color: "rgba(11,18,32,0.78)" },
+  totalRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    fontSize: 14,
+    fontWeight: 850,
+    color: "rgba(11,18,32,0.78)",
+  },
 
   checkoutBtn: {
     width: "100%",
@@ -834,7 +1117,6 @@ const S = {
     color: "rgba(11,18,32,0.80)",
   },
 
-  /* toast */
   toastWrap: {
     position: "fixed",
     top: 74,
@@ -869,7 +1151,12 @@ const S = {
     flexShrink: 0,
   },
   toastTitle: { fontWeight: 950, color: "rgba(11,18,32,0.86)" },
-  toastSub: { fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.55)", marginTop: 2 },
+  toastSub: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "rgba(11,18,32,0.55)",
+    marginTop: 2,
+  },
   toastClose: {
     width: 38,
     height: 38,

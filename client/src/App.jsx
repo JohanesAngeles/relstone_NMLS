@@ -7,6 +7,7 @@ import InstructorDashboard from './pages/dashboard/InstructorDashboard';
 import ViewStudents from './pages/dashboard/ViewStudents';
 import Certificate from './pages/cert_page/Certificate';
 import Courses from './pages/courses_page/Courses';
+import Checkout from './pages/checkout_page/checkout';
 
 // Redirects to the correct dashboard based on role
 const DashboardRedirect = () => {
@@ -53,6 +54,12 @@ function App() {
           <Route path="/instructor/students" element={
             <PrivateRoute>
               <ViewStudents />
+            </PrivateRoute>
+          } />
+
+          <Route path="/checkout" element={
+            <PrivateRoute>
+              <Checkout />
             </PrivateRoute>
           } />
 
