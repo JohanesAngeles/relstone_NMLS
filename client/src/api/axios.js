@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost:8000/api'
+  baseURL: process.env.NODE_ENV === 'production'
+    ? '/api'                        // Heroku — same server, relative path
+    : 'http://localhost:8000/api'   // Local dev
 });
 
 // Automatically attach JWT token to every request

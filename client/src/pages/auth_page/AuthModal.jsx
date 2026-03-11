@@ -15,14 +15,14 @@ const AuthModal = ({ mode = 'login', onClose }) => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState(mode); // 'login' | 'register'
+  const [activeTab, setActiveTab] = useState(mode);
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({
-    name: '', email: '', password: '', nmls_id: '', state: ''
+    name: '', email: '', password: '', nmls_id: '', state: '', role: 'student'  // ← added role
   });
 
   const handleLoginChange = (e) =>
@@ -31,31 +31,34 @@ const AuthModal = ({ mode = 'login', onClose }) => {
   const handleRegisterChange = (e) =>
     setRegisterForm({ ...registerForm, [e.target.name]: e.target.value });
 
+  // ← role-based redirect after login
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true); setError('');
-    try {
-      const res = await API.post('/auth/login', loginForm);
-      login(res.data.user, res.data.token);
-      onClose();
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
-    } finally { setLoading(false); }
-  };
+  e.preventDefault();
+  setLoading(true); setError('');
+  try {
+    const res = await API.post('/auth/login', loginForm);
+    login(res.data.user, res.data.token);
+    onClose();
+    const role = res.data.user?.role;
+    navigate(role === 'instructor' ? '/instructor/dashboard' : '/dashboard');
+  } catch (err) {
+    setError(err.response?.data?.message || 'Login failed. Please try again.');
+  } finally { setLoading(false); }
+};
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setLoading(true); setError('');
-    try {
-      const res = await API.post('/auth/register', registerForm);
-      login(res.data.user, res.data.token);
-      onClose();
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
-    } finally { setLoading(false); }
-  };
+const handleRegister = async (e) => {
+  e.preventDefault();
+  setLoading(true); setError('');
+  try {
+    const res = await API.post('/auth/register', registerForm);
+    login(res.data.user, res.data.token);
+    onClose();
+    const role = res.data.user?.role;
+    navigate(role === 'instructor' ? '/instructor/dashboard' : '/dashboard');
+  } catch (err) {
+    setError(err.response?.data?.message || 'Registration failed. Please try again.');
+  } finally { setLoading(false); }
+};
 
   const switchTab = (tab) => { setActiveTab(tab); setError(''); setShowPw(false); };
 
@@ -115,7 +118,7 @@ const AuthModal = ({ mode = 'login', onClose }) => {
           <div className="am-panel">
             <div className="am-panel-head">
               <h2 className="am-title">Welcome back</h2>
-              <p className="am-subtitle">Sign in to your student account</p>
+              <p className="am-subtitle">Sign in to your account</p>
             </div>
 
             <form onSubmit={handleLogin} className="am-form">
@@ -256,6 +259,37 @@ const AuthModal = ({ mode = 'login', onClose }) => {
                 </div>
               </div>
 
+              {/* ── ROLE SELECTOR ── */}
+              <div className="am-field">
+                <label className="am-label">I am a</label>
+                <div className="am-role-toggle">
+                  <button
+                    type="button"
+                    className={`am-role-btn ${registerForm.role === 'student' ? 'am-role-btn--active' : ''}`}
+                    onClick={() => setRegisterForm({ ...registerForm, role: 'student' })}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                      <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                    </svg>
+                    Student
+                  </button>
+                  <button
+                    type="button"
+                    className={`am-role-btn ${registerForm.role === 'instructor' ? 'am-role-btn--active' : ''}`}
+                    onClick={() => setRegisterForm({ ...registerForm, role: 'instructor' })}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                      <circle cx="9" cy="7" r="4"/>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    Instructor
+                  </button>
+                </div>
+              </div>
+
               <div className="am-two-col">
                 <div className="am-field">
                   <label className="am-label">NMLS ID <span className="am-optional">(optional)</span></label>
@@ -338,7 +372,6 @@ const css = `
   --am-title:    'Homepage Baukasten', sans-serif;
 }
 
-/* Backdrop */
 .am-backdrop {
   position: fixed; inset: 0; z-index: 200;
   background: rgba(9,25,37,0.65);
@@ -347,7 +380,6 @@ const css = `
 }
 @keyframes am-fade-in { from { opacity:0; } to { opacity:1; } }
 
-/* Modal */
 .am-modal {
   position: fixed; z-index: 201;
   top: 50%; left: 50%;
@@ -366,7 +398,6 @@ const css = `
   to   { opacity:1; transform: translate(-50%, -50%); }
 }
 
-/* Close */
 .am-close {
   position: absolute; top: 18px; right: 18px;
   width: 34px; height: 34px;
@@ -377,7 +408,6 @@ const css = `
 }
 .am-close:hover { background: #e8ecf0; color: var(--am-midnight); }
 
-/* Logo */
 .am-logo {
   display: flex; align-items: center; gap: 10px;
   margin-bottom: 24px;
@@ -395,7 +425,6 @@ const css = `
 }
 .am-logo-accent { color: var(--am-electric); }
 
-/* Tabs */
 .am-tabs {
   display: flex;
   background: var(--am-ice);
@@ -416,7 +445,6 @@ const css = `
   box-shadow: 0 2px 8px rgba(9,25,37,0.1);
 }
 
-/* Error */
 .am-error {
   display: flex; align-items: center; gap: 8px;
   padding: 11px 14px;
@@ -425,7 +453,6 @@ const css = `
   font-size: 13px; margin-bottom: 16px;
 }
 
-/* Panel */
 .am-panel-head { margin-bottom: 20px; }
 .am-title {
   font-family: var(--am-title);
@@ -434,7 +461,6 @@ const css = `
 }
 .am-subtitle { font-size: 13.5px; color: var(--am-muted); }
 
-/* Form */
 .am-form { display: grid; gap: 14px; }
 .am-field { display: grid; gap: 6px; }
 .am-label {
@@ -480,7 +506,28 @@ const css = `
 
 .am-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-/* Submit */
+/* Role Toggle */
+.am-role-toggle {
+  display: flex; gap: 8px;
+}
+.am-role-btn {
+  flex: 1; height: 44px;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: var(--am-font);
+  font-size: 13.5px; font-weight: 600;
+  color: var(--am-muted);
+  background: var(--am-ice);
+  border: 1.5px solid transparent;
+  border-radius: 12px; cursor: pointer;
+  transition: all .18s;
+}
+.am-role-btn:hover { border-color: rgba(46,171,254,0.3); color: var(--am-midnight); }
+.am-role-btn--active {
+  background: rgba(46,171,254,0.08);
+  border-color: var(--am-electric);
+  color: var(--am-electric);
+}
+
 .am-submit {
   height: 48px; width: 100%;
   display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -500,7 +547,6 @@ const css = `
 }
 .am-submit:disabled { opacity: .65; cursor: not-allowed; transform: none; box-shadow: none; }
 
-/* Switch */
 .am-switch { margin-top: 18px; text-align: center; font-size: 13.5px; color: var(--am-muted); }
 .am-switch-btn {
   background: none; border: none; cursor: pointer;
@@ -515,12 +561,10 @@ const css = `
   font-size: 11px; color: rgba(9,25,37,0.4); line-height: 1.6;
 }
 
-/* Scrollbar */
 .am-modal::-webkit-scrollbar { width: 6px; }
 .am-modal::-webkit-scrollbar-track { background: transparent; }
 .am-modal::-webkit-scrollbar-thumb { background: rgba(9,25,37,0.12); border-radius: 3px; }
 
-/* Responsive */
 @media (max-width: 520px) {
   .am-modal { padding: 28px 22px 22px; border-radius: 18px; max-width: calc(100% - 24px); }
   .am-two-col { grid-template-columns: 1fr; }

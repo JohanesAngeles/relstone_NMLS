@@ -26,7 +26,8 @@ router.get('/', authMiddleware, async (req, res) => {
     const completedCE = completedCourses.filter(c => c.course?.type === 'CE');
 
     // Pending orders (paid but not yet completed)
-    const pendingOrders = orders.filter(o => o.status === 'paid');
+    const pendingOrders = orders.filter(o => ['paid', 'pending'].includes(o.status));
+
 
     res.json({
       profile: {

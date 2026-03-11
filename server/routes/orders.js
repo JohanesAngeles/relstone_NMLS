@@ -50,10 +50,10 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 
     const order = await Order.create({
-      user_id: req.user.id,
-      items: orderItems,
-      total_amount: total
-    });
+  user_id: req.user.id,
+  items: orderItems,
+  total_amount: total,   // ← add this line
+});
 
     res.status(201).json(order);
 
