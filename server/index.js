@@ -23,7 +23,7 @@ app.use(cors({
     'http://localhost:5173',
     'http://10.0.2.2:8000',
     'http://192.168.100.3:8000',
-    'https://relstone-nmls.herokuapp.com',  // update to your actual Heroku URL
+    'https://relstone-nmls-62fc9b1f5f80.herokuapp.com',  // update to your actual Heroku URL
   ],
   credentials: true,
 }));
