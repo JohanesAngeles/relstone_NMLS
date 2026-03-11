@@ -19,15 +19,67 @@ import {
   Star,
 } from "lucide-react";
 
+/* ─── Logout Confirm (inline) ────────────────────────────────────── */
+const LogoutConfirm = ({ onConfirm, onCancel }) => (
+  <>
+    <div onClick={onCancel} style={{
+      position: "fixed", inset: 0, zIndex: 300,
+      background: "rgba(9,25,37,0.55)", backdropFilter: "blur(5px)",
+    }} />
+    <div style={{
+      position: "fixed", zIndex: 301,
+      top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+      width: "100%", maxWidth: 360,
+      background: "#fff", borderRadius: 22, padding: "32px 28px 26px",
+      boxShadow: "0 28px 70px rgba(9,25,37,0.20), 0 0 0 1px rgba(9,25,37,0.06)",
+      textAlign: "center", fontFamily: "Inter, system-ui, sans-serif",
+    }}>
+      <div style={{
+        width: 56, height: 56, borderRadius: 18, margin: "0 auto 18px",
+        background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: "rgba(220,38,38,0.85)",
+      }}>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 950, color: "rgba(11,18,32,0.88)", marginBottom: 8 }}>
+        Sign out?
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.52)", lineHeight: 1.6, marginBottom: 24 }}>
+        Are you sure you want to sign out of your account?
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button onClick={onCancel} type="button" style={{
+          flex: 1, height: 44, background: "rgba(2,8,23,0.04)",
+          border: "1px solid rgba(2,8,23,0.10)", borderRadius: 12,
+          cursor: "pointer", fontSize: 14, fontWeight: 900,
+          color: "rgba(11,18,32,0.72)", fontFamily: "inherit",
+        }}>No, stay</button>
+        <button onClick={onConfirm} type="button" style={{
+          flex: 1, height: 44, background: "rgba(220,38,38,0.90)",
+          border: "none", borderRadius: 12, cursor: "pointer",
+          fontSize: 14, fontWeight: 900, color: "#fff", fontFamily: "inherit",
+          boxShadow: "0 4px 14px rgba(220,38,38,0.25)",
+        }}>Yes, sign out</button>
+      </div>
+    </div>
+  </>
+);
+
 const InstructorDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [data, setData]         = useState(null);
+  const [data, setData]           = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState("");
-  const [q, setQ]               = useState("");
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState("");
+  const [q, setQ]                 = useState("");
+  const [showLogout, setShowLogout] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -48,7 +100,7 @@ const InstructorDashboard = () => {
     fetchData();
   }, []);
 
-  const handleLogout = () => { logout(); navigate("/login"); };
+  const handleLogout = () => { logout(); window.location.href = "/"; };
 
   // ── derived data ──────────────────────────────────────────────────
   const courses          = data?.courses          || [];
@@ -99,6 +151,14 @@ const InstructorDashboard = () => {
     <div style={S.page}>
       <style>{css}</style>
 
+      {/* ── Logout confirm dialog ────────────────────────────────── */}
+      {showLogout && (
+        <LogoutConfirm
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogout(false)}
+        />
+      )}
+
       {/* ── Top bar ─────────────────────────────────────────────── */}
       <header style={S.topbar}>
         <div style={S.topbarInner}>
@@ -128,7 +188,7 @@ const InstructorDashboard = () => {
               <span style={S.userName}>{user?.name || "Instructor"}</span>
             </div>
 
-            <button style={S.logoutBtn} onClick={handleLogout} type="button">
+            <button style={S.logoutBtn} onClick={() => setShowLogout(true)} type="button">
               Sign out
             </button>
           </div>
@@ -168,7 +228,6 @@ const InstructorDashboard = () => {
                   style={{ ...S.heroBtn, ...S.heroBtnAlt }}
                   type="button"
                   onClick={() => navigate("/instructor/students")}
-
                 >
                   <Users size={16} />
                   <span>View Students</span>
@@ -422,7 +481,6 @@ const KpiCard = ({ icon, title, value, caption, tone }) => {
   );
 };
 
-// Compact row for overview preview
 const CourseMiniRow = ({ course }) => {
   const type      = String(course?.type || "").toUpperCase();
   const enrolled  = course?.enrollment_count ?? course?.enrolled ?? 0;
@@ -452,7 +510,6 @@ const CourseMiniRow = ({ course }) => {
   );
 };
 
-// Full course card for My Courses tab
 const CourseCard = ({ course }) => {
   const type      = String(course?.type || "").toUpperCase();
   const creditHrs = course?.credit_hours ?? 0;
@@ -665,7 +722,6 @@ const S = {
   page:   { minHeight: "100vh", background: "var(--rs-bg)" },
   center: { minHeight: "100vh", display: "grid", placeItems: "center" },
 
-  // top bar
   topbar: {
     position: "sticky", top: 0, zIndex: 20,
     background: "rgba(246,247,251,0.82)",
@@ -711,10 +767,8 @@ const S = {
     color: "rgba(11,18,32,0.72)",
   },
 
-  // shell
   shell: { maxWidth: 1200, margin: "0 auto", padding: "18px 18px 40px" },
 
-  // hero
   hero: {
     position: "relative", borderRadius: 24, overflow: "hidden",
     background: "var(--rs-grad)",
@@ -745,7 +799,6 @@ const S = {
   },
   heroBtnAlt: { background: "rgba(0,180,180,0.22)", borderColor: "rgba(0,180,180,0.35)" },
 
-  // KPI grid
   kpiGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(4, minmax(0,1fr))",
@@ -768,7 +821,6 @@ const S = {
   kpiValue:   { color: "#fff", fontWeight: 950, fontSize: 26, letterSpacing: "-0.5px" },
   kpiCaption: { color: "rgba(255,255,255,0.62)", fontWeight: 700, fontSize: 11 },
 
-  // card
   card: {
     marginTop: 14, borderRadius: 22,
     background: "rgba(255,255,255,0.82)",
@@ -810,7 +862,6 @@ const S = {
 
   cardBody: { padding: 14 },
 
-  // two-col overview
   gridTwo: {
     display: "grid",
     gridTemplateColumns: "1.3fr 0.9fr",
@@ -833,7 +884,6 @@ const S = {
     color: "rgba(11,18,32,0.65)",
   },
 
-  // mini course row
   rowCard: {
     borderRadius: 14, border: "1px solid rgba(2,8,23,0.08)",
     background: "rgba(2,8,23,0.02)", padding: 12,
@@ -850,7 +900,6 @@ const S = {
     color: "rgba(11,18,32,0.55)", fontWeight: 800, fontSize: 12,
   },
 
-  // quick actions
   quickActions:  { display: "grid", gap: 9 },
   actionCard: {
     width: "100%", display: "flex", alignItems: "center",
@@ -867,7 +916,6 @@ const S = {
   actionTitle: { fontWeight: 950, color: "rgba(11,18,32,0.84)", fontSize: 13 },
   actionSub:   { fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.50)" },
 
-  // section header
   sectionHead: {
     display: "flex", justifyContent: "space-between",
     alignItems: "flex-end", gap: 12, marginBottom: 14, flexWrap: "wrap",
@@ -875,7 +923,6 @@ const S = {
   sectionTitle: { fontWeight: 950, fontSize: 16, color: "rgba(11,18,32,0.86)" },
   sectionSub:   { marginTop: 4, fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.52)" },
 
-  // course grid (cards)
   courseGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
@@ -916,7 +963,6 @@ const S = {
     color: "rgba(11,18,32,0.50)",
   },
 
-  // table
   tableWrap: {
     overflowX: "auto", borderRadius: 16,
     border: "1px solid rgba(2,8,23,0.08)", background: "#fff",
@@ -940,7 +986,6 @@ const S = {
   td:      { padding: "13px 14px", borderBottom: "1px solid rgba(2,8,23,0.055)", fontSize: 13 },
   tdRight: { padding: "13px 14px", borderBottom: "1px solid rgba(2,8,23,0.055)", fontSize: 13, textAlign: "right" },
 
-  // student avatar in table
   studentAvatar: {
     width: 32, height: 32, borderRadius: "50%",
     background: "rgba(0,180,180,0.12)",
@@ -949,13 +994,11 @@ const S = {
     color: "var(--rs-teal)", fontWeight: 900, fontSize: 13, flexShrink: 0,
   },
 
-  // progress bar
   progressWrap:  { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 },
   progressBar:   { width: 80, height: 6, borderRadius: 99, background: "rgba(2,8,23,0.08)", overflow: "hidden" },
   progressFill:  { height: "100%", borderRadius: 99, background: "var(--rs-teal)", transition: "width .3s ease" },
   progressLabel: { fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.60)", minWidth: 32, textAlign: "right" },
 
-  // empty state
   emptyWrap: {
     borderRadius: 18, border: "1px dashed rgba(2,8,23,0.15)",
     background: "rgba(2,8,23,0.02)", padding: 22, textAlign: "center",
