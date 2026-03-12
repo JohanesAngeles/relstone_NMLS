@@ -13,6 +13,8 @@ import Checkout from './pages/checkout_page/checkout';
 import CourseDetails from './pages/courses_page/CoursesDetails';
 import CoursePortal from './pages/courses_page/CoursePortal';
 import HomePage from './pages/HomePage';
+import MyCourses from './pages/my_courses/MyCourses';
+import Profile from './pages/profile/Profile';
 
 // ── Landing wrapper — if already logged in, skip to home ──────────
 const LandingWrapper = () => {
@@ -108,6 +110,16 @@ function App() {
           <Route path="/certificate/:courseId" element={
             <PrivateRoute>
               <Certificate />
+            </PrivateRoute>
+          } />
+          <Route path="/my-courses" element={
+            <PrivateRoute>
+              <MyCourses />
+            </PrivateRoute>
+          } />
+          <Route path="/profile" element={
+            <PrivateRoute>
+              <Profile />
             </PrivateRoute>
           } />
         </Routes>

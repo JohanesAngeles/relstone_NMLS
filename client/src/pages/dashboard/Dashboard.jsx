@@ -110,38 +110,54 @@ const Dashboard = () => {
 
         {/* ── My Courses ── */}
         {availableCourses.length > 0 && (
-          <section style={S.myCoursesSection}>
-            <div style={S.myCoursesHead}>
-              <div>
-                <div style={S.myCoursesTitle}>📚 My Courses</div>
-                <div style={S.myCoursesSub}>Courses you've paid for — click Start Learning to begin</div>
+  <section style={S.myCoursesSection}>
+    <div style={S.myCoursesHead}>
+      <div>
+        <div style={S.myCoursesTitle}>📚 My Courses</div>
+        <div style={S.myCoursesSub}>Courses you've paid for — click Start Learning to begin</div>
+      </div>
+      {/* ── View Full My Courses button ── */}
+      <button
+        style={S.viewAllBtn}
+        onClick={() => navigate("/my-courses")}
+        type="button"
+      >
+        View All My Courses <ChevronRight size={15} />
+      </button>
+    </div>
+    <div style={S.courseGrid}>
+      {availableCourses.slice(0, 3).map((course) => (  // ← slice to show max 3 on dashboard
+        <div key={course.course_id} style={S.courseCard}>
+          <div style={S.courseCardTop}>
+            <div style={S.courseCardIcon}><BookOpen size={20} /></div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={S.courseCardTitle}>{course.title}</div>
+              <div style={S.courseCardMeta}>
+                <span style={badgeStyle(course.type)}>{String(course.type||"").toUpperCase()}</span>
+                <span style={S.courseCardHrs}><Clock size={12} /> {course.credit_hours} hrs</span>
               </div>
             </div>
-            <div style={S.courseGrid}>
-              {availableCourses.map((course) => (
-                <div key={course.course_id} style={S.courseCard}>
-                  <div style={S.courseCardTop}>
-                    <div style={S.courseCardIcon}><BookOpen size={20} /></div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={S.courseCardTitle}>{course.title}</div>
-                      <div style={S.courseCardMeta}>
-                        <span style={badgeStyle(course.type)}>{String(course.type||"").toUpperCase()}</span>
-                        <span style={S.courseCardHrs}><Clock size={12} /> {course.credit_hours} hrs</span>
-                      </div>
-                    </div>
-                  </div>
-                  {course.already_completed ? (
-                    <div style={S.completedBadge}><CheckCircle size={15} /> Completed</div>
-                  ) : (
-                    <button style={S.startLearningBtn} onClick={() => navigate(`/courses/${course.course_id}/learn`)} type="button">
-                      <PlayCircle size={16} /> Start Learning
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+          </div>
+          {course.already_completed ? (
+            <div style={S.completedBadge}><CheckCircle size={15} /> Completed</div>
+          ) : (
+            <button style={S.startLearningBtn} onClick={() => navigate(`/courses/${course.course_id}/learn`)} type="button">
+              <PlayCircle size={16} /> Start Learning
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+    {/* ── Show "View All" footer link if more than 3 courses ── */}
+    {availableCourses.length > 3 && (
+      <div style={S.viewAllFooter}>
+        <button style={S.viewAllFooterBtn} onClick={() => navigate("/my-courses")} type="button">
+          View all {availableCourses.length} courses <ChevronRight size={14} />
+        </button>
+      </div>
+    )}
+  </section>
+)}
 
         {/* ── Tabs card ── */}
         <section style={S.card}>
@@ -471,6 +487,9 @@ const S = {
   emptyIcon:      { width:44, height:44, borderRadius:16, background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.18)", display:"grid", placeItems:"center", color:"#091925", margin:"0 auto" },
   emptyTitle:     { marginTop:10, fontWeight:950, color:"rgba(11,18,32,0.86)" },
   emptySub:       { marginTop:6, color:"rgba(11,18,32,0.55)", fontWeight:700, fontSize:12, lineHeight:1.6 },
+  viewAllBtn:       { display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:12, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", cursor:"pointer", fontWeight:800, fontSize:13, color:"rgba(9,25,37,0.72)", flexShrink:0 },
+viewAllFooter:    { marginTop:14, paddingTop:12, borderTop:"1px solid rgba(2,8,23,0.07)", display:"flex", justifyContent:"center" },
+viewAllFooterBtn: { display:"inline-flex", alignItems:"center", gap:6, padding:"8px 16px", borderRadius:999, border:"1px solid rgba(46,171,254,0.22)", background:"rgba(46,171,254,0.06)", cursor:"pointer", fontWeight:800, fontSize:13, color:"#2EABFE" },
 };
 
 export default Dashboard;
