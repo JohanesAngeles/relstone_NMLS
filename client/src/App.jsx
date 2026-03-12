@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import LandingPage from './pages/landing_page/LandingPage';
+import AuthModal from './pages/auth_page/AuthModal';
 import Dashboard from './pages/dashboard/Dashboard';
 import InstructorDashboard from './pages/dashboard/InstructorDashboard';
 import ViewStudents from './pages/dashboard/ViewStudents';
@@ -10,14 +12,29 @@ import Courses from './pages/courses_page/Courses';
 import Checkout from './pages/checkout_page/checkout';
 import CourseDetails from './pages/courses_page/CoursesDetails';
 import CoursePortal from './pages/courses_page/CoursePortal';
+import HomePage from './pages/HomePage';
 
-// Redirects to the correct dashboard based on role
-const DashboardRedirect = () => {
-  const { user } = useAuth();
-  if (!user) return null;
-  return user.role === 'instructor'
-    ? <Navigate to="/instructor/dashboard" replace />
-    : <Navigate to="/dashboard" replace />;
+// ── Landing wrapper — if already logged in, skip to home ──────────
+const LandingWrapper = () => {
+  const { user, loading } = useAuth();
+  const [authModal, setAuthModal] = useState(null);
+
+  if (loading) return null;
+
+  // Already logged in → go to HomePage
+  if (user) return <Navigate to="/home" replace />;
+
+  return (
+    <>
+      <LandingPage onOpenAuth={(mode) => setAuthModal(mode)} />
+      {authModal && (
+        <AuthModal
+          mode={authModal}
+          onClose={() => setAuthModal(null)}
+        />
+      )}
+    </>
+  );
 };
 
 function App() {
@@ -25,16 +42,16 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public */}
-          <Route path="/" element={<LandingPage />} />
+          {/* Public — Landing (redirects to /home if logged in) */}
+          <Route path="/" element={<LandingWrapper />} />
 
-          {/* Test route */}
+          {/* Certificate test (public) */}
           <Route path="/certificate-test" element={<Certificate />} />
 
-          {/* Auto-redirect /home → correct dashboard by role */}
+          {/* /home → HomePage */}
           <Route path="/home" element={
             <PrivateRoute>
-              <DashboardRedirect />
+              <HomePage />
             </PrivateRoute>
           } />
 
@@ -52,37 +69,45 @@ function App() {
             </PrivateRoute>
           } />
 
-          {/* Instructor students page */}
+          {/* Instructor students */}
           <Route path="/instructor/students" element={
             <PrivateRoute>
               <ViewStudents />
             </PrivateRoute>
           } />
 
+          {/* Checkout */}
           <Route path="/checkout" element={
             <PrivateRoute>
               <Checkout />
             </PrivateRoute>
           } />
 
-          {/* Shared protected routes */}
+          {/* Courses */}
           <Route path="/courses" element={
             <PrivateRoute>
               <Courses />
             </PrivateRoute>
           } />
-          <Route path="/certificate/:courseId" element={
-            <PrivateRoute>
-              <Certificate />
-            </PrivateRoute>
-          } />
+
+          {/* Course detail */}
           <Route path="/courses/:id" element={
             <PrivateRoute>
               <CourseDetails />
             </PrivateRoute>
           } />
+
+          {/* Course portal / LMS */}
           <Route path="/courses/:id/learn" element={
-            <PrivateRoute><CoursePortal />
+            <PrivateRoute>
+              <CoursePortal />
+            </PrivateRoute>
+          } />
+
+          {/* Certificate */}
+          <Route path="/certificate/:courseId" element={
+            <PrivateRoute>
+              <Certificate />
             </PrivateRoute>
           } />
         </Routes>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../api/axios';
 
@@ -266,6 +267,7 @@ const ForgotPassword = ({ onBack, onClose }) => {
 // ─── Main AuthModal ───────────────────────────────────────────────
 const AuthModal = ({ mode = 'login', onClose }) => {
   const { login } = useAuth();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState(mode);
   const [showPw,    setShowPw]    = useState(false);
@@ -278,6 +280,7 @@ const AuthModal = ({ mode = 'login', onClose }) => {
   const [otpValue,       setOtpValue]       = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
 
+  const [rememberMe,   setRememberMe]   = useState(false);
   const [loginForm,    setLoginForm]    = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '', nmls_id: '', state: '', role: 'student' });
 
@@ -289,10 +292,9 @@ const AuthModal = ({ mode = 'login', onClose }) => {
     setLoading(true); setError('');
     try {
       const res = await API.post('/auth/login', loginForm);
-      login(res.data.user, res.data.token);
+      login(res.data.user, res.data.token, rememberMe);
       onClose();
-      const role = res.data.user?.role;
-      window.location.href = role === 'instructor' ? '/instructor/dashboard' : '/dashboard';
+      navigate('/home');
     } catch (err) {
       if (err.response?.data?.needsVerification) {
         setPendingEmail(err.response.data.email);
@@ -323,8 +325,7 @@ const AuthModal = ({ mode = 'login', onClose }) => {
       const res = await API.post('/auth/verify-otp', { email: pendingEmail, otp: otpValue });
       login(res.data.user, res.data.token);
       onClose();
-      const role = res.data.user?.role;
-      window.location.href = role === 'instructor' ? '/instructor/dashboard' : '/dashboard';
+      navigate('/home');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
     } finally { setLoading(false); }
@@ -483,6 +484,21 @@ const AuthModal = ({ mode = 'login', onClose }) => {
                   </button>
                 </div>
               </div>
+              <label style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer', userSelect:'none', margin:'2px 0 4px' }}>
+                <div
+                  onClick={() => setRememberMe(v => !v)}
+                  style={{
+                    width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                    border: rememberMe ? 'none' : '1.5px solid #cbd5e1',
+                    background: rememberMe ? '#2EABFE' : '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {rememberMe && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>}
+                </div>
+                <span style={{ fontSize:13, color:'rgba(9,25,37,0.65)', fontWeight:500 }}>Remember me</span>
+              </label>
               <button className="am-submit" type="submit" disabled={loading}>
                 {loading ? 'Signing in…' : 'Sign In'} {!loading && <IconArrow />}
               </button>

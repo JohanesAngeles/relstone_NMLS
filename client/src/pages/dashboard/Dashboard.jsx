@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import API from "../../api/axios";
-import Layout from "../../components/Layout";
+import Layout from "../../components/Layout.jsx";
 import {
   FileText, BookOpen, Clock, CheckCircle, Award,
   ChevronRight, Search, PlayCircle, Lock,

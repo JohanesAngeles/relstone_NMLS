@@ -2,13 +2,16 @@ import axios from 'axios';
 
 const API = axios.create({
   baseURL: process.env.NODE_ENV === 'production'
-    ? '/api'                        // Heroku — same server, relative path
-    : 'http://localhost:8000/api'   // Local dev
+    ? '/api'
+    : 'http://localhost:8000/api'
 });
 
-// Automatically attach JWT token to every request
+// Attach JWT — check both storages (supports "remember me" toggle)
 API.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token =
+    localStorage.getItem('token') ||
+    sessionStorage.getItem('token');
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
