@@ -1,6 +1,49 @@
 import { useState } from 'react';
 import AuthModal from '../auth_page/AuthModal';
 
+const HOW_IT_WORKS_STEPS = [
+  {
+    number: '01',
+    title: 'Create account',
+    desc: 'Register your Relstone profile to access approved education, saved progress, and certificate delivery in one place.',
+  },
+  {
+    number: '02',
+    title: 'Enroll in pre-licensing course',
+    desc: 'Choose the required SAFE Act pre-licensing path and start the course package that matches your licensing goals.',
+  },
+  {
+    number: '03',
+    title: 'Complete required hours',
+    desc: 'Work through the required instructional time with tracked engagement and module-by-module progression.',
+  },
+  {
+    number: '04',
+    title: 'Take chapter quizzes and final exam',
+    desc: 'Reinforce each module with quizzes, then complete the final assessment to confirm course readiness.',
+  },
+  {
+    number: '05',
+    title: 'Receive completion certificate',
+    desc: 'Finish the course and receive your completion certificate, with credit reporting handled according to NMLS requirements.',
+  },
+  {
+    number: '06',
+    title: 'Schedule and pass the licensing exam',
+    desc: 'Book your state licensing exam through Pearson VUE or PSI, then pass the exam to move forward with licensure.',
+  },
+  {
+    number: '07',
+    title: 'Apply with your state commission',
+    desc: 'Submit your application and required materials to the appropriate state licensing authority or commission.',
+  },
+  {
+    number: '08',
+    title: 'Complete annual CE for renewal',
+    desc: 'Maintain your license each year by completing the annual continuing education requirement before renewal deadlines.',
+  },
+];
+
 const LandingPage = () => {
   const [modal, setModal] = useState(null); // null | 'login' | 'register'
 
@@ -31,6 +74,7 @@ const LandingPage = () => {
           <div className="lp-nav-links">
             <a href="#about" className="lp-nav-link">About</a>
             <a href="#features" className="lp-nav-link">Features</a>
+            <a href="#how-it-works" className="lp-nav-link">How It Works</a>
             <a href="#courses" className="lp-nav-link">Courses</a>
             <a href="#compliance" className="lp-nav-link">Compliance</a>
           </div>
@@ -354,6 +398,41 @@ const LandingPage = () => {
                 <button onClick={() => setModal('register')} className="lp-btn-outline">Enroll Now</button>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section className="lp-process" id="how-it-works">
+        <div className="lp-container">
+          <div className="lp-section-label lp-section-label--light">HOW IT WORKS</div>
+          <div className="lp-process-top">
+            <div>
+              <h2 className="lp-section-h2 lp-section-h2--light">
+                The Full <span className="lp-h2-accent-light">Licensing Journey</span>
+              </h2>
+              <p className="lp-process-sub">
+                A clear 8-step path from account creation to annual renewal, presented in the same guided flow students follow in real life.
+              </p>
+            </div>
+
+            <div className="lp-process-intro-card">
+              <div className="lp-process-intro-label">From first enrollment to renewal</div>
+              <p>
+                Relstone handles the education side cleanly, then guides students through what comes next so the entire licensing process feels ordered instead of fragmented.
+              </p>
+            </div>
+          </div>
+
+          <div className="lp-process-grid">
+            {HOW_IT_WORKS_STEPS.map((step) => (
+              <article key={step.number} className="lp-process-card">
+                <div className="lp-process-step">Step {step.number}</div>
+                <div className="lp-process-num">{step.number}</div>
+                <h3 className="lp-process-title">{step.title}</h3>
+                <p className="lp-process-desc">{step.desc}</p>
+              </article>
+            ))}
           </div>
         </div>
       </section>
@@ -820,6 +899,120 @@ button.lp-cta-login-link {
 .lp-course-hours-badge span { font-size: 14px; font-weight: 700; color: var(--electric); display: block; margin-top: -2px; }
 .lp-course-hours-badge--ce .lp-course-hours-badge span { color: var(--ocean); }
 
+/* ══ HOW IT WORKS ══ */
+.lp-process {
+  padding: 96px 0;
+  background:
+    radial-gradient(circle at top right, rgba(46,171,254,0.12) 0%, transparent 34%),
+    linear-gradient(180deg, var(--midnight) 0%, var(--deep-navy) 100%);
+  position: relative;
+  overflow: hidden;
+}
+.lp-process::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(46,171,254,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(46,171,254,0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.55;
+}
+.lp-process-top {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 28px;
+  align-items: end;
+  margin-bottom: 48px;
+}
+.lp-process-sub {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--slate);
+  max-width: 620px;
+}
+.lp-process-intro-card {
+  background: rgba(13,36,54,0.76);
+  border: 1px solid rgba(46,171,254,0.16);
+  border-radius: 18px;
+  padding: 22px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 44px rgba(9,25,37,0.2);
+}
+.lp-process-intro-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--sky);
+  margin-bottom: 10px;
+}
+.lp-process-intro-card p {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: rgba(240,246,250,0.72);
+}
+.lp-process-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+.lp-process-card {
+  position: relative;
+  min-height: 250px;
+  padding: 24px;
+  background: rgba(13,36,54,0.72);
+  border: 1px solid rgba(46,171,254,0.14);
+  border-radius: 18px;
+  backdrop-filter: blur(16px);
+  transition: transform .2s, border-color .2s, background .2s;
+}
+.lp-process-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(46,171,254,0.32);
+  background: rgba(22,51,71,0.88);
+}
+.lp-process-step {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(46,171,254,0.12);
+  border: 1px solid rgba(46,171,254,0.18);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--sky);
+  margin-bottom: 16px;
+}
+.lp-process-num {
+  font-family: var(--font-title);
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(46,171,254,0.2);
+  margin-bottom: 16px;
+}
+.lp-process-title {
+  font-family: var(--font-title);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #fff;
+  margin-bottom: 10px;
+}
+.lp-process-desc {
+  font-size: 13.5px;
+  line-height: 1.72;
+  color: var(--slate);
+}
+
 /* ══ COMPLIANCE ══ */
 .lp-compliance { padding: 96px 0; background: var(--white); }
 .lp-compliance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
@@ -878,6 +1071,8 @@ button.lp-cta-login-link {
   .lp-hero-inner { grid-template-columns: 1fr; gap: 48px; }
   .lp-hero-card-wrap { max-width: 520px; }
   .lp-features-top { grid-template-columns: 1fr; }
+  .lp-process-top { grid-template-columns: 1fr; }
+  .lp-process-grid { grid-template-columns: 1fr 1fr; }
   .lp-about-grid, .lp-compliance-grid { grid-template-columns: 1fr; gap: 48px; }
   .lp-course-row { grid-template-columns: 1fr; }
   .lp-course-meta { flex-direction: row; align-items: center; }
@@ -885,12 +1080,15 @@ button.lp-cta-login-link {
 @media (max-width: 768px) {
   .lp-nav-links { display: none; }
   .lp-feat-grid { grid-template-columns: 1fr 1fr; }
+  .lp-process { padding: 84px 0; }
   .lp-footer-inner { grid-template-columns: 1fr; text-align: center; }
   .lp-footer-links { justify-content: center; }
   .lp-hero-inner { padding-top: 40px; padding-bottom: 40px; }
 }
 @media (max-width: 560px) {
   .lp-feat-grid { grid-template-columns: 1fr; }
+  .lp-process-grid { grid-template-columns: 1fr; }
+  .lp-process-card { min-height: auto; }
   .lp-banner-inner { flex-direction: column; align-items: flex-start; }
 }
 `;

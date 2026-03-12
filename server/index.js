@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const dns = require('dns');
 const path = require('path');  // ADD THIS
 
 const authRoutes = require('./routes/auth');
@@ -11,8 +12,6 @@ const orderRoutes = require('./routes/orders');
 const dashboardRoutes = require('./routes/dashboard');
 const certificateRoutes = require('./routes/certificates');
 const instructorRoutes = require('./routes/instructor');
-
-dotenv.config();
 
 const app = express();
 
