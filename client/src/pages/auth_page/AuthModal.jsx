@@ -13,73 +13,110 @@ const US_STATES = [
 
 const AuthModal = ({ mode = 'login', onClose }) => {
   const { login } = useAuth();
-  const navigate = useNavigate();
+
 
   const [activeTab, setActiveTab] = useState(mode);
-  const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [showPw,    setShowPw]    = useState(false);
+  const [error,     setError]     = useState('');
+  const [loading,   setLoading]   = useState(false);
+
+  // OTP step state
+  const [otpStep,      setOtpStep]      = useState(false);   // show OTP input?
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [otpValue,     setOtpValue]     = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({
-    name: '', email: '', password: '', nmls_id: '', state: '', role: 'student'  // ← added role
+    name: '', email: '', password: '', nmls_id: '', state: '', role: 'student'
   });
 
-  const handleLoginChange = (e) =>
-    setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
+  const handleLoginChange    = (e) => setLoginForm({    ...loginForm,    [e.target.name]: e.target.value });
+  const handleRegisterChange = (e) => setRegisterForm({ ...registerForm, [e.target.name]: e.target.value });
 
-  const handleRegisterChange = (e) =>
-    setRegisterForm({ ...registerForm, [e.target.name]: e.target.value });
-
-  // ← role-based redirect after login
+  // ── Login ─────────────────────────────────────────────────────
   const handleLogin = async (e) => {
-  e.preventDefault();
-  setLoading(true); setError('');
-  try {
-    const res = await API.post('/auth/login', loginForm);
-    login(res.data.user, res.data.token);
-    onClose();
-    const role = res.data.user?.role;
-    navigate(role === 'instructor' ? '/instructor/dashboard' : '/dashboard');
-  } catch (err) {
-    setError(err.response?.data?.message || 'Login failed. Please try again.');
-  } finally { setLoading(false); }
-};
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      const res  = await API.post('/auth/login', loginForm);
+      login(res.data.user, res.data.token);
+      onClose();
+      const role = res.data.user?.role;
+      window.location.href = role === 'instructor' ? '/instructor/dashboard' : '/dashboard';
+    } catch (err) {
+      // If unverified, jump straight to OTP step
+      if (err.response?.data?.needsVerification) {
+        setPendingEmail(err.response.data.email);
+        setOtpStep(true);
+        setError('');
+      } else {
+        setError(err.response?.data?.message || 'Login failed. Please try again.');
+      }
+    } finally { setLoading(false); }
+  };
 
-const handleRegister = async (e) => {
-  e.preventDefault();
-  setLoading(true); setError('');
-  try {
-    const res = await API.post('/auth/register', registerForm);
-    login(res.data.user, res.data.token);
-    onClose();
-    const role = res.data.user?.role;
-    navigate(role === 'instructor' ? '/instructor/dashboard' : '/dashboard');
-  } catch (err) {
-    setError(err.response?.data?.message || 'Registration failed. Please try again.');
-  } finally { setLoading(false); }
-};
+  // ── Register → sends OTP ──────────────────────────────────────
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      const res = await API.post('/auth/register', registerForm);
+      setPendingEmail(res.data.email);
+      setOtpStep(true);
+      startResendCooldown();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+    } finally { setLoading(false); }
+  };
 
-  const switchTab = (tab) => { setActiveTab(tab); setError(''); setShowPw(false); };
+  // ── Verify OTP ────────────────────────────────────────────────
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      const res  = await API.post('/auth/verify-otp', { email: pendingEmail, otp: otpValue });
+      login(res.data.user, res.data.token);
+      onClose();
+      const role = res.data.user?.role;
+      window.location.href = role === 'instructor' ? '/instructor/dashboard' : '/dashboard';
+    } catch (err) {
+      setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
+    } finally { setLoading(false); }
+  };
 
-  return (
+  // ── Resend OTP ────────────────────────────────────────────────
+  const handleResend = async () => {
+    try {
+      await API.post('/auth/resend-otp', { email: pendingEmail });
+      startResendCooldown();
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend OTP.');
+    }
+  };
+
+  const startResendCooldown = () => {
+    setResendCooldown(60);
+    const t = setInterval(() => {
+      setResendCooldown(c => { if (c <= 1) { clearInterval(t); return 0; } return c - 1; });
+    }, 1000);
+  };
+
+  const switchTab = (tab) => { setActiveTab(tab); setError(''); setShowPw(false); setOtpStep(false); };
+
+  // ── OTP Screen ────────────────────────────────────────────────
+  if (otpStep) return (
     <>
       <style>{css}</style>
-
-      {/* Backdrop */}
       <div className="am-backdrop" onClick={onClose} />
-
-      {/* Modal */}
       <div className="am-modal" role="dialog" aria-modal="true">
-
-        {/* Close button */}
         <button className="am-close" onClick={onClose} aria-label="Close">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
 
-        {/* Logo */}
         <div className="am-logo">
           <div className="am-logo-mark">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -91,19 +128,21 @@ const handleRegister = async (e) => {
           <span className="am-logo-name">Relstone <span className="am-logo-accent">NMLS</span></span>
         </div>
 
-        {/* Tabs */}
-        <div className="am-tabs">
-          <button
-            className={`am-tab ${activeTab === 'login' ? 'am-tab--active' : ''}`}
-            onClick={() => switchTab('login')}
-          >Sign In</button>
-          <button
-            className={`am-tab ${activeTab === 'register' ? 'am-tab--active' : ''}`}
-            onClick={() => switchTab('register')}
-          >Create Account</button>
+        <div className="am-otp-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
         </div>
 
-        {/* Error */}
+        <div className="am-panel-head" style={{ textAlign:'center' }}>
+          <h2 className="am-title">Check your email</h2>
+          <p className="am-subtitle">
+            We sent a 6-digit code to<br />
+            <strong style={{ color:'#091925' }}>{pendingEmail}</strong>
+          </p>
+        </div>
+
         {error && (
           <div className="am-error" role="alert">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -113,14 +152,93 @@ const handleRegister = async (e) => {
           </div>
         )}
 
-        {/* ── LOGIN FORM ── */}
+        <form onSubmit={handleVerifyOTP} className="am-form">
+          <div className="am-field">
+            <label className="am-label">Verification Code</label>
+            <input
+              className="am-input am-otp-input"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="000000"
+              value={otpValue}
+              onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+              required
+            />
+          </div>
+
+          <button className="am-submit" type="submit" disabled={loading || otpValue.length < 6}>
+            {loading ? 'Verifying…' : 'Verify & Continue'}
+            {!loading && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            )}
+          </button>
+        </form>
+
+        <p className="am-switch" style={{ marginTop:16 }}>
+          Didn't receive it?{' '}
+          {resendCooldown > 0
+            ? <span style={{ color:'#94a3b8', fontWeight:600 }}>Resend in {resendCooldown}s</span>
+            : <button className="am-switch-btn" type="button" onClick={handleResend}>Resend code</button>
+          }
+        </p>
+
+        <p className="am-switch" style={{ marginTop:8 }}>
+          <button className="am-switch-btn" type="button" onClick={() => { setOtpStep(false); setOtpValue(''); setError(''); }}>
+            ← Back
+          </button>
+        </p>
+      </div>
+    </>
+  );
+
+  // ── Main Modal ────────────────────────────────────────────────
+  return (
+    <>
+      <style>{css}</style>
+      <div className="am-backdrop" onClick={onClose} />
+      <div className="am-modal" role="dialog" aria-modal="true">
+
+        <button className="am-close" onClick={onClose} aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+
+        <div className="am-logo">
+          <div className="am-logo-mark">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
+              <path d="M2 17l10 5 10-5" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
+              <path d="M2 12l10 5 10-5" stroke="#60C3FF" strokeWidth="2" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <span className="am-logo-name">Relstone <span className="am-logo-accent">NMLS</span></span>
+        </div>
+
+        <div className="am-tabs">
+          <button className={`am-tab ${activeTab === 'login'    ? 'am-tab--active' : ''}`} onClick={() => switchTab('login')}>Sign In</button>
+          <button className={`am-tab ${activeTab === 'register' ? 'am-tab--active' : ''}`} onClick={() => switchTab('register')}>Create Account</button>
+        </div>
+
+        {error && (
+          <div className="am-error" role="alert">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            {error}
+          </div>
+        )}
+
+        {/* ── LOGIN ── */}
         {activeTab === 'login' && (
           <div className="am-panel">
             <div className="am-panel-head">
               <h2 className="am-title">Welcome back</h2>
               <p className="am-subtitle">Sign in to your account</p>
             </div>
-
             <form onSubmit={handleLogin} className="am-form">
               <div className="am-field">
                 <label className="am-label">Email Address</label>
@@ -131,17 +249,10 @@ const handleRegister = async (e) => {
                       <polyline points="22,6 12,13 2,6"/>
                     </svg>
                   </span>
-                  <input
-                    className="am-input"
-                    type="email" name="email"
-                    placeholder="name@email.com"
-                    value={loginForm.email}
-                    onChange={handleLoginChange}
-                    autoComplete="email" required
-                  />
+                  <input className="am-input" type="email" name="email" placeholder="name@email.com"
+                    value={loginForm.email} onChange={handleLoginChange} autoComplete="email" required />
                 </div>
               </div>
-
               <div className="am-field">
                 <label className="am-label">Password</label>
                 <div className="am-input-wrap">
@@ -151,16 +262,10 @@ const handleRegister = async (e) => {
                       <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                     </svg>
                   </span>
-                  <input
-                    className="am-input"
-                    type={showPw ? 'text' : 'password'}
-                    name="password"
-                    placeholder="Enter your password"
-                    value={loginForm.password}
-                    onChange={handleLoginChange}
-                    autoComplete="current-password" required
-                  />
-                  <button type="button" className="am-eye" onClick={() => setShowPw(v => !v)} aria-label="Toggle password">
+                  <input className="am-input" type={showPw ? 'text' : 'password'} name="password"
+                    placeholder="Enter your password" value={loginForm.password}
+                    onChange={handleLoginChange} autoComplete="current-password" required />
+                  <button type="button" className="am-eye" onClick={() => setShowPw(v => !v)}>
                     {showPw
                       ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
                       : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3l18 18"/><path d="M10.6 10.6A3 3 0 0 0 12 15a3 3 0 0 0 2.4-4.6"/><path d="M9.88 5.1A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a18.2 18.2 0 0 1-3.2 4.2"/><path d="M6.1 6.1C3.2 8.2 2 12 2 12s3.5 7 10 7c1 0 2-.2 2.9-.5"/></svg>
@@ -168,17 +273,11 @@ const handleRegister = async (e) => {
                   </button>
                 </div>
               </div>
-
               <button className="am-submit" type="submit" disabled={loading}>
                 {loading ? 'Signing in…' : 'Sign In'}
-                {!loading && (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
-                )}
+                {!loading && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>}
               </button>
             </form>
-
             <p className="am-switch">
               Don't have an account?{' '}
               <button className="am-switch-btn" onClick={() => switchTab('register')}>Create one here</button>
@@ -186,14 +285,13 @@ const handleRegister = async (e) => {
           </div>
         )}
 
-        {/* ── REGISTER FORM ── */}
+        {/* ── REGISTER ── */}
         {activeTab === 'register' && (
           <div className="am-panel">
             <div className="am-panel-head">
               <h2 className="am-title">Create Account</h2>
               <p className="am-subtitle">Start your NMLS education journey</p>
             </div>
-
             <form onSubmit={handleRegister} className="am-form">
               <div className="am-field">
                 <label className="am-label">Full Name</label>
@@ -204,12 +302,8 @@ const handleRegister = async (e) => {
                       <circle cx="12" cy="7" r="4"/>
                     </svg>
                   </span>
-                  <input
-                    className="am-input" type="text" name="name"
-                    placeholder="Your full name"
-                    value={registerForm.name}
-                    onChange={handleRegisterChange} required
-                  />
+                  <input className="am-input" type="text" name="name" placeholder="Your full name"
+                    value={registerForm.name} onChange={handleRegisterChange} required />
                 </div>
               </div>
 
@@ -222,13 +316,8 @@ const handleRegister = async (e) => {
                       <polyline points="22,6 12,13 2,6"/>
                     </svg>
                   </span>
-                  <input
-                    className="am-input" type="email" name="email"
-                    placeholder="name@email.com"
-                    value={registerForm.email}
-                    onChange={handleRegisterChange}
-                    autoComplete="email" required
-                  />
+                  <input className="am-input" type="email" name="email" placeholder="name@email.com"
+                    value={registerForm.email} onChange={handleRegisterChange} autoComplete="email" required />
                 </div>
               </div>
 
@@ -241,16 +330,10 @@ const handleRegister = async (e) => {
                       <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                     </svg>
                   </span>
-                  <input
-                    className="am-input"
-                    type={showPw ? 'text' : 'password'}
-                    name="password"
-                    placeholder="Create a password"
-                    value={registerForm.password}
-                    onChange={handleRegisterChange}
-                    autoComplete="new-password" required
-                  />
-                  <button type="button" className="am-eye" onClick={() => setShowPw(v => !v)} aria-label="Toggle password">
+                  <input className="am-input" type={showPw ? 'text' : 'password'} name="password"
+                    placeholder="Create a password" value={registerForm.password}
+                    onChange={handleRegisterChange} autoComplete="new-password" required />
+                  <button type="button" className="am-eye" onClick={() => setShowPw(v => !v)}>
                     {showPw
                       ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
                       : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3l18 18"/><path d="M10.6 10.6A3 3 0 0 0 12 15a3 3 0 0 0 2.4-4.6"/><path d="M9.88 5.1A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a18.2 18.2 0 0 1-3.2 4.2"/><path d="M6.1 6.1C3.2 8.2 2 12 2 12s3.5 7 10 7c1 0 2-.2 2.9-.5"/></svg>
@@ -263,22 +346,18 @@ const handleRegister = async (e) => {
               <div className="am-field">
                 <label className="am-label">I am a</label>
                 <div className="am-role-toggle">
-                  <button
-                    type="button"
+                  <button type="button"
                     className={`am-role-btn ${registerForm.role === 'student' ? 'am-role-btn--active' : ''}`}
-                    onClick={() => setRegisterForm({ ...registerForm, role: 'student' })}
-                  >
+                    onClick={() => setRegisterForm({ ...registerForm, role: 'student' })}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
                       <path d="M6 12v5c3 3 9 3 12 0v-5"/>
                     </svg>
                     Student
                   </button>
-                  <button
-                    type="button"
+                  <button type="button"
                     className={`am-role-btn ${registerForm.role === 'instructor' ? 'am-role-btn--active' : ''}`}
-                    onClick={() => setRegisterForm({ ...registerForm, role: 'instructor' })}
-                  >
+                    onClick={() => setRegisterForm({ ...registerForm, role: 'instructor' })}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                       <circle cx="9" cy="7" r="4"/>
@@ -300,15 +379,10 @@ const handleRegister = async (e) => {
                         <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
                       </svg>
                     </span>
-                    <input
-                      className="am-input" type="text" name="nmls_id"
-                      placeholder="NMLS ID"
-                      value={registerForm.nmls_id}
-                      onChange={handleRegisterChange}
-                    />
+                    <input className="am-input" type="text" name="nmls_id" placeholder="NMLS ID"
+                      value={registerForm.nmls_id} onChange={handleRegisterChange} />
                   </div>
                 </div>
-
                 <div className="am-field">
                   <label className="am-label">State</label>
                   <div className="am-input-wrap">
@@ -318,12 +392,8 @@ const handleRegister = async (e) => {
                         <circle cx="12" cy="10" r="3"/>
                       </svg>
                     </span>
-                    <select
-                      className="am-input am-select"
-                      name="state"
-                      value={registerForm.state}
-                      onChange={handleRegisterChange}
-                    >
+                    <select className="am-input am-select" name="state"
+                      value={registerForm.state} onChange={handleRegisterChange}>
                       <option value="">Select state</option>
                       {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -332,12 +402,8 @@ const handleRegister = async (e) => {
               </div>
 
               <button className="am-submit" type="submit" disabled={loading}>
-                {loading ? 'Creating Account…' : 'Create Account'}
-                {!loading && (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
-                  </svg>
-                )}
+                {loading ? 'Sending OTP…' : 'Continue'}
+                {!loading && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>}
               </button>
             </form>
 
@@ -345,7 +411,6 @@ const handleRegister = async (e) => {
               Already have an account?{' '}
               <button className="am-switch-btn" onClick={() => switchTab('login')}>Sign in here</button>
             </p>
-
             <p className="am-disclaimer">
               By creating an account you agree to Relstone's Terms of Service and Privacy Policy.
             </p>
@@ -408,10 +473,7 @@ const css = `
 }
 .am-close:hover { background: #e8ecf0; color: var(--am-midnight); }
 
-.am-logo {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 24px;
-}
+.am-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
 .am-logo-mark {
   width: 34px; height: 34px;
   background: rgba(46,171,254,0.08);
@@ -419,11 +481,24 @@ const css = `
   border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
 }
-.am-logo-name {
-  font-family: var(--am-title);
-  font-size: 16px; font-weight: 700; color: var(--am-midnight);
-}
+.am-logo-name { font-family: var(--am-title); font-size: 16px; font-weight: 700; color: var(--am-midnight); }
 .am-logo-accent { color: var(--am-electric); }
+
+.am-otp-icon {
+  width: 64px; height: 64px; margin: 0 auto 18px;
+  background: rgba(46,171,254,0.08);
+  border: 1px solid rgba(46,171,254,0.2);
+  border-radius: 18px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.am-otp-input {
+  text-align: center;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  letter-spacing: 12px;
+  padding: 0 12px !important;
+}
 
 .am-tabs {
   display: flex;
@@ -454,19 +529,12 @@ const css = `
 }
 
 .am-panel-head { margin-bottom: 20px; }
-.am-title {
-  font-family: var(--am-title);
-  font-size: 24px; font-weight: 800;
-  color: var(--am-midnight); margin-bottom: 4px;
-}
+.am-title { font-family: var(--am-title); font-size: 24px; font-weight: 800; color: var(--am-midnight); margin-bottom: 4px; }
 .am-subtitle { font-size: 13.5px; color: var(--am-muted); }
 
 .am-form { display: grid; gap: 14px; }
 .am-field { display: grid; gap: 6px; }
-.am-label {
-  font-size: 12px; font-weight: 600;
-  color: rgba(9,25,37,0.7);
-}
+.am-label { font-size: 12px; font-weight: 600; color: rgba(9,25,37,0.7); }
 .am-optional { font-weight: 400; color: var(--am-slate); }
 
 .am-input-wrap { position: relative; display: flex; align-items: center; }
@@ -506,10 +574,7 @@ const css = `
 
 .am-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-/* Role Toggle */
-.am-role-toggle {
-  display: flex; gap: 8px;
-}
+.am-role-toggle { display: flex; gap: 8px; }
 .am-role-btn {
   flex: 1; height: 44px;
   display: flex; align-items: center; justify-content: center; gap: 7px;
@@ -556,10 +621,7 @@ const css = `
 }
 .am-switch-btn:hover { text-decoration: underline; }
 
-.am-disclaimer {
-  margin-top: 14px; text-align: center;
-  font-size: 11px; color: rgba(9,25,37,0.4); line-height: 1.6;
-}
+.am-disclaimer { margin-top: 14px; text-align: center; font-size: 11px; color: rgba(9,25,37,0.4); line-height: 1.6; }
 
 .am-modal::-webkit-scrollbar { width: 6px; }
 .am-modal::-webkit-scrollbar-track { background: transparent; }

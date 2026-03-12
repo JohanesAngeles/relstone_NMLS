@@ -15,27 +15,21 @@ const instructorOnly = (req, res, next) => {
 
 // ─────────────────────────────────────────────────────────────────────
 // GET /api/instructor/dashboard
-// Returns: courses (all active), students who completed any course,
-//          aggregate KPIs
 // ─────────────────────────────────────────────────────────────────────
 router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
   try {
-    // 1. All active courses (instructors can see everything)
     const courses = await Course.find({ is_active: true }).lean();
 
-    // 2. All students (role = 'student') with their completions populated
     const students = await User.find({ role: 'student' })
       .select('name email nmls_id state completions createdAt')
       .populate('completions.course_id', 'title type credit_hours')
       .lean();
 
-    // 3. Flatten into a student-per-course row list for the frontend
     const studentRows = [];
     let totalCompletions = 0;
 
     students.forEach((student) => {
       if (!student.completions || student.completions.length === 0) {
-        // Student enrolled but no completions yet
         studentRows.push({
           _id:          student._id,
           name:         student.name,
@@ -67,30 +61,30 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
       }
     });
 
-    // 4. Enrich each course with enrollment / completion counts
     const enrichedCourses = courses.map((course) => {
       const courseId = course._id.toString();
       const completedCount = students.filter((s) =>
-        s.completions?.some((c) => c.course_id?._id?.toString() === courseId ||
-                                    c.course_id?.toString()      === courseId)
+        s.completions?.some((c) =>
+          c.course_id?._id?.toString() === courseId ||
+          c.course_id?.toString()      === courseId
+        )
       ).length;
 
       return {
         ...course,
         active:           course.is_active,
-        enrollment_count: students.length,   // all students can take any course
+        enrollment_count: students.length,
         completion_count: completedCount,
       };
     });
 
-    // 5. KPI aggregates
     res.json({
       courses:           enrichedCourses,
       students:          studentRows,
       total_enrollments: students.length,
       total_completions: totalCompletions,
       active_courses:    courses.filter((c) => c.is_active).length,
-      pending_reviews:   0,   // placeholder — wire up when review feature exists
+      pending_reviews:   0,
     });
 
   } catch (err) {
@@ -101,7 +95,6 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────
 // GET /api/instructor/students
-// All students with full completion history
 // ─────────────────────────────────────────────────────────────────────
 router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -118,7 +111,6 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────
 // GET /api/instructor/students/:id
-// Single student detail
 // ─────────────────────────────────────────────────────────────────────
 router.get('/students/:id', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -130,6 +122,47 @@ router.get('/students/:id', authMiddleware, instructorOnly, async (req, res) => 
     if (!student) return res.status(404).json({ message: 'Student not found' });
     res.json(student);
   } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// POST /api/instructor/assign-course
+// Body: { student_id, course_id }
+// ─────────────────────────────────────────────────────────────────────
+router.post('/assign-course', authMiddleware, instructorOnly, async (req, res) => {
+  try {
+    const { student_id, course_id } = req.body;
+
+    if (!student_id || !course_id) {
+      return res.status(400).json({ message: 'student_id and course_id are required' });
+    }
+
+    const student = await User.findById(student_id);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+
+    const course = await Course.findById(course_id);
+    if (!course)  return res.status(404).json({ message: 'Course not found' });
+
+    // Prevent duplicate assignment
+    const alreadyDone = student.completions.some(
+      (c) => c.course_id?.toString() === course_id
+    );
+    if (alreadyDone) {
+      return res.status(400).json({ message: 'Course already assigned to this student' });
+    }
+
+    student.completions.push({
+      course_id:       course._id,
+      completed_at:    new Date(),
+      certificate_url: null,
+    });
+
+    await student.save();
+
+    res.json({ message: `Course "${course.title}" assigned to ${student.name} successfully` });
+  } catch (err) {
+    console.error('[instructor/assign-course]', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

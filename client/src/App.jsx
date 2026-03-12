@@ -8,6 +8,8 @@ import ViewStudents from './pages/dashboard/ViewStudents';
 import Certificate from './pages/cert_page/Certificate';
 import Courses from './pages/courses_page/Courses';
 import Checkout from './pages/checkout_page/checkout';
+import CourseDetails from './pages/courses_page/CoursesDetails';
+import CoursePortal from './pages/courses_page/CoursePortal';
 
 // Redirects to the correct dashboard based on role
 const DashboardRedirect = () => {
@@ -72,6 +74,15 @@ function App() {
           <Route path="/certificate/:courseId" element={
             <PrivateRoute>
               <Certificate />
+            </PrivateRoute>
+          } />
+          <Route path="/courses/:id" element={
+            <PrivateRoute>
+              <CourseDetails />
+            </PrivateRoute>
+          } />
+          <Route path="/courses/:id/learn" element={
+            <PrivateRoute><CoursePortal />
             </PrivateRoute>
           } />
         </Routes>
