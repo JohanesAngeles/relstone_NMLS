@@ -15,6 +15,9 @@ import CoursePortal from './pages/courses_page/CoursePortal';
 import HomePage from './pages/HomePage';
 import MyCourses from './pages/my_courses/MyCourses';
 import Profile from './pages/profile/Profile';
+import MyCertificates from './pages/certificates/MyCertificates';
+import OrdersBilling from './pages/OrdersBilling';
+
 
 // ── Landing wrapper — if already logged in, skip to home ──────────
 const LandingWrapper = () => {
@@ -122,6 +125,12 @@ function App() {
               <Profile />
             </PrivateRoute>
           } />
+          <Route path="/certificates" element={
+            <PrivateRoute>
+              <MyCertificates />
+            </PrivateRoute>
+          } />
+          <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
         </Routes>
       </Router>
     </AuthProvider>
