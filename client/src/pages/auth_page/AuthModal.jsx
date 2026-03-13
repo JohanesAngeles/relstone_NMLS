@@ -11,7 +11,6 @@ const US_STATES = [
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'
 ];
 
-// ─── Shared icons ─────────────────────────────────────────────────
 const IconEmail   = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>;
 const IconLock    = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
 const IconArrow   = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>;
@@ -42,7 +41,6 @@ const ErrorBanner = ({ msg }) => !msg ? null : (
 );
 
 // ─── FORGOT PASSWORD FLOW ─────────────────────────────────────────
-// step: 'email' → 'otp' → 'reset' → 'done'
 const ForgotPassword = ({ onBack, onClose }) => {
   const [step,     setStep]     = useState('email');
   const [email,    setEmail]    = useState('');
@@ -62,7 +60,6 @@ const ForgotPassword = ({ onBack, onClose }) => {
     }, 1000);
   };
 
-  // Step 1 — send OTP to email
   const handleSendOTP = async (e) => {
     e.preventDefault();
     setLoading(true); setError('');
@@ -75,7 +72,6 @@ const ForgotPassword = ({ onBack, onClose }) => {
     } finally { setLoading(false); }
   };
 
-  // Step 2 — verify OTP
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
     setLoading(true); setError('');
@@ -87,7 +83,6 @@ const ForgotPassword = ({ onBack, onClose }) => {
     } finally { setLoading(false); }
   };
 
-  // Step 3 — set new password
   const handleReset = async (e) => {
     e.preventDefault();
     if (password !== confirm) { setError('Passwords do not match.'); return; }
@@ -111,7 +106,6 @@ const ForgotPassword = ({ onBack, onClose }) => {
     }
   };
 
-  // ── Step: email ──
   if (step === 'email') return (
     <>
       <Logo />
@@ -144,7 +138,6 @@ const ForgotPassword = ({ onBack, onClose }) => {
     </>
   );
 
-  // ── Step: otp ──
   if (step === 'otp') return (
     <>
       <Logo />
@@ -182,7 +175,6 @@ const ForgotPassword = ({ onBack, onClose }) => {
     </>
   );
 
-  // ── Step: reset ──
   if (step === 'reset') return (
     <>
       <Logo />
@@ -208,7 +200,6 @@ const ForgotPassword = ({ onBack, onClose }) => {
               {showPw ? <IconEyeOn /> : <IconEyeOff />}
             </button>
           </div>
-          {/* Password strength bar */}
           {password.length > 0 && (
             <div style={{ marginTop:6 }}>
               <div style={{ height:4, borderRadius:999, background:'#e2e8f0', overflow:'hidden' }}>
@@ -246,7 +237,6 @@ const ForgotPassword = ({ onBack, onClose }) => {
     </>
   );
 
-  // ── Step: done ──
   return (
     <>
       <Logo />
@@ -269,18 +259,19 @@ const AuthModal = ({ mode = 'login', onClose }) => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState(mode);
-  const [showPw,    setShowPw]    = useState(false);
-  const [error,     setError]     = useState('');
-  const [loading,   setLoading]   = useState(false);
-  const [forgotMode, setForgotMode] = useState(false);
+  const [activeTab,   setActiveTab]   = useState(mode);
+  const [showPw,      setShowPw]      = useState(false);
+  const [error,       setError]       = useState('');
+  const [loading,     setLoading]     = useState(false);
+  const [forgotMode,  setForgotMode]  = useState(false);
 
   const [otpStep,        setOtpStep]        = useState(false);
   const [pendingEmail,   setPendingEmail]   = useState('');
   const [otpValue,       setOtpValue]       = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const [rememberMe,   setRememberMe]   = useState(false);
+  // ── KEY CHANGE: auto-check if token exists in localStorage ──
+  const [rememberMe,   setRememberMe]   = useState(() => !!localStorage.getItem('token'));
   const [loginForm,    setLoginForm]    = useState({ email: '', password: '' });
   const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '', nmls_id: '', state: '', role: 'student' });
 

@@ -6,7 +6,6 @@ const API = axios.create({
     : 'http://localhost:8000/api'
 });
 
-// Attach JWT — check both storages (supports "remember me" toggle)
 API.interceptors.request.use((config) => {
   const token =
     localStorage.getItem('token') ||
