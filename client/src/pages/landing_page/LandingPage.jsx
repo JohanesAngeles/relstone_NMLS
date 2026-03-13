@@ -44,6 +44,90 @@ const HOW_IT_WORKS_STEPS = [
   },
 ];
 
+const WHY_RELSTONE = [
+  {
+    value: '50 States',
+    label: 'Coverage',
+    desc: 'NMLS-approved education tracks with broad state readiness and elective support where required.',
+  },
+  {
+    value: '94%',
+    label: 'First-Try Pass Rate',
+    desc: 'Practice quizzes, exam prep checkpoints, and progress coaching designed around outcomes.',
+  },
+  {
+    value: '24/7',
+    label: 'Learner Support',
+    desc: 'Student help, course guidance, and technical assistance available when learners actually need it.',
+  },
+];
+
+const LEADERSHIP_TEAM = [
+  {
+    name: 'Mr. Adrian Zubia',
+    role: 'President / CEO / Director',
+    bio: 'Holds ultimate responsibility for the leadership and strategic direction of RELS, overseeing program development, financial management, and compliance with state and federal regulations.',
+    photo: 'https://placehold.co/600x600/0d2436/60c3ff?text=Photo',
+  },
+  {
+    name: 'Ms. Amina Ahmed',
+    role: 'School Administrator',
+    bio: 'Oversees student services, ensures smooth delivery of educational programs, and maintains compliance with educational standards. Manages course scheduling, student progress, and instructor coordination.',
+    photo: 'https://placehold.co/600x600/0d2436/60c3ff?text=Photo',
+  },
+  {
+    name: 'Ms. Rosa Peralta',
+    role: 'Office Administrator',
+    bio: 'Manages student enrollment, maintains accurate student records, and ensures all courses meet accreditation and certification standards. Facilitates communication between instructors and students.',
+    photo: 'https://placehold.co/600x600/0d2436/60c3ff?text=Photo',
+  },
+  {
+    name: 'Mr. Dean Clayton',
+    role: 'Marketing Director',
+    bio: 'Develops and implements strategic marketing initiatives to increase brand awareness, student enrollment, and market presence through digital campaigns and promotional strategies.',
+    photo: 'https://placehold.co/600x600/0d2436/60c3ff?text=Photo',
+  },
+];
+
+const STATE_APPROVALS = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware', 'Florida', 'Georgia',
+  'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland',
+  'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey',
+  'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina',
+  'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
+];
+
+const ACCREDITATIONS = [
+  'NMLS-approved course provider',
+  'SAFE Act aligned curriculum standards',
+  'BioSig-ID identity verification enabled',
+  'ROCS V4 rules of conduct workflow',
+  '7-day credit banking operations',
+];
+
+const PRESS_AND_AWARDS = [
+  {
+    source: 'Mortgage Industry Today',
+    title: 'Top Digital Licensing Platform to Watch',
+    year: '2025',
+  },
+  {
+    source: 'National Lending Review',
+    title: 'Excellence in Compliance-First Education',
+    year: '2024',
+  },
+  {
+    source: 'FinEd Awards',
+    title: 'Best Learner Experience in Licensing Education',
+    year: '2025',
+  },
+  {
+    source: 'Broker Partner Summit',
+    title: 'Student Support Team of the Year',
+    year: '2024',
+  },
+];
+
 const LandingPage = () => {
   const [modal, setModal] = useState(null); // null | 'login' | 'register'
 
@@ -72,7 +156,7 @@ const LandingPage = () => {
           </div>
 
           <div className="lp-nav-links">
-            <a href="#about" className="lp-nav-link">About</a>
+            <a href="#about-relstone" className="lp-nav-link">About</a>
             <a href="#features" className="lp-nav-link">Features</a>
             <a href="#how-it-works" className="lp-nav-link">How It Works</a>
             <a href="#courses" className="lp-nav-link">Courses</a>
@@ -228,6 +312,91 @@ const LandingPage = () => {
           <a href="#courses" className="lp-banner-link">View Courses →</a>
         </div>
       </div>
+
+      {/* ── ABOUT RELSTONE ── */}
+      <section className="lp-about-relstone" id="about-relstone">
+        <div className="lp-container">
+          <div className="lp-section-label">ABOUT RELSTONE</div>
+
+          <div className="lp-about-relstone-top">
+            <div className="lp-story-card">
+              <h2 className="lp-section-h2">
+                Mission, Story, and the Team Behind
+                <span className="lp-h2-accent"> Relstone.</span>
+              </h2>
+              <p className="lp-about-para">
+                Relstone was built to make mortgage licensing education more reliable, less fragmented, and more supportive for professionals balancing work and certification requirements.
+              </p>
+              <p className="lp-about-para">
+                Our mission is simple: give learners a compliant, high-clarity path from first enrollment to long-term license renewal, with real instructional support along the way.
+              </p>
+            </div>
+
+            <div className="lp-why-grid">
+              {WHY_RELSTONE.map((item) => (
+                <article key={item.label} className="lp-why-card">
+                  <div className="lp-why-value">{item.value}</div>
+                  <div className="lp-why-label">{item.label}</div>
+                  <p>{item.desc}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <div className="lp-about-block">
+            <h3 className="lp-about-title">Instructor and Leadership Team</h3>
+            <div className="lp-team-grid">
+              {LEADERSHIP_TEAM.map((member) => (
+                <article key={member.name} className="lp-team-card">
+                  <img src={member.photo} alt={`${member.name} portrait`} loading="lazy" className="lp-team-photo" />
+                  <div className="lp-team-content">
+                    <div className="lp-team-name">{member.name}</div>
+                    <div className="lp-team-role">{member.role}</div>
+                    <p>{member.bio}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <div className="lp-about-block lp-about-block--split">
+            <div className="lp-approval-panel">
+              <h3 className="lp-about-title">State Approvals</h3>
+              <p className="lp-about-note">Approved coverage across all 50 states for applicable federal tracks and supported licensing pathways.</p>
+              <div className="lp-approval-grid">
+                {STATE_APPROVALS.map((state) => (
+                  <span key={state} className="lp-approval-chip">{state}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="lp-accreditation-panel">
+              <h3 className="lp-about-title">Accreditations and Standards</h3>
+              <div className="lp-accred-list">
+                {ACCREDITATIONS.map((item) => (
+                  <div key={item} className="lp-accred-item">
+                    <span className="lp-accred-dot" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="lp-about-block">
+            <h3 className="lp-about-title">Press Mentions and Awards</h3>
+            <div className="lp-press-grid">
+              {PRESS_AND_AWARDS.map((item) => (
+                <article key={`${item.source}-${item.year}`} className="lp-press-card">
+                  <div className="lp-press-source">{item.source}</div>
+                  <div className="lp-press-title">{item.title}</div>
+                  <div className="lp-press-year">{item.year}</div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* ── ABOUT SECTION ── */}
       <section className="lp-about" id="about-full">
@@ -781,6 +950,197 @@ button.lp-cta-login-link {
 }
 .lp-banner-link:hover { background: rgba(255,255,255,0.15); }
 
+/* ══ ABOUT RELSTONE ══ */
+.lp-about-relstone {
+  padding: 96px 0;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+}
+.lp-about-relstone-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
+  gap: 28px;
+  margin-bottom: 28px;
+}
+.lp-story-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 14px 34px rgba(9,25,37,0.06);
+}
+.lp-why-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+.lp-why-card {
+  background: linear-gradient(145deg, rgba(46,171,254,0.09), rgba(96,195,255,0.06));
+  border: 1px solid rgba(46,171,254,0.18);
+  border-radius: 16px;
+  padding: 18px;
+}
+.lp-why-value {
+  font-family: var(--font-title);
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--midnight);
+  line-height: 1;
+}
+.lp-why-label {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  color: var(--electric);
+  text-transform: uppercase;
+}
+.lp-why-card p {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #4f6474;
+}
+.lp-about-block {
+  margin-top: 30px;
+}
+.lp-about-title {
+  font-family: var(--font-title);
+  font-size: clamp(24px, 2.4vw, 34px);
+  font-weight: 800;
+  color: var(--midnight);
+  margin-bottom: 18px;
+}
+.lp-team-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.lp-team-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 10px 26px rgba(9,25,37,0.06);
+}
+.lp-team-photo {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+}
+.lp-team-content {
+  padding: 16px;
+}
+.lp-team-name {
+  font-family: var(--font-title);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--midnight);
+}
+.lp-team-role {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--electric);
+}
+.lp-team-content p {
+  margin-top: 10px;
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--text-muted);
+}
+.lp-about-block--split {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 18px;
+}
+.lp-approval-panel,
+.lp-accreditation-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+}
+.lp-about-note {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+.lp-approval-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lp-approval-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: var(--ice);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: #425a6b;
+}
+.lp-accred-list {
+  display: grid;
+  gap: 12px;
+}
+.lp-accred-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: #405768;
+}
+.lp-accred-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--electric);
+  box-shadow: 0 0 0 4px rgba(46,171,254,0.12);
+  flex-shrink: 0;
+}
+.lp-press-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.lp-press-card {
+  background: linear-gradient(140deg, #0f2b3f 0%, #13374f 100%);
+  border: 1px solid rgba(46,171,254,0.2);
+  border-radius: 14px;
+  padding: 16px;
+}
+.lp-press-source {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: var(--sky);
+  margin-bottom: 8px;
+}
+.lp-press-title {
+  font-family: var(--font-title);
+  font-size: 16px;
+  line-height: 1.3;
+  color: #fff;
+  margin-bottom: 12px;
+}
+.lp-press-year {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(96,195,255,0.16);
+  font-size: 12px;
+  font-weight: 700;
+  color: #d7f0ff;
+}
+
 /* ══ ABOUT ══ */
 .lp-about { padding: 96px 0; background: var(--white); }
 .lp-section-label {
@@ -1070,6 +1430,12 @@ button.lp-cta-login-link {
 @media (max-width: 1024px) {
   .lp-hero-inner { grid-template-columns: 1fr; gap: 48px; }
   .lp-hero-card-wrap { max-width: 520px; }
+  .lp-about-relstone-top,
+  .lp-about-block--split,
+  .lp-team-grid,
+  .lp-press-grid {
+    grid-template-columns: 1fr 1fr;
+  }
   .lp-features-top { grid-template-columns: 1fr; }
   .lp-process-top { grid-template-columns: 1fr; }
   .lp-process-grid { grid-template-columns: 1fr 1fr; }
@@ -1079,6 +1445,12 @@ button.lp-cta-login-link {
 }
 @media (max-width: 768px) {
   .lp-nav-links { display: none; }
+  .lp-about-relstone-top,
+  .lp-about-block--split,
+  .lp-team-grid,
+  .lp-press-grid {
+    grid-template-columns: 1fr;
+  }
   .lp-feat-grid { grid-template-columns: 1fr 1fr; }
   .lp-process { padding: 84px 0; }
   .lp-footer-inner { grid-template-columns: 1fr; text-align: center; }
