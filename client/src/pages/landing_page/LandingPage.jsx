@@ -161,6 +161,7 @@ const LandingPage = () => {
             <a href="#how-it-works" className="lp-nav-link">How It Works</a>
             <a href="#courses" className="lp-nav-link">Courses</a>
             <a href="#compliance" className="lp-nav-link">Compliance</a>
+            <a href="/resources" className="lp-nav-link">Resources</a>
           </div>
 
           <div className="lp-nav-actions">

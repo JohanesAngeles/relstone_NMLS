@@ -13,6 +13,8 @@ import Checkout from './pages/checkout_page/checkout';
 import CourseDetails from './pages/courses_page/CoursesDetails';
 import CoursePortal from './pages/courses_page/CoursePortal';
 import HomePage from './pages/HomePage';
+import ResourcesHub from './pages/resources_page/ResourcesHub';
+import ResourceArticlePage from './pages/resources_page/ResourceArticlePage';
 
 // ── Landing wrapper — if already logged in, skip to home ──────────
 const LandingWrapper = () => {
@@ -44,6 +46,10 @@ function App() {
         <Routes>
           {/* Public — Landing (redirects to /home if logged in) */}
           <Route path="/" element={<LandingWrapper />} />
+
+          {/* Public resources */}
+          <Route path="/resources" element={<ResourcesHub />} />
+          <Route path="/resources/:slug" element={<ResourceArticlePage />} />
 
           {/* Certificate test (public) */}
           <Route path="/certificate-test" element={<Certificate />} />
