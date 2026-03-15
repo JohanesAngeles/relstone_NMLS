@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-<<<<<<< HEAD
 const HOW_IT_WORKS_STEPS = [
   {
     number: '01',
@@ -45,155 +44,6 @@ const HOW_IT_WORKS_STEPS = [
   },
 ];
 
-=======
-import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Home, GraduationCap, Award } from 'lucide-react';
-import AuthModal from '../auth_page/AuthModal';
-import { useAuth } from '../../context/AuthContext';
-import logo from '../../assets/images/Left Side Logo.png';
-
-// ── Shared Data ───────────────────────────────────────────────────
-const TESTIMONIALS = [
-  { name: 'Sarah M.',  state: 'Texas',      avatar: 'SM', rating: 5, text: 'I passed the SAFE exam on my first try after using Relstone. The course content is organized perfectly and the practice tests are spot-on.' },
-  { name: 'James T.',  state: 'California', avatar: 'JT', rating: 5, text: 'Switched from another provider and the difference is night and day. The platform actually explains WHY regulations exist, not just what they are.' },
-  { name: 'Maria L.',  state: 'Florida',    avatar: 'ML', rating: 5, text: 'Completed my 20-hour pre-license in two weekends. The mobile experience is seamless and I loved being able to study between client meetings.' },
-  { name: 'Derek K.',  state: 'New York',   avatar: 'DK', rating: 5, text: 'The annual CE is so much better than what my broker used to provide. Quick, current, and actually informative. Renewed in under a day.' },
-];
-
-const FAQS = [
-  { q: 'What is the NMLS SAFE Act and who needs to comply?',         a: 'The Secure and Fair Enforcement for Mortgage Licensing (SAFE) Act requires all residential mortgage loan originators (MLOs) to be licensed. Most MLOs working for non-bank lenders must complete 20 hours of pre-license education and pass the SAFE MLO Test before obtaining their license.' },
-  { q: 'How long do I have to complete my pre-license education?',   a: 'There is no strict deadline for completing your pre-license education, but your education certificate is valid for 3 years. Most students complete the 20-hour course within 2–4 weeks studying part-time.' },
-  { q: 'Are your courses accepted in all 50 states?',                a: 'Our 20-hour federal SAFE Act course is accepted in all 50 states. State-specific elective courses are available for states that require additional state-specific content beyond the federal requirements.' },
-  { q: "What happens if I don't pass the SAFE exam on my first try?", a: 'You can retake the SAFE exam after a 30-day waiting period. If you fail three times, you must wait 180 days before retaking. Our course includes comprehensive practice exams to maximize your chances of passing on the first attempt.' },
-];
-
-const Stars = ({ n = 5 }) => (
-  <span style={{ color: '#F59E0B', letterSpacing: 1 }}>
-    {'★'.repeat(n)}{'☆'.repeat(5 - n)}
-  </span>
-);
-
-// ── Logged-In Nav (mirrors Layout header) ─────────────────────────
-const LoggedInNav = ({ user, logout, navigate, location }) => {
-  const [showLogout, setShowLogout] = useState(false);
-
-  const navLinks = [
-    { path: '/home',         label: 'Home',         icon: <Home size={15} /> },
-    { path: '/dashboard',    label: 'Dashboard',    icon: <LayoutDashboard size={15} /> },
-    { path: '/my-courses',   label: 'My Courses',   icon: <GraduationCap size={15} /> },
-    { path: '/courses',      label: 'Courses',      icon: <BookOpen size={15} /> },
-    { path: '/certificates', label: 'Certificates', icon: <Award size={15} /> },
-    { path: '/checkout',     label: 'Checkout',     icon: <ShoppingCart size={15} /> },
-  ];
-
-  const handleLogout = () => { logout(); window.location.href = '/'; };
-  const isActive = (path) => location === path;
-
-  return (
-    <>
-      {showLogout && (
-        <>
-          <div onClick={() => setShowLogout(false)} style={{ position:'fixed',inset:0,zIndex:300,background:'rgba(9,25,37,0.55)',backdropFilter:'blur(5px)' }} />
-          <div style={{ position:'fixed',zIndex:301,top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:'100%',maxWidth:360,background:'#fff',borderRadius:22,padding:'32px 28px 26px',boxShadow:'0 28px 70px rgba(9,25,37,0.20)',textAlign:'center',fontFamily:'Inter,system-ui,sans-serif' }}>
-            <div style={{ width:52,height:52,borderRadius:16,background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.18)',display:'grid',placeItems:'center',margin:'0 auto 16px' }}>
-              <LogOut size={22} color="rgba(220,38,38,0.85)" />
-            </div>
-            <div style={{ fontSize:18,fontWeight:950,color:'rgba(11,18,32,0.88)',marginBottom:8 }}>Sign out?</div>
-            <div style={{ fontSize:13,color:'rgba(11,18,32,0.52)',marginBottom:24 }}>Are you sure you want to sign out of your account?</div>
-            <div style={{ display:'flex',gap:10 }}>
-              <button onClick={() => setShowLogout(false)} style={{ flex:1,height:44,background:'rgba(2,8,23,0.04)',border:'1px solid rgba(2,8,23,0.10)',borderRadius:12,cursor:'pointer',fontSize:14,fontWeight:900,color:'rgba(11,18,32,0.72)',fontFamily:'inherit' }}>No, stay</button>
-              <button onClick={handleLogout} style={{ flex:1,height:44,background:'rgba(220,38,38,0.90)',border:'none',borderRadius:12,cursor:'pointer',fontSize:14,fontWeight:900,color:'#fff',fontFamily:'inherit' }}>Yes, sign out</button>
-            </div>
-          </div>
-        </>
-      )}
-
-      <header style={{ position:'sticky',top:0,zIndex:100,background:'rgba(246,247,251,0.92)',backdropFilter:'blur(14px)',borderBottom:'1px solid rgba(2,8,23,0.08)',boxShadow:'0 1px 0 rgba(2,8,23,0.05)',fontFamily:'Inter,system-ui,sans-serif' }}>
-        <div style={{ maxWidth:1180,margin:'0 auto',padding:'0 18px',height:58,display:'flex',alignItems:'center',justifyContent:'space-between',gap:12 }}>
-
-          {/* Left — Logo + Nav */}
-          <div style={{ display:'flex',alignItems:'center',gap:20 }}>
-            <div style={{ display:'flex',alignItems:'center',gap:10,cursor:'pointer' }} onClick={() => navigate('/home')}>
-              <img src={logo} alt="Relstone" style={{ height:28,objectFit:'contain' }} />
-              <div style={{ display:'flex',alignItems:'center',gap:6 }}>
-                <span style={{ fontWeight:900,fontSize:14,color:'#091925',letterSpacing:'-0.2px' }}>Relstone</span>
-                <span style={{ fontSize:11,fontWeight:800,padding:'3px 7px',borderRadius:6,background:'rgba(46,171,254,0.12)',border:'1px solid rgba(46,171,254,0.25)',color:'#2EABFE' }}>NMLS</span>
-              </div>
-            </div>
-
-            <nav style={{ display:'flex',alignItems:'center',gap:4 }}>
-              {navLinks.map(link => (
-                <button
-                  key={link.path}
-                  type="button"
-                  onClick={() => navigate(link.path)}
-                  style={{ display:'inline-flex',alignItems:'center',gap:6,padding:'7px 11px',borderRadius:10,border: isActive(link.path) ? '1px solid rgba(46,171,254,0.20)' : 'none',background: isActive(link.path) ? 'rgba(46,171,254,0.10)' : 'transparent',cursor:'pointer',fontWeight:700,fontSize:13,color: isActive(link.path) ? '#091925' : 'rgba(9,25,37,0.60)',transition:'all .15s',fontFamily:'Inter,system-ui,sans-serif' }}
-                >
-                  {link.icon}
-                  <span>{link.label}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
-
-          {/* Right — User + Logout */}
-          <div style={{ display:'flex',alignItems:'center',gap:8 }}>
-            <button
-              onClick={() => navigate('/profile')}
-              type="button"
-              style={{ display:'inline-flex',alignItems:'center',gap:8,padding:'7px 10px',borderRadius:10,border:'1px solid rgba(2,8,23,0.10)',background:'#fff',cursor:'pointer',fontFamily:'inherit',transition:'all .15s' }}
-            >
-              <div style={{ width:26,height:26,borderRadius:8,background:'rgba(46,171,254,0.10)',border:'1px solid rgba(46,171,254,0.20)',display:'grid',placeItems:'center',flexShrink:0 }}>
-                <User size={14} color="#2EABFE" />
-              </div>
-              <span style={{ fontWeight:800,fontSize:13,color:'rgba(9,25,37,0.80)' }}>{user?.name || 'Student'}</span>
-            </button>
-            <button
-              onClick={() => setShowLogout(true)}
-              type="button"
-              style={{ width:36,height:36,borderRadius:10,border:'1px solid rgba(2,8,23,0.10)',background:'#fff',cursor:'pointer',display:'grid',placeItems:'center',color:'rgba(9,25,37,0.65)',transition:'all .15s' }}
-            >
-              <LogOut size={15} />
-            </button>
-          </div>
-        </div>
-      </header>
-    </>
-  );
-};
-
-// ── Public Nav ────────────────────────────────────────────────────
-const PublicNav = ({ onLogin, onRegister }) => (
-  <nav className="lp-nav">
-    <div className="lp-container lp-nav-inner">
-      <div className="lp-nav-logo">
-        <div className="lp-logo-mark">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-            <path d="M2 17l10 5 10-5" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-            <path d="M2 12l10 5 10-5" stroke="#60C3FF" strokeWidth="2" strokeLinejoin="round"/>
-          </svg>
-        </div>
-        <div className="lp-logo-text-wrap">
-          <span className="lp-logo-name">Relstone</span>
-          <span className="lp-logo-sub">NMLS Education Platform</span>
-        </div>
-      </div>
-      <div className="lp-nav-links">
-        <a href="#about"      className="lp-nav-link">About</a>
-        <a href="#features"   className="lp-nav-link">Features</a>
-        <a href="#courses"    className="lp-nav-link">Courses</a>
-        <a href="#compliance" className="lp-nav-link">Compliance</a>
-      </div>
-      <div className="lp-nav-actions">
-        <button onClick={onLogin}    className="lp-btn-ghost">Sign In</button>
-        <button onClick={onRegister} className="lp-btn-primary">Get Started</button>
-      </div>
-    </div>
-  </nav>
-);
-
-// ── Main Component ────────────────────────────────────────────────
->>>>>>> feat/matt
 const LandingPage = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -216,7 +66,6 @@ const LandingPage = () => {
 
       {modal && <AuthModal mode={modal} onClose={() => setModal(null)} />}
 
-<<<<<<< HEAD
       {/* ── NAV ── */}
       <nav className="lp-nav">
         <div className="lp-container lp-nav-inner">
@@ -248,13 +97,6 @@ const LandingPage = () => {
           </div>
         </div>
       </nav>
-=======
-      {/* ── NAV — switches based on auth ── */}
-      {user
-        ? <LoggedInNav user={user} logout={logout} navigate={navigate} location={window.location.pathname} />
-        : <PublicNav onLogin={() => setModal('login')} onRegister={() => setModal('register')} />
-      }
->>>>>>> feat/matt
 
       {/* ── HERO ── */}
       <section className="lp-hero" style={{ paddingTop: heroPaddingTop }}>
