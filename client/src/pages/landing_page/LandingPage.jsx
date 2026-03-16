@@ -1,58 +1,116 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+
+// ── Inline AuthModal (no external file needed) ─────────────────────────
+const AuthModal = ({ mode, onClose }) => {
+  const { login, register } = useAuth();
+  const navigate = useNavigate();
+  const [tab, setTab] = useState(mode);
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      if (tab === 'login') {
+        await login(form.email, form.password);
+      } else {
+        await register(form.name, form.email, form.password);
+      }
+      onClose();
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={ms.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div style={ms.box}>
+        <button style={ms.close} onClick={onClose}>✕</button>
+        <div style={ms.tabs}>
+          <button style={{ ...ms.tab, ...(tab === 'login' ? ms.tabActive : {}) }} onClick={() => setTab('login')}>Sign In</button>
+          <button style={{ ...ms.tab, ...(tab === 'register' ? ms.tabActive : {}) }} onClick={() => setTab('register')}>Register</button>
+        </div>
+        <form onSubmit={submit} style={ms.form}>
+          {tab === 'register' && (
+            <input style={ms.input} placeholder="Full Name" value={form.name} onChange={set('name')} required />
+          )}
+          <input style={ms.input} placeholder="Email" type="email" value={form.email} onChange={set('email')} required />
+          <input style={ms.input} placeholder="Password" type="password" value={form.password} onChange={set('password')} required />
+          {error && <div style={ms.error}>{error}</div>}
+          <button style={ms.submit} type="submit" disabled={loading}>
+            {loading ? 'Please wait...' : tab === 'login' ? 'Sign In' : 'Create Account'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const ms = {
+  overlay: { position:'fixed',inset:0,background:'rgba(9,25,37,0.7)',zIndex:999,display:'flex',alignItems:'center',justifyContent:'center',padding:'20px' },
+  box: { background:'#fff',borderRadius:'20px',padding:'36px',width:'100%',maxWidth:'420px',position:'relative' },
+  close: { position:'absolute',top:'16px',right:'16px',background:'none',border:'none',fontSize:'18px',cursor:'pointer',color:'#6b7280' },
+  tabs: { display:'flex',gap:'8px',marginBottom:'24px' },
+  tab: { flex:1,padding:'10px',border:'1.5px solid #e5e7eb',borderRadius:'10px',background:'transparent',cursor:'pointer',fontSize:'14px',fontWeight:'600',color:'#6b7280' },
+  tabActive: { borderColor:'#2EABFE',color:'#091925',background:'rgba(46,171,254,0.06)' },
+  form: { display:'flex',flexDirection:'column',gap:'14px' },
+  input: { padding:'12px 16px',border:'1.5px solid #e5e7eb',borderRadius:'10px',fontSize:'14px',outline:'none',fontFamily:'inherit' },
+  error: { padding:'10px 14px',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:'8px',fontSize:'13px',color:'#dc2626' },
+  submit: { padding:'13px',background:'#091925',color:'#fff',border:'none',borderRadius:'10px',fontSize:'15px',fontWeight:'700',cursor:'pointer',fontFamily:'inherit' },
+};
+
+// ── Data ───────────────────────────────────────────────────────────────
 
 const HOW_IT_WORKS_STEPS = [
-  {
-    number: '01',
-    title: 'Create account',
-    desc: 'Register your Relstone profile to access approved education, saved progress, and certificate delivery in one place.',
-  },
-  {
-    number: '02',
-    title: 'Enroll in pre-licensing course',
-    desc: 'Choose the required SAFE Act pre-licensing path and start the course package that matches your licensing goals.',
-  },
-  {
-    number: '03',
-    title: 'Complete required hours',
-    desc: 'Work through the required instructional time with tracked engagement and module-by-module progression.',
-  },
-  {
-    number: '04',
-    title: 'Take chapter quizzes and final exam',
-    desc: 'Reinforce each module with quizzes, then complete the final assessment to confirm course readiness.',
-  },
-  {
-    number: '05',
-    title: 'Receive completion certificate',
-    desc: 'Finish the course and receive your completion certificate, with credit reporting handled according to NMLS requirements.',
-  },
-  {
-    number: '06',
-    title: 'Schedule and pass the licensing exam',
-    desc: 'Book your state licensing exam through Pearson VUE or PSI, then pass the exam to move forward with licensure.',
-  },
-  {
-    number: '07',
-    title: 'Apply with your state commission',
-    desc: 'Submit your application and required materials to the appropriate state licensing authority or commission.',
-  },
-  {
-    number: '08',
-    title: 'Complete annual CE for renewal',
-    desc: 'Maintain your license each year by completing the annual continuing education requirement before renewal deadlines.',
-  },
+  { number: '01', title: 'Create account', desc: 'Register your Relstone profile to access approved education, saved progress, and certificate delivery in one place.' },
+  { number: '02', title: 'Enroll in pre-licensing course', desc: 'Choose the required SAFE Act pre-licensing path and start the course package that matches your licensing goals.' },
+  { number: '03', title: 'Complete required hours', desc: 'Work through the required instructional time with tracked engagement and module-by-module progression.' },
+  { number: '04', title: 'Take chapter quizzes and final exam', desc: 'Reinforce each module with quizzes, then complete the final assessment to confirm course readiness.' },
+  { number: '05', title: 'Receive completion certificate', desc: 'Finish the course and receive your completion certificate, with credit reporting handled according to NMLS requirements.' },
+  { number: '06', title: 'Schedule and pass the licensing exam', desc: 'Book your state licensing exam through Pearson VUE or PSI, then pass the exam to move forward with licensure.' },
+  { number: '07', title: 'Apply with your state commission', desc: 'Submit your application and required materials to the appropriate state licensing authority or commission.' },
+  { number: '08', title: 'Complete annual CE for renewal', desc: 'Maintain your license each year by completing the annual continuing education requirement before renewal deadlines.' },
 ];
 
+const TESTIMONIALS = [
+  { name: 'James R.', state: 'California', avatar: 'JR', rating: 5, text: 'Relstone made completing my 20-hour pre-licensing course straightforward. The platform is easy to navigate and the certificate was ready immediately after I finished.' },
+  { name: 'Maria T.', state: 'Texas', avatar: 'MT', rating: 5, text: 'I was able to complete my annual 8-hour CE renewal entirely online at my own pace. No issues with the BioSig-ID process and my NMLS credit was reported quickly.' },
+  { name: 'David K.', state: 'Florida', avatar: 'DK', rating: 5, text: 'Clear module structure and the progress bookmarking worked perfectly. I could pick up exactly where I left off every time I logged back in.' },
+];
+
+const FAQS = [
+  { q: 'What is the SAFE Act pre-licensing requirement?', a: 'The SAFE Act requires all first-time Mortgage Loan Originator (MLO) applicants to complete a minimum of 20 hours of NMLS-approved pre-licensing education before applying for a state license.' },
+  { q: 'How does BioSig-ID identity verification work?', a: 'BioSig-ID is a biometric authentication tool required by NMLS for all online self-study courses. You draw a short password using your mouse or touchscreen, and the system verifies your identity based on your unique drawing pattern.' },
+  { q: 'How long do I have access to my course?', a: 'You have 24/7 access to your course from any device with an internet connection. Your progress is saved automatically so you can resume where you left off at any time.' },
+  { q: 'When will my completion be reported to NMLS?', a: 'Course completions are reported to NMLS within 7 calendar days of finishing the course, as required by NMLS provider standards.' },
+  { q: 'Can I take the CE course if I already have my license?', a: 'Yes. The 8-hour annual continuing education course is designed for licensed MLOs who need to renew their license each year. It must be completed by December 31st annually.' },
+  { q: 'What happens if I get logged out mid-course?', a: 'The platform automatically logs you out after 6 minutes of inactivity to comply with NMLS engagement time tracking rules. Your progress is saved and you can resume exactly where you left off.' },
+];
+
+const Stars = ({ n }) => (
+  <span>{Array.from({ length: n }).map((_, i) => <span key={i}>⭐</span>)}</span>
+);
+
+// ── Component ──────────────────────────────────────────────────────────
+
 const LandingPage = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [modal, setModal] = useState(null);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [openFaq, setOpenFaq] = useState(null);
 
-  // adjust hero padding — logged-in nav is 58px (sticky, not fixed), public nav is 68px (fixed)
   const heroPaddingTop = user ? 0 : 68;
 
   useEffect(() => {
@@ -82,7 +140,6 @@ const LandingPage = () => {
               <span className="lp-logo-sub">NMLS Education Platform</span>
             </div>
           </div>
-
           <div className="lp-nav-links">
             <a href="#about" className="lp-nav-link">About</a>
             <a href="#features" className="lp-nav-link">Features</a>
@@ -90,7 +147,6 @@ const LandingPage = () => {
             <a href="#courses" className="lp-nav-link">Courses</a>
             <a href="#compliance" className="lp-nav-link">Compliance</a>
           </div>
-
           <div className="lp-nav-actions">
             <button onClick={() => setModal('login')} className="lp-btn-ghost">Sign In</button>
             <button onClick={() => setModal('register')} className="lp-btn-primary">Get Started</button>
@@ -109,8 +165,7 @@ const LandingPage = () => {
               NMLS-Approved Education Provider
             </div>
             <h1 className="lp-hero-h1">
-              Your Path to<br />
-              Mortgage<br />
+              Your Path to<br />Mortgage<br />
               <span className="lp-hero-accent">Licensure.</span>
             </h1>
             <p className="lp-hero-desc">
@@ -316,15 +371,11 @@ const LandingPage = () => {
                 A clear 8-step path from account creation to annual renewal, presented in the same guided flow students follow in real life.
               </p>
             </div>
-
             <div className="lp-process-intro-card">
               <div className="lp-process-intro-label">From first enrollment to renewal</div>
-              <p>
-                Relstone handles the education side cleanly, then guides students through what comes next so the entire licensing process feels ordered instead of fragmented.
-              </p>
+              <p>Relstone handles the education side cleanly, then guides students through what comes next so the entire licensing process feels ordered instead of fragmented.</p>
             </div>
           </div>
-
           <div className="lp-process-grid">
             {HOW_IT_WORKS_STEPS.map((step) => (
               <article key={step.number} className="lp-process-card">
@@ -513,8 +564,6 @@ const css = `
 html { scroll-behavior: smooth; }
 .lp-root { font-family: var(--font-body); background: var(--white); color: var(--midnight); overflow-x: hidden; }
 .lp-container { max-width: 1200px; margin: 0 auto; padding: 0 5%; }
-
-/* ══ PUBLIC NAV ══ */
 .lp-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,0.97); backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); }
 .lp-nav-inner { height: 68px; display: flex; align-items: center; gap: 24px; }
 .lp-nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
@@ -534,8 +583,6 @@ html { scroll-behavior: smooth; }
 .lp-btn-outline { padding: 9px 20px; font-size: 13.5px; font-weight: 700; color: var(--midnight); background: transparent; border: 2px solid var(--midnight); border-radius: 9px; transition: all .2s; display: inline-flex; align-items: center; gap: 8px; }
 .lp-btn-outline:hover { background: var(--midnight); color: #fff; }
 .lp-btn-lg { padding: 13px 28px; font-size: 15px; border-radius: 10px; }
-
-/* ══ HERO ══ */
 .lp-hero { min-height: 100vh; background: var(--midnight); position: relative; overflow: hidden; display: flex; align-items: center; }
 .lp-hero-bg-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(46,171,254,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(46,171,254,0.05) 1px, transparent 1px); background-size: 52px 52px; }
 .lp-hero-glow { position: absolute; pointer-events: none; width: 700px; height: 700px; border-radius: 50%; background: radial-gradient(circle, rgba(46,171,254,0.14) 0%, transparent 65%); top: -100px; right: -80px; }
@@ -560,16 +607,12 @@ html { scroll-behavior: smooth; }
 .lp-hcard-value { font-size: 14px; font-weight: 600; color: #fff; }
 .lp-hcard-cta { display: flex; align-items: center; justify-content: center; width: 100%; padding: 13px; background: var(--electric); color: #fff; font-family: var(--font-body); font-size: 14px; font-weight: 700; border-radius: 12px; border: none; cursor: pointer; transition: all .2s; }
 .lp-hcard-cta:hover { background: var(--sky); transform: translateY(-1px); }
-
-/* ══ ABOUT BANNER ══ */
 .lp-about-banner { background: var(--electric); padding: 18px 0; }
 .lp-banner-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .lp-banner-text { font-size: 14px; line-height: 1.6; color: #fff; max-width: 780px; }
 .lp-banner-text strong { font-weight: 700; }
 .lp-banner-link { font-size: 13px; font-weight: 700; color: #fff; text-decoration: none; white-space: nowrap; padding: 8px 18px; border: 1.5px solid rgba(255,255,255,0.45); border-radius: 8px; transition: all .18s; flex-shrink: 0; }
 .lp-banner-link:hover { background: rgba(255,255,255,0.15); }
-
-/* ══ SECTIONS ══ */
 .lp-about { padding: 96px 0; background: var(--white); }
 .lp-section-label { font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: var(--electric); margin-bottom: 16px; }
 .lp-section-label--light { color: var(--sky); }
@@ -586,8 +629,6 @@ html { scroll-behavior: smooth; }
 .lp-acard-title { font-family: var(--font-title); font-size: 17px; font-weight: 700; color: var(--midnight); margin-bottom: 8px; }
 .lp-acard-desc { font-size: 13.5px; line-height: 1.65; color: var(--text-muted); margin-bottom: 12px; }
 .lp-acard-meta { display: inline-flex; align-items: center; padding: 4px 12px; background: rgba(46,171,254,0.1); border: 1px solid rgba(46,171,254,0.2); border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--electric); }
-
-/* ══ FEATURES ══ */
 .lp-features { padding: 96px 0; background: var(--midnight); }
 .lp-features-top { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: end; margin-bottom: 56px; }
 .lp-features-sub { font-size: 15px; line-height: 1.75; color: var(--slate); padding-top: 8px; }
@@ -598,8 +639,6 @@ html { scroll-behavior: smooth; }
 .lp-feat-icon { width: 46px; height: 46px; background: rgba(46,171,254,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--electric); margin-bottom: 18px; }
 .lp-feat-title { font-family: var(--font-title); font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 10px; }
 .lp-feat-desc { font-size: 13.5px; line-height: 1.65; color: var(--slate); }
-
-/* ══ COURSES ══ */
 .lp-courses { padding: 96px 0; background: var(--ice); }
 .lp-courses-top { margin-bottom: 44px; }
 .lp-courses-sub { font-size: 15px; color: var(--text-muted); line-height: 1.65; margin-top: 4px; }
@@ -616,122 +655,20 @@ html { scroll-behavior: smooth; }
 .lp-course-meta { display: flex; flex-direction: column; align-items: center; gap: 14px; }
 .lp-course-hours-badge { font-family: var(--font-title); font-size: 42px; font-weight: 800; line-height: 1; color: var(--midnight); text-align: center; }
 .lp-course-hours-badge span { font-size: 14px; font-weight: 700; color: var(--electric); display: block; margin-top: -2px; }
-
-/* ══ HOW IT WORKS ══ */
-.lp-process {
-  padding: 96px 0;
-  background:
-    radial-gradient(circle at top right, rgba(46,171,254,0.12) 0%, transparent 34%),
-    linear-gradient(180deg, var(--midnight) 0%, var(--deep-navy) 100%);
-  position: relative;
-  overflow: hidden;
-}
-.lp-process::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(46,171,254,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(46,171,254,0.05) 1px, transparent 1px);
-  background-size: 48px 48px;
-  opacity: 0.55;
-}
-.lp-process-top {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 28px;
-  align-items: end;
-  margin-bottom: 48px;
-}
-.lp-process-sub {
-  font-size: 15px;
-  line-height: 1.75;
-  color: var(--slate);
-  max-width: 620px;
-}
-.lp-process-intro-card {
-  background: rgba(13,36,54,0.76);
-  border: 1px solid rgba(46,171,254,0.16);
-  border-radius: 18px;
-  padding: 22px;
-  backdrop-filter: blur(16px);
-  box-shadow: 0 18px 44px rgba(9,25,37,0.2);
-}
-.lp-process-intro-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.6px;
-  text-transform: uppercase;
-  color: var(--sky);
-  margin-bottom: 10px;
-}
-.lp-process-intro-card p {
-  font-size: 13.5px;
-  line-height: 1.7;
-  color: rgba(240,246,250,0.72);
-}
-.lp-process-grid {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 18px;
-}
-.lp-process-card {
-  position: relative;
-  min-height: 250px;
-  padding: 24px;
-  background: rgba(13,36,54,0.72);
-  border: 1px solid rgba(46,171,254,0.14);
-  border-radius: 18px;
-  backdrop-filter: blur(16px);
-  transition: transform .2s, border-color .2s, background .2s;
-}
-.lp-process-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(46,171,254,0.32);
-  background: rgba(22,51,71,0.88);
-}
-.lp-process-step {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(46,171,254,0.12);
-  border: 1px solid rgba(46,171,254,0.18);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-  color: var(--sky);
-  margin-bottom: 16px;
-}
-.lp-process-num {
-  font-family: var(--font-title);
-  font-size: 34px;
-  font-weight: 800;
-  line-height: 1;
-  color: rgba(46,171,254,0.2);
-  margin-bottom: 16px;
-}
-.lp-process-title {
-  font-family: var(--font-title);
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: #fff;
-  margin-bottom: 10px;
-}
-.lp-process-desc {
-  font-size: 13.5px;
-  line-height: 1.72;
-  color: var(--slate);
-}
-
-/* ══ COMPLIANCE ══ */
+.lp-process { padding: 96px 0; background: radial-gradient(circle at top right, rgba(46,171,254,0.12) 0%, transparent 34%), linear-gradient(180deg, var(--midnight) 0%, var(--deep-navy) 100%); position: relative; overflow: hidden; }
+.lp-process::before { content: ''; position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(46,171,254,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(46,171,254,0.05) 1px, transparent 1px); background-size: 48px 48px; opacity: 0.55; }
+.lp-process-top { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: end; margin-bottom: 48px; }
+.lp-process-sub { font-size: 15px; line-height: 1.75; color: var(--slate); max-width: 620px; }
+.lp-process-intro-card { background: rgba(13,36,54,0.76); border: 1px solid rgba(46,171,254,0.16); border-radius: 18px; padding: 22px; backdrop-filter: blur(16px); box-shadow: 0 18px 44px rgba(9,25,37,0.2); }
+.lp-process-intro-label { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: var(--sky); margin-bottom: 10px; }
+.lp-process-intro-card p { font-size: 13.5px; line-height: 1.7; color: rgba(240,246,250,0.72); }
+.lp-process-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.lp-process-card { position: relative; min-height: 250px; padding: 24px; background: rgba(13,36,54,0.72); border: 1px solid rgba(46,171,254,0.14); border-radius: 18px; backdrop-filter: blur(16px); transition: transform .2s, border-color .2s, background .2s; }
+.lp-process-card:hover { transform: translateY(-4px); border-color: rgba(46,171,254,0.32); background: rgba(22,51,71,0.88); }
+.lp-process-step { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px; background: rgba(46,171,254,0.12); border: 1px solid rgba(46,171,254,0.18); font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--sky); margin-bottom: 16px; }
+.lp-process-num { font-family: var(--font-title); font-size: 34px; font-weight: 800; line-height: 1; color: rgba(46,171,254,0.2); margin-bottom: 16px; }
+.lp-process-title { font-family: var(--font-title); font-size: 18px; font-weight: 700; line-height: 1.25; color: #fff; margin-bottom: 10px; }
+.lp-process-desc { font-size: 13.5px; line-height: 1.72; color: var(--slate); }
 .lp-compliance { padding: 96px 0; background: var(--white); }
 .lp-compliance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
 .lp-comp-para { font-size: 15px; line-height: 1.8; color: var(--text-muted); }
@@ -740,8 +677,6 @@ html { scroll-behavior: smooth; }
 .lp-comp-check { width: 28px; height: 28px; border-radius: 8px; background: rgba(46,171,254,0.1); border: 1px solid rgba(46,171,254,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
 .lp-comp-label { font-size: 14px; font-weight: 700; color: var(--midnight); margin-bottom: 2px; }
 .lp-comp-desc { font-size: 13px; line-height: 1.55; color: var(--text-muted); }
-
-/* ══ TESTIMONIALS ══ */
 .lp-testimonials-section { padding: 96px 0; background: var(--white); }
 .lp-section-head-center { text-align: center; margin-bottom: 60px; }
 .lp-section-head-center .lp-section-label { display: inline-block; }
@@ -761,8 +696,6 @@ html { scroll-behavior: smooth; }
 .lp-tarrows { display: flex; justify-content: center; gap: 12px; margin-top: 20px; }
 .lp-tarrow { width: 42px; height: 42px; border-radius: 50%; background: #fff; border: 1.5px solid var(--border); font-size: 18px; cursor: pointer; transition: all .2s; display: flex; align-items: center; justify-content: center; }
 .lp-tarrow:hover { border-color: var(--electric); color: var(--electric); }
-
-/* ══ FAQ ══ */
 .lp-faq-section { padding: 96px 0; background: #f8fbff; }
 .lp-faq-inner { max-width: 760px; }
 .lp-faq { display: grid; gap: 12px; }
@@ -771,8 +704,6 @@ html { scroll-behavior: smooth; }
 .lp-faq-q { width: 100%; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; background: none; border: none; cursor: pointer; font-family: var(--font-body); font-size: 15px; font-weight: 600; color: var(--midnight); text-align: left; }
 .lp-faq-icon { font-size: 20px; color: var(--electric); flex-shrink: 0; font-weight: 400; }
 .lp-faq-a { padding: 0 24px 20px; font-size: 14px; line-height: 1.75; color: var(--text-muted); }
-
-/* ══ CTA ══ */
 .lp-cta { background: var(--midnight); padding: 100px 0; text-align: center; position: relative; overflow: hidden; }
 .lp-cta-glow { position: absolute; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(46,171,254,0.13) 0%, transparent 65%); top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; }
 .lp-cta-inner { position: relative; z-index: 1; }
@@ -782,8 +713,6 @@ html { scroll-behavior: smooth; }
 .lp-cta-btns { display: flex; flex-direction: column; align-items: center; gap: 16px; }
 .lp-cta-login-link { font-size: 14px; font-weight: 500; color: var(--slate); transition: color .18s; background: none; border: none; cursor: pointer; font-family: var(--font-body); }
 .lp-cta-login-link:hover { color: var(--electric); }
-
-/* ══ FOOTER ══ */
 .lp-footer { background: var(--deep-navy); border-top: 1px solid rgba(46,171,254,0.1); padding: 40px 0; }
 .lp-footer-inner { display: grid; grid-template-columns: auto 1fr auto; gap: 40px; align-items: center; }
 .lp-footer-brand { display: flex; align-items: center; gap: 12px; }
@@ -795,8 +724,6 @@ html { scroll-behavior: smooth; }
 .lp-footer-links { display: flex; gap: 20px; justify-content: flex-end; }
 .lp-footer-link { font-size: 13px; color: var(--slate); text-decoration: none; transition: color .18s; white-space: nowrap; }
 .lp-footer-link:hover { color: var(--electric); }
-
-/* ══ RESPONSIVE ══ */
 @media (max-width: 1024px) {
   .lp-hero-inner { grid-template-columns: 1fr; gap: 48px; }
   .lp-hero-card-wrap { max-width: 520px; }

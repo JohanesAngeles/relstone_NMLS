@@ -1,9 +1,11 @@
+const dotenv = require('dotenv');
+dotenv.config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const dns = require('dns');
-const path = require('path');  // ADD THIS
+const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const authMiddleware = require('./middleware/auth');
@@ -22,7 +24,7 @@ app.use(cors({
     'http://localhost:5173',
     'http://10.0.2.2:8000',
     'http://192.168.100.3:8000',
-    'https://relstone-nmls-62fc9b1f5f80.herokuapp.com',  // update to your actual Heroku URL
+    'https://relstone-nmls-62fc9b1f5f80.herokuapp.com',
   ],
   credentials: true,
 }));
@@ -45,8 +47,8 @@ app.get('/api/protected', authMiddleware, (req, res) => {
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
   app.get('/{*path}', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
-});
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  });
 } else {
   app.get('/', (req, res) => {
     res.json({ message: 'NMLS API is running!' });
@@ -67,3 +69,4 @@ mongoose
   .catch((err) => {
     console.error('MongoDB connection failed:', err.message);
   });
+  
