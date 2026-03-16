@@ -408,7 +408,7 @@ const HomePage = () => {
             <a href="#" className="hp-footer-link">About Us</a>
             <a href="#" className="hp-footer-link">Blog</a>
             <a href="#" className="hp-footer-link">Careers</a>
-            <a href="#" className="hp-footer-link">Contact</a>
+            <a href="mailto:support@relstone.com" className="hp-footer-link">Contact</a>
           </div>
 
           <div className="hp-footer-col">
@@ -421,7 +421,7 @@ const HomePage = () => {
 
           <div className="hp-footer-col">
             <div className="hp-footer-col-title">Support</div>
-            <a href="#" className="hp-footer-link">Help Center</a>
+            <a href="/resources" className="hp-footer-link">Help Center</a>
             <a href="#" className="hp-footer-link">State Requirements</a>
             <a href="#" className="hp-footer-link">Privacy Policy</a>
             <a href="#" className="hp-footer-link">Terms of Service</a>
@@ -440,7 +440,6 @@ const HomePage = () => {
 // ── CSS ── (renamed all classes from lp- to hp- to avoid conflicts with LandingPage)
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
-@import url('https://fonts.cdnfonts.com/css/homepage-baukasten');
 
 :root {
   --hp-dark:   #091925;

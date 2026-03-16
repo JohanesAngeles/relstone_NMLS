@@ -12,6 +12,9 @@ const orderRoutes = require('./routes/orders');
 const dashboardRoutes = require('./routes/dashboard');
 const certificateRoutes = require('./routes/certificates');
 const instructorRoutes = require('./routes/instructor');
+const supportRoutes = require('./routes/support');
+
+dotenv.config();
 
 const app = express();
 
@@ -35,6 +38,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/instructor', instructorRoutes);
+app.use('/api/support', supportRoutes);
 
 // Protected test route
 app.get('/api/protected', authMiddleware, (req, res) => {
@@ -55,14 +59,14 @@ if (process.env.NODE_ENV === 'production') {
 
 // Start server
 const PORT = process.env.PORT || 8000;
+app.listen(PORT, () => {
+  console.log('Server running on port ' + PORT);
+});
 
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('MongoDB connected');
-    app.listen(PORT, () => {
-      console.log('Server running on port ' + PORT);
-    });
   })
   .catch((err) => {
     console.error('MongoDB connection failed:', err.message);

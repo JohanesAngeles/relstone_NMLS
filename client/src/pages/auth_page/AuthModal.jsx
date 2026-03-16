@@ -599,7 +599,6 @@ const AuthModal = ({ mode = 'login', onClose }) => {
 
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
-@import url('https://fonts.cdnfonts.com/css/homepage-baukasten');
 :root {
   --am-midnight:#091925; --am-electric:#2EABFE; --am-sky:#60C3FF;
   --am-slate:#7FA8C4; --am-ice:#F0F6FA; --am-border:rgba(9,25,37,0.1);

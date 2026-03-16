@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import AuthModal from '../auth_page/AuthModal';
+import API from '../../api/axios';
 
 const HOW_IT_WORKS_STEPS = [
   {
@@ -128,8 +129,77 @@ const PRESS_AND_AWARDS = [
   },
 ];
 
+const CONTACT_SUBJECTS = [
+  'General Inquiry',
+  'Course Enrollment',
+  'Technical Support',
+  'Billing and Payments',
+  'Certificate and Credits',
+];
+
 const LandingPage = () => {
   const [modal, setModal] = useState(null); // null | 'login' | 'register'
+  const [showContactCard, setShowContactCard] = useState(false);
+  const [contactStatus, setContactStatus] = useState('');
+  const [contactStatusTone, setContactStatusTone] = useState('success');
+  const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    subject: CONTACT_SUBJECTS[0],
+    message: '',
+  });
+
+  const handleContactChange = (event) => {
+    const { name, value } = event.target;
+    setContactForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleContactSubmit = (event) => {
+    event.preventDefault();
+
+    const submit = async () => {
+      if (!contactForm.name.trim() || !contactForm.email.trim() || !contactForm.message.trim()) {
+        setContactStatusTone('error');
+        setContactStatus('Please complete all required fields.');
+        return;
+      }
+
+      if (!contactForm.email.includes('@')) {
+        setContactStatusTone('error');
+        setContactStatus('Please enter a valid email address.');
+        return;
+      }
+
+      try {
+        setContactSubmitting(true);
+        setContactStatus('');
+
+        const response = await API.post('/support/contact', {
+          name: contactForm.name.trim(),
+          email: contactForm.email.trim(),
+          subject: contactForm.subject,
+          message: contactForm.message.trim(),
+        });
+
+        setContactStatusTone('success');
+        setContactStatus(response?.data?.message || 'Thanks. Support received your message and will reply soon.');
+        setContactForm({
+          name: '',
+          email: '',
+          subject: CONTACT_SUBJECTS[0],
+          message: '',
+        });
+      } catch (error) {
+        setContactStatusTone('error');
+        setContactStatus(error?.response?.data?.message || 'Unable to send support request right now. Please try again.');
+      } finally {
+        setContactSubmitting(false);
+      }
+    };
+
+    submit();
+  };
 
   return (
     <div className="lp-root">
@@ -137,6 +207,105 @@ const LandingPage = () => {
 
       {/* Auth Modal */}
       {modal && <AuthModal mode={modal} onClose={() => setModal(null)} />}
+
+      {/* Contact Support Card */}
+      {showContactCard && (
+        <>
+          <div className="lp-contact-overlay" onClick={() => setShowContactCard(false)} />
+          <aside className="lp-contact-card" role="dialog" aria-label="Contact support">
+            <div className="lp-contact-head">
+              <div>
+                <p className="lp-contact-eyebrow">Support</p>
+                <h3>Contact Relstone</h3>
+                <p className="lp-contact-subhead">Fast support for enrollment, billing, and technical issues.</p>
+              </div>
+              <button
+                type="button"
+                className="lp-contact-close"
+                onClick={() => setShowContactCard(false)}
+                aria-label="Close contact form"
+              >
+                x
+              </button>
+            </div>
+
+            <form className="lp-contact-form" onSubmit={handleContactSubmit}>
+              <input
+                type="text"
+                name="name"
+                placeholder="Name"
+                value={contactForm.name}
+                onChange={handleContactChange}
+                required
+              />
+              <input
+                type="email"
+                name="email"
+                placeholder="Email"
+                value={contactForm.email}
+                onChange={handleContactChange}
+                required
+              />
+              <select
+                name="subject"
+                value={contactForm.subject}
+                onChange={handleContactChange}
+              >
+                {CONTACT_SUBJECTS.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+              <textarea
+                name="message"
+                placeholder="How can we help you?"
+                rows={4}
+                value={contactForm.message}
+                onChange={handleContactChange}
+                required
+              />
+              <button type="submit" className="lp-contact-submit" disabled={contactSubmitting}>
+                {contactSubmitting ? 'Sending...' : 'Send Message'}
+              </button>
+            </form>
+
+            {contactStatus && (
+              <p className={`lp-contact-status ${contactStatusTone === 'error' ? 'lp-contact-status--error' : ''}`}>
+                {contactStatus}
+              </p>
+            )}
+
+            <div className="lp-contact-meta">
+              <div className="lp-contact-meta-item">
+                <span className="lp-contact-meta-label">Email</span>
+                <a href="mailto:support@relstone.com">support@relstone.com</a>
+              </div>
+              <div className="lp-contact-meta-item">
+                <span className="lp-contact-meta-label">Phone</span>
+                <a href="tel:+18005550147">+1 (800) 555-0147</a>
+              </div>
+              <div className="lp-contact-meta-item">
+                <span className="lp-contact-meta-label">Support Hours</span>
+                <p>Monday to Friday, 8:00 AM to 6:00 PM (EST)</p>
+              </div>
+              <div className="lp-contact-meta-item lp-live-chat-widget" role="region" aria-label="Live chat widget">
+                <span className="lp-contact-meta-label">Live Chat</span>
+                <a
+                  href="mailto:support@relstone.com?subject=Live%20Chat%20Support"
+                  className="lp-live-chat-link"
+                  aria-label="Start live chat"
+                  title="Live Chat"
+                >
+                  <span className="lp-live-chat-badge-dot" aria-hidden="true" />
+                  <span>Start Live Chat</span>
+                </a>
+              </div>
+              <div className="lp-contact-meta-item lp-contact-meta-item--help">
+                <a href="/resources">Go to Help Center</a>
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
 
       {/* ── NAV ── */}
       <nav className="lp-nav">
@@ -695,17 +864,45 @@ const LandingPage = () => {
           <div className="lp-footer-links">
             <a href="#" className="lp-footer-link">Terms of Service</a>
             <a href="#" className="lp-footer-link">Privacy Policy</a>
-            <a href="mailto:support@relstone.com" className="lp-footer-link">Contact Support</a>
+            <a href="/resources" className="lp-footer-link">Help Center</a>
+            <button
+              type="button"
+              className="lp-footer-link lp-footer-link-btn"
+              onClick={() => {
+                setContactStatus('');
+                setContactStatusTone('success');
+                setShowContactCard(true);
+              }}
+            >
+              Contact Support
+            </button>
           </div>
         </div>
       </footer>
+
+      <button
+        type="button"
+        className="lp-live-widget-fab"
+        onClick={() => {
+          setContactStatus('');
+          setContactStatusTone('success');
+          setShowContactCard(true);
+        }}
+        aria-label="Open live support widget"
+        title="Contact"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H7l-4 3v-5.5A8.5 8.5 0 1 1 21 11.5z"/>
+        </svg>
+        <span className="lp-live-widget-text">Contact</span>
+        <span className="lp-live-widget-dot" />
+      </button>
     </div>
   );
 };
 
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.cdnfonts.com/css/homepage-baukasten');
 
 :root {
   --midnight:    #091925;
@@ -1426,6 +1623,239 @@ button.lp-cta-login-link {
 .lp-footer-links { display: flex; gap: 20px; justify-content: flex-end; }
 .lp-footer-link { font-size: 13px; color: var(--slate); text-decoration: none; transition: color .18s; white-space: nowrap; }
 .lp-footer-link:hover { color: var(--electric); }
+.lp-footer-link-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.lp-contact-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  background: rgba(9,25,37,0.65);
+  backdrop-filter: blur(4px);
+}
+.lp-contact-card {
+  position: fixed;
+  z-index: 191;
+  right: 18px;
+  bottom: 18px;
+  width: min(460px, calc(100vw - 26px));
+  background: linear-gradient(160deg, #ffffff 0%, #f7fbff 100%);
+  border: 1px solid rgba(46,171,254,0.2);
+  border-radius: 18px;
+  box-shadow: 0 26px 60px rgba(9,25,37,0.28);
+  padding: 20px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+}
+.lp-contact-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.lp-contact-eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--electric);
+}
+.lp-contact-head h3 {
+  margin: 4px 0 5px;
+  font-family: var(--font-title);
+  font-size: 24px;
+  color: var(--midnight);
+}
+.lp-contact-subhead {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.lp-contact-close {
+  border: 1px solid rgba(46,171,254,0.22);
+  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  background: #f8fbff;
+  cursor: pointer;
+  color: var(--midnight);
+  font-weight: 700;
+}
+.lp-contact-form {
+  display: grid;
+  gap: 10px;
+}
+.lp-contact-form input,
+.lp-contact-form select,
+.lp-contact-form textarea {
+  border: 1px solid rgba(46,171,254,0.2);
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  padding: 10px 11px;
+  background: #fbfdff;
+  transition: border-color .16s, box-shadow .16s, background .16s;
+}
+.lp-contact-form input:focus,
+.lp-contact-form select:focus,
+.lp-contact-form textarea:focus {
+  outline: none;
+  border-color: rgba(46,171,254,0.7);
+  box-shadow: 0 0 0 3px rgba(46,171,254,0.14);
+  background: #fff;
+}
+.lp-contact-submit {
+  border: none;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(120deg, #2EABFE, #1A7AB8);
+  cursor: pointer;
+  transition: transform .16s, box-shadow .16s;
+}
+.lp-contact-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(26,122,184,0.24);
+}
+.lp-contact-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.lp-contact-status {
+  margin: 11px 0 0;
+  font-size: 12px;
+  color: #1A7AB8;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(46,171,254,0.1);
+  border: 1px solid rgba(46,171,254,0.2);
+}
+.lp-contact-status--error {
+  color: #c2410c;
+  background: rgba(194,65,12,0.08);
+  border-color: rgba(194,65,12,0.2);
+}
+.lp-contact-meta {
+  margin-top: 12px;
+  border-top: 1px solid rgba(46,171,254,0.16);
+  padding-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+.lp-contact-meta p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.lp-contact-meta a {
+  color: var(--electric);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.lp-contact-meta-item {
+  border: 1px solid rgba(46,171,254,0.16);
+  background: rgba(255,255,255,0.74);
+  border-radius: 10px;
+  padding: 9px 10px;
+  display: grid;
+  gap: 2px;
+}
+
+.lp-contact-meta-label {
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #5f7687;
+}
+
+.lp-contact-meta-item--help {
+  display: flex;
+  justify-content: center;
+}
+
+.lp-live-chat-widget {
+  align-items: start;
+}
+
+.lp-live-chat-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16,185,129,0.16);
+  flex-shrink: 0;
+}
+
+.lp-live-chat-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  color: var(--electric);
+  text-decoration: none;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.lp-live-chat-link:hover {
+  color: var(--ocean);
+}
+
+.lp-live-widget-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 189;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: linear-gradient(120deg, #0D2436, #1A7AB8);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 14px 36px rgba(9,25,37,0.34);
+}
+
+.lp-live-widget-text {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.lp-live-widget-dot {
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #34d399;
+  box-shadow: 0 0 0 6px rgba(52,211,153,0.16);
+}
+
+@media (max-width: 560px) {
+  .lp-contact-card {
+    right: 12px;
+    bottom: 12px;
+    width: calc(100vw - 24px);
+    padding: 16px;
+  }
+}
 
 /* ══ RESPONSIVE ══ */
 @media (max-width: 1024px) {
