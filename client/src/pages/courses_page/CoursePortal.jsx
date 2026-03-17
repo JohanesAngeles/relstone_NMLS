@@ -7,12 +7,48 @@ import {
 } from "lucide-react";
 import API from "../../api/axios";
 
+/* ─── localStorage helpers ───────────────────────────────────────── */
+const storageKey    = (courseId) => `course-progress-${courseId}`;
+const storageIdxKey = (courseId) => `course-currentIdx-${courseId}`;
+
+const loadCompleted = (courseId) => {
+  try {
+    const saved = localStorage.getItem(storageKey(courseId));
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  } catch { return new Set(); }
+};
+
+const saveCompleted = (courseId, set) => {
+  try {
+    localStorage.setItem(storageKey(courseId), JSON.stringify([...set]));
+  } catch {}
+};
+
+const loadCurrentIdx = (courseId) => {
+  try {
+    const saved = localStorage.getItem(storageIdxKey(courseId));
+    return saved !== null ? parseInt(saved, 10) : 0;
+  } catch { return 0; }
+};
+
+const saveCurrentIdx = (courseId, idx) => {
+  try {
+    localStorage.setItem(storageIdxKey(courseId), String(idx));
+  } catch {}
+};
+
+const clearProgress = (courseId) => {
+  try {
+    localStorage.removeItem(storageKey(courseId));
+    localStorage.removeItem(storageIdxKey(courseId));
+  } catch {}
+};
+
 /* ─── Build content array from DB course ────────────────────────── */
 const buildContent = (course) => {
   const content = [];
   if (!course?.modules?.length) return content;
 
-  // Use course-level pdf_url as fallback for all modules
   const coursePdf = course.pdf_url || null;
 
   course.modules
@@ -20,7 +56,6 @@ const buildContent = (course) => {
     .forEach((mod) => {
       const modPdf = mod.pdf_url || coursePdf;
 
-      // ── Lesson step ──────────────────────────────────────────────
       content.push({
         id:           `lesson-mod-${mod.order}`,
         type:         "lesson",
@@ -31,9 +66,6 @@ const buildContent = (course) => {
         sections:     mod.sections || [],
       });
 
-      // ── PDF Gate step (only when show_pdf_before_quiz is true) ───
-      // Inserted between the lesson and the quiz so the student must
-      // review the PDF and confirm before the exam unlocks.
       if (mod.show_pdf_before_quiz && modPdf) {
         content.push({
           id:      `pdf-gate-mod-${mod.order}`,
@@ -43,13 +75,8 @@ const buildContent = (course) => {
         });
       }
 
-      // ── Checkpoint / Fundamentals Exam step ─────────────────────
       if (mod.quiz?.length) {
-        // Use "quiz_fundamentals" type for the large 70-Q bank so it
-        // gets the full QuizView experience (timer, % score, retry).
-        // Regular module checkpoints (<= 10 Qs) use "checkpoint".
         const isFundamentals = mod.show_pdf_before_quiz && mod.quiz.length > 10;
-
         content.push({
           id:           `checkpoint-mod-${mod.order}`,
           type:         isFundamentals ? "quiz_fundamentals" : "checkpoint",
@@ -68,7 +95,6 @@ const buildContent = (course) => {
       }
     });
 
-  // ── Official Final Exam ──────────────────────────────────────────
   if (course.final_exam?.questions?.length) {
     content.push({
       id:           "final-exam",
@@ -96,11 +122,13 @@ const CoursePortal = () => {
   const [course, setCourse]           = useState(null);
   const [content, setContent]         = useState([]);
   const [loading, setLoading]         = useState(true);
-  const [currentIdx, setCurrentIdx]   = useState(0);
-  const [completed, setCompleted]     = useState(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [finished, setFinished]       = useState(false);
   const [error, setError]             = useState(null);
+
+  // ── Persisted state: init from localStorage ──
+  const [completed, setCompleted]   = useState(() => loadCompleted(id));
+  const [currentIdx, setCurrentIdx] = useState(() => loadCurrentIdx(id));
 
   useEffect(() => {
     const load = async () => {
@@ -110,6 +138,13 @@ const CoursePortal = () => {
         setCourse(data);
         const built = buildContent(data);
         setContent(built);
+
+        // Guard: if saved index is out of range, reset to 0
+        setCurrentIdx((prev) => {
+          const safe = Math.min(prev, built.length - 1);
+          if (safe !== prev) saveCurrentIdx(id, safe);
+          return safe < 0 ? 0 : safe;
+        });
       } catch (err) {
         console.error("Failed to load course:", err);
         setError("Could not load course content.");
@@ -125,22 +160,40 @@ const CoursePortal = () => {
     ? Math.round((completed.size / content.length) * 100)
     : 0;
 
-  const markComplete  = (idx) => setCompleted((p) => new Set([...p, idx]));
-  const goNext        = () => {
+  // ── Persist completed set whenever it changes ──
+  const markComplete = (idx) => {
+    setCompleted((prev) => {
+      const next = new Set([...prev, idx]);
+      saveCompleted(id, next);
+      return next;
+    });
+  };
+
+  // ── Persist currentIdx whenever it changes ──
+  const navigateTo = (idx) => {
+    setCurrentIdx(idx);
+    saveCurrentIdx(id, idx);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const goNext = () => {
     markComplete(currentIdx);
     if (currentIdx < content.length - 1) {
-      setCurrentIdx(currentIdx + 1);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      navigateTo(currentIdx + 1);
     }
   };
-  const goPrev        = () => {
-    if (currentIdx > 0) {
-      setCurrentIdx(currentIdx - 1);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+
+  const goPrev = () => {
+    if (currentIdx > 0) navigateTo(currentIdx - 1);
   };
+
   const canNavigateTo = (idx) => idx === 0 || completed.has(idx - 1);
-  const handleFinish  = () => { markComplete(currentIdx); setFinished(true); };
+
+  const handleFinish = () => {
+    markComplete(currentIdx);
+    clearProgress(id);   // ← wipe localStorage on course completion
+    setFinished(true);
+  };
 
   if (loading) return (
     <div style={S.page}><style>{css}</style>
@@ -203,23 +256,23 @@ const CoursePortal = () => {
                 const isLocked  = !canNavigateTo(idx);
 
                 const icon =
-                  item.type === "lesson"           ? <PlayCircle size={14} />
-                  : item.type === "pdf_gate"       ? <FileText size={14} />
-                  : item.type === "checkpoint"     ? <ClipboardList size={14} />
+                  item.type === "lesson"              ? <PlayCircle size={14} />
+                  : item.type === "pdf_gate"          ? <FileText size={14} />
+                  : item.type === "checkpoint"        ? <ClipboardList size={14} />
                   : item.type === "quiz_fundamentals" ? <ClipboardList size={14} />
                   : <Trophy size={14} />;
 
                 const iconColor =
-                  item.type === "checkpoint"        ? "rgba(245,158,11,1)"
+                  item.type === "checkpoint"          ? "rgba(245,158,11,1)"
                   : item.type === "quiz_fundamentals" ? "rgba(245,158,11,1)"
-                  : item.type === "pdf_gate"        ? "rgba(239,68,68,0.80)"
-                  : item.type === "quiz"            ? "rgba(34,197,94,1)"
+                  : item.type === "pdf_gate"          ? "rgba(239,68,68,0.80)"
+                  : item.type === "quiz"              ? "rgba(34,197,94,1)"
                   : "var(--cp-blue)";
 
                 const typeLabel =
-                  item.type === "lesson"            ? "Lesson"
-                  : item.type === "pdf_gate"        ? "Study Material"
-                  : item.type === "checkpoint"      ? "Checkpoint"
+                  item.type === "lesson"              ? "Lesson"
+                  : item.type === "pdf_gate"          ? "Study Material"
+                  : item.type === "checkpoint"        ? "Checkpoint"
                   : item.type === "quiz_fundamentals" ? "Fundamentals Exam"
                   : "Final Exam";
 
@@ -231,7 +284,7 @@ const CoursePortal = () => {
                       ...(isCurrent ? S.sidebarItemActive : {}),
                       ...(isLocked  ? S.sidebarItemLocked : {}),
                     }}
-                    onClick={() => !isLocked && setCurrentIdx(idx)}
+                    onClick={() => !isLocked && navigateTo(idx)}
                     type="button"
                     disabled={isLocked}
                   >
@@ -256,6 +309,19 @@ const CoursePortal = () => {
                 );
               })}
             </div>
+
+            {/* ── Resume banner (shown when returning mid-course) ── */}
+            {completed.size > 0 && completed.size < content.length && (
+              <div style={S.resumeBanner}>
+                <div style={S.resumeBannerText}>
+                  <CheckCircle2 size={13} style={{ color: "rgba(34,197,94,1)", flexShrink: 0 }} />
+                  Progress saved
+                </div>
+                <div style={S.resumeBannerSub}>
+                  {completed.size} of {content.length} steps done
+                </div>
+              </div>
+            )}
           </aside>
         )}
 
@@ -272,7 +338,6 @@ const CoursePortal = () => {
               <CheckpointView item={current} onComplete={goNext} onPrev={goPrev} />
             )}
             {current?.type === "quiz_fundamentals" && (
-              // Uses QuizView but calls goNext (not handleFinish) so course continues to Final Exam
               <QuizView item={current} onFinish={goNext} onPrev={goPrev} />
             )}
             {current?.type === "quiz" && (
@@ -338,25 +403,14 @@ const PDFViewer = ({ url }) => {
 };
 
 /* ─── PDF Gate View ──────────────────────────────────────────────── */
-// Shown between the Module 5 lesson and the 70-question Fundamentals Exam.
-// Student must scroll through the PDF and tick the confirmation checkbox
-// before the "Proceed to Exam" button becomes active.
 const PDFGateView = ({ item, onComplete, onPrev }) => {
   const [confirmed, setConfirmed] = useState(false);
-
-  // Reset confirmation whenever the item changes
   useEffect(() => { setConfirmed(false); }, [item.id]);
 
   return (
     <div style={S.lessonWrap}>
-      {/* Type pill */}
-      <div style={S.typePillRed}>
-        <FileText size={14} /> Study Material
-      </div>
-
+      <div style={S.typePillRed}><FileText size={14} /> Study Material</div>
       <h1 style={S.lessonTitle}>{item.title}</h1>
-
-      {/* Warning banner */}
       <div style={S.pdfGateBanner}>
         <AlertCircle size={16} style={{ flexShrink: 0 }} />
         <span>
@@ -364,11 +418,7 @@ const PDFGateView = ({ item, onComplete, onPrev }) => {
           70-question Fundamentals Exam. You must confirm you have read it below.
         </span>
       </div>
-
-      {/* PDF */}
       <PDFViewer url={item.pdf_url} />
-
-      {/* Confirmation checkbox */}
       <div style={S.pdfGateConfirmRow}>
         <input
           type="checkbox"
@@ -384,12 +434,8 @@ const PDFGateView = ({ item, onComplete, onPrev }) => {
           I have reviewed the study material and I am ready to take the Fundamentals Exam.
         </label>
       </div>
-
-      {/* Navigation */}
       <div style={S.navRow}>
-        <button style={S.prevBtn} onClick={onPrev} type="button">
-          <ArrowLeft size={16} /> Previous
-        </button>
+        <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
         <button
           style={{ ...S.nextBtn, ...(!confirmed ? S.nextBtnDim : {}) }}
           onClick={confirmed ? onComplete : undefined}
@@ -426,7 +472,6 @@ const LessonView = ({ item, onComplete, onPrev, showPrev }) => {
 
       <h1 style={S.lessonTitle}>{item.title}</h1>
 
-      {/* Toggle between PDF and sections list (if both exist) */}
       {item.pdf_url && item.sections?.length > 0 && (
         <div style={S.viewToggle}>
           <button
@@ -444,10 +489,8 @@ const LessonView = ({ item, onComplete, onPrev, showPrev }) => {
         </div>
       )}
 
-      {/* PDF Viewer */}
       {pdfView && <PDFViewer url={item.pdf_url} />}
 
-      {/* Outline/Sections list */}
       {!pdfView && (
         <>
           <div style={S.videoBox}>
@@ -576,8 +619,6 @@ const CheckpointView = ({ item, onComplete, onPrev }) => {
 };
 
 /* ─── Quiz View (Final Exam + Fundamentals Exam) ─────────────────── */
-// onFinish = handleFinish for the real Final Exam (ends the course)
-// onFinish = goNext       for quiz_fundamentals (continues to Final Exam)
 const QuizView = ({ item, onFinish, onPrev }) => {
   const [answers, setAnswers]     = useState({});
   const [submitted, setSubmitted] = useState(false);
@@ -587,7 +628,6 @@ const QuizView = ({ item, onFinish, onPrev }) => {
   const timerRef = useRef(null);
 
   useEffect(() => {
-    // Reset all state when navigating to a different quiz
     setAnswers({});
     setSubmitted(false);
     setScore(0);
@@ -615,7 +655,7 @@ const QuizView = ({ item, onFinish, onPrev }) => {
     setSubmitted(true);
   };
 
-  const fmt        = (s) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
+  const fmt          = (s) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
   const handleRetry  = () => {
     setAnswers({});
@@ -629,8 +669,6 @@ const QuizView = ({ item, onFinish, onPrev }) => {
   const answered     = Object.keys(answers).length;
   const correctCount = item.questions.filter((q) => answers[q.id] === q.correct).length;
   const urgentTime   = timeLeft < 300;
-
-  // Label for the continue button varies by quiz type
   const isFundamentals = item.id?.includes("checkpoint-mod-") && !item.id?.includes("final-exam");
 
   return (
@@ -791,7 +829,7 @@ const S = {
   body:    { display: "flex", flex: 1, overflow: "hidden", height: "calc(100vh - 58px)" },
   sidebar: { width: 290, flexShrink: 0, background: "#fff", borderRight: "1px solid rgba(2,8,23,0.08)", display: "flex", flexDirection: "column", overflowY: "auto" },
   sidebarHead:       { padding: "16px 18px 12px", fontWeight: 900, fontSize: 13, color: "rgba(10,22,40,0.55)", letterSpacing: "0.4px", borderBottom: "1px solid rgba(2,8,23,0.07)", display: "flex", alignItems: "center" },
-  sidebarList:       { display: "flex", flexDirection: "column", padding: "8px 0" },
+  sidebarList:       { display: "flex", flexDirection: "column", padding: "8px 0", flex: 1 },
   sidebarItem:       { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "11px 16px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", transition: "background 0.15s" },
   sidebarItemActive: { background: "rgba(46,171,254,0.08)", borderRight: "3px solid var(--cp-blue)" },
   sidebarItemLocked: { opacity: 0.45, cursor: "not-allowed" },
@@ -799,6 +837,11 @@ const S = {
   sidebarIcon:       { marginTop: 2, flexShrink: 0 },
   sidebarLabel:      { fontSize: 10, fontWeight: 800, color: "rgba(10,22,40,0.45)", letterSpacing: "0.5px", marginBottom: 2 },
   sidebarTitle:      { fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.85)", lineHeight: 1.35 },
+
+  // Resume banner at bottom of sidebar
+  resumeBanner:    { margin: "8px 12px 12px", padding: "10px 14px", borderRadius: 12, background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.22)", flexShrink: 0 },
+  resumeBannerText:{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 800, color: "rgba(21,128,61,1)", marginBottom: 3 },
+  resumeBannerSub: { fontSize: 11, fontWeight: 600, color: "rgba(10,22,40,0.45)", paddingLeft: 19 },
 
   main:        { flex: 1, overflowY: "auto", padding: "20px 0 32px" },
   contentWrap: { maxWidth: 860, margin: "0 auto", padding: "0 24px" },
@@ -812,11 +855,9 @@ const S = {
   lessonWrap:  { display: "flex", flexDirection: "column", gap: 24 },
   lessonTitle: { fontSize: 26, fontWeight: 900, color: "var(--cp-dark)", letterSpacing: "-0.4px", lineHeight: 1.2, fontFamily: "'DM Serif Display', serif" },
 
-  // PDF Gate banner
   pdfGateBanner:     { display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 18px", borderRadius: 14, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)", fontSize: 14, fontWeight: 700, lineHeight: 1.5 },
   pdfGateConfirmRow: { display: "flex", alignItems: "center", gap: 12, padding: "16px 18px", borderRadius: 14, background: "#fff", border: "1px solid rgba(2,8,23,0.09)", boxShadow: "0 2px 8px rgba(2,8,23,0.05)" },
 
-  // PDF styles
   pdfWrap:      { borderRadius: 18, overflow: "hidden", border: "1px solid rgba(2,8,23,0.10)", boxShadow: "0 8px 32px rgba(2,8,23,0.08)", width: "100%" },
   pdfToolbar:   { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: "#fff", borderBottom: "1px solid rgba(2,8,23,0.08)" },
   pdfOpenBtn:   { display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, background: "rgba(46,171,254,0.10)", border: "1px solid rgba(46,171,254,0.22)", color: "var(--cp-blue)", fontWeight: 700, fontSize: 12, textDecoration: "none" },
@@ -825,7 +866,6 @@ const S = {
   pdfErrorBox:  { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 200, background: "#fff" },
   pdfFallbackBtn:{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", borderRadius: 10, background: "var(--cp-blue)", color: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none" },
 
-  // Toggle
   viewToggle:     { display: "flex", gap: 8, padding: "4px", background: "rgba(2,8,23,0.05)", borderRadius: 12, width: "fit-content" },
   toggleBtn:      { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 10, border: "none", background: "transparent", cursor: "pointer", fontWeight: 700, fontSize: 13, color: "rgba(10,22,40,0.55)" },
   toggleBtnActive:{ background: "#fff", color: "var(--cp-dark)", boxShadow: "0 2px 8px rgba(2,8,23,0.10)" },
