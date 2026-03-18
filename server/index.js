@@ -1,23 +1,25 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const dns = require('dns');
-const path = require('path');
+const express    = require('express');
+const mongoose   = require('mongoose');
+const cors       = require('cors');
+const path       = require('path');
 
-const authRoutes = require('./routes/auth');
-const authMiddleware = require('./middleware/auth');
-const courseRoutes = require('./routes/courses');
-const orderRoutes = require('./routes/orders');
-const dashboardRoutes = require('./routes/dashboard');
+// ── Route imports ─────────────────────────────────────────────────────────────
+const authRoutes        = require('./routes/auth');
+const courseRoutes      = require('./routes/courses');
+const orderRoutes       = require('./routes/orders');
+const dashboardRoutes   = require('./routes/dashboard');
 const certificateRoutes = require('./routes/certificates');
-const instructorRoutes = require('./routes/instructor');
+const instructorRoutes  = require('./routes/instructor');
+
+// ── Middleware ────────────────────────────────────────────────────────────────
+const authMiddleware = require('./middleware/auth');
 
 const app = express();
 
-// CORS
+// ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -28,22 +30,23 @@ app.use(cors({
   ],
   credentials: true,
 }));
+
 app.use(express.json());
 
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/courses', courseRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/dashboard', dashboardRoutes);
+// ── API routes ────────────────────────────────────────────────────────────────
+app.use('/api/auth',         authRoutes);
+app.use('/api/courses',      courseRoutes);
+app.use('/api/orders',       orderRoutes);
+app.use('/api/dashboard',    dashboardRoutes);
 app.use('/api/certificates', certificateRoutes);
-app.use('/api/instructor', instructorRoutes);
+app.use('/api/instructor',   instructorRoutes);
 
-// Protected test route
+// ── Protected test route ──────────────────────────────────────────────────────
 app.get('/api/protected', authMiddleware, (req, res) => {
   res.json({ message: 'Access granted!', user: req.user });
 });
 
-// Serve React build in production
+// ── Serve React build in production ──────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
   app.get('/{*path}', (req, res) => {
@@ -55,7 +58,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Start server
+// ── Start server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8000;
 
 mongoose
@@ -69,4 +72,3 @@ mongoose
   .catch((err) => {
     console.error('MongoDB connection failed:', err.message);
   });
-  
