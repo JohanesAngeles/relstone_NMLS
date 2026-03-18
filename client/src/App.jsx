@@ -12,6 +12,8 @@ import Courses from './pages/courses_page/Courses';
 import Checkout from './pages/checkout_page/checkout';
 import CourseDetails from './pages/courses_page/CoursesDetails';
 import CoursePortal from './pages/courses_page/CoursePortal';
+import StateRequirements from './pages/courses_page/StateRequirements';
+import PricingPage from './pages/courses_page/PricingPage';
 import HomePage from './pages/HomePage';
 import ResourcesHub from './pages/resources_page/ResourcesHub';
 import ResourceArticlePage from './pages/resources_page/ResourceArticlePage';
@@ -93,6 +95,19 @@ function App() {
           <Route path="/courses" element={
             <PrivateRoute>
               <Courses />
+            </PrivateRoute>
+          } />
+
+          {/* Discover pages */}
+          <Route path="/state-requirements" element={
+            <PrivateRoute>
+              <StateRequirements />
+            </PrivateRoute>
+          } />
+
+          <Route path="/pricing" element={
+            <PrivateRoute>
+              <PricingPage />
             </PrivateRoute>
           } />
 

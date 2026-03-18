@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from '../../context/AuthContext';
 import {
   BookOpen, Clock, MapPin, ShoppingCart, Filter,
@@ -7,15 +7,27 @@ import {
 } from "lucide-react";
 import API from "../../api/axios";
 
+const STATE_CODES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DC','DE','FL','GA',
+  'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM',
+  'NY','NC','ND','OH','OK','OR','PA','RI','SC','SD',
+  'TN','TX','UT','VT','VA','WA','WV','WI','WY',
+];
+
 const Courses = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
+
+  const initialType = (searchParams.get('type') || '').toUpperCase();
+  const initialState = (searchParams.get('state') || user?.state || '').toUpperCase();
 
   const [courses, setCourses]           = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState("");
   const [cart, setCart]                 = useState([]);
-  const [filters, setFilters]           = useState({ type: "", state: user?.state || "" });
+  const [filters, setFilters]           = useState({ type: initialType, state: initialState });
   const [q, setQ]                       = useState("");
   const [showCart, setShowCart]         = useState(false);
   const [ordering, setOrdering]         = useState(false);
@@ -26,6 +38,19 @@ const Courses = () => {
     fetchCourses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
+
+  useEffect(() => {
+    const queryType = (searchParams.get('type') || '').toUpperCase();
+    const queryState = (searchParams.get('state') || '').toUpperCase();
+
+    if (!queryType && !queryState) return;
+
+    setFilters((prev) => ({
+      ...prev,
+      type: queryType || prev.type,
+      state: queryState || prev.state,
+    }));
+  }, [searchParams]);
 
   const fetchCourses = async () => {
     setLoading(true); setError("");
@@ -136,23 +161,23 @@ const Courses = () => {
                 <option value="CE">Continuing Education (CE)</option>
               </select>
 
-              {/* Locked state badge — user cannot change */}
-              {user?.state && (
-                <div style={S.stateLock}>
-                  <MapPin size={13} />
-                  <span>{user.state}</span>
-                </div>
-              )}
+              <select style={S.select} value={filters.state} onChange={(e) => setFilters({ ...filters, state: e.target.value })}>
+                <option value="">All States</option>
+                {STATE_CODES.map((code) => (
+                  <option key={code} value={code}>{code}</option>
+                ))}
+              </select>
 
-              {/* Only allow clearing the type filter */}
-              {filters.type && (
-                <button type="button" style={S.clearBtn} onClick={() => setFilters({ ...filters, type: "" })}>
+              {(filters.type || filters.state) && (
+                <button type="button" style={S.clearBtn} onClick={() => setFilters({ ...filters, type: "", state: user?.state || "" })}>
                   Clear
                 </button>
               )}
             </div>
           </div>
           <div style={S.filtersRight}>
+            <button type="button" style={S.metaNavBtn} onClick={() => navigate('/state-requirements')}>State Requirements</button>
+            <button type="button" style={S.metaNavBtn} onClick={() => navigate('/pricing')}>Pricing</button>
             <div style={S.countPill}>
               {loading ? "Loading…" : `${filteredCourses.length} course${filteredCourses.length === 1 ? "" : "s"}`}
             </div>
@@ -168,7 +193,7 @@ const Courses = () => {
           ) : filteredCourses.length === 0 ? (
             <div style={S.emptyCard}>
               <div style={S.emptyTitle}>No courses found</div>
-              <div style={S.emptySub}>No courses are available for your state ({user?.state}) yet.</div>
+              <div style={S.emptySub}>No courses are available for the current filter ({filters.state || 'ALL STATES'}).</div>
             </div>
           ) : (
             filteredCourses.map((course) => {
@@ -361,12 +386,12 @@ const S = {
   shell:        { maxWidth:1180, margin:"0 auto", padding:"18px 18px 40px" },
   filtersCard:  { borderRadius:22, background:"rgba(255,255,255,0.82)", border:"1px solid rgba(2,8,23,0.08)", boxShadow:"var(--rs-shadow)", backdropFilter:"blur(10px)", padding:14, display:"flex", justifyContent:"space-between", gap:12, flexWrap:"wrap" },
   filtersLeft:  { display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" },
-  filtersRight: { display:"flex", alignItems:"center" },
+  filtersRight: { display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" },
   searchWrap:   { display:"flex", alignItems:"center", gap:8, padding:"10px 12px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", minWidth:280 },
   searchInput:  { border:"none", outline:"none", width:"100%", fontSize:13, fontWeight:700, color:"rgba(11,18,32,0.80)", background:"transparent" },
   filterWrap:   { display:"flex", alignItems:"center", gap:8, padding:"10px 12px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", flexWrap:"wrap" },
   select:       { border:"none", outline:"none", background:"transparent", fontSize:13, fontWeight:800, color:"rgba(11,18,32,0.78)", cursor:"pointer", paddingRight:4 },
-  stateLock:    { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:999, background:"rgba(46,171,254,0.10)", border:"1px solid rgba(46,171,254,0.22)", color:"var(--rs-dark)", fontWeight:900, fontSize:13 },
+  metaNavBtn:   { border:"1px solid rgba(2,8,23,0.10)", background:"#fff", borderRadius:999, padding:"10px 12px", cursor:"pointer", fontWeight:900, fontSize:12, color:"rgba(11,18,32,0.72)" },
   clearBtn:     { border:"1px solid rgba(2,8,23,0.10)", background:"rgba(2,8,23,0.02)", borderRadius:999, padding:"8px 10px", cursor:"pointer", fontWeight:900, fontSize:13, color:"rgba(11,18,32,0.72)" },
   countPill:    { padding:"10px 12px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", fontWeight:950, fontSize:13, color:"rgba(11,18,32,0.78)" },
   grid:         { marginTop:14, display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", gap:12, alignItems:"start" },

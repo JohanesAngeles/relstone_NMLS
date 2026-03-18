@@ -16,6 +16,16 @@ const supportRoutes = require('./routes/support');
 
 dotenv.config();
 
+const dnsServers = String(process.env.DNS_SERVERS || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+if (dnsServers.length > 0) {
+  dns.setServers(dnsServers);
+  console.log('Using custom DNS servers:', dnsServers.join(', '));
+}
+
 const app = express();
 
 // CORS

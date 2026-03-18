@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 
@@ -413,16 +413,17 @@ const HomePage = () => {
 
           <div className="hp-footer-col">
             <div className="hp-footer-col-title">Courses</div>
-            <a href="#" className="hp-footer-link">Pre-License (20hr)</a>
-            <a href="#" className="hp-footer-link">Continuing Education</a>
-            <a href="#" className="hp-footer-link">State Electives</a>
-            <a href="#" className="hp-footer-link">Browse All</a>
+            <Link to="/courses?type=PE" className="hp-footer-link">Pre-License (20hr)</Link>
+            <Link to="/courses?type=CE" className="hp-footer-link">Continuing Education</Link>
+            <Link to="/state-requirements" className="hp-footer-link">State Electives</Link>
+            <Link to="/courses" className="hp-footer-link">Browse All</Link>
           </div>
 
           <div className="hp-footer-col">
             <div className="hp-footer-col-title">Support</div>
-            <a href="/resources" className="hp-footer-link">Help Center</a>
-            <a href="#" className="hp-footer-link">State Requirements</a>
+            <Link to="/resources" className="hp-footer-link">Help Center</Link>
+            <Link to="/state-requirements" className="hp-footer-link">State Requirements</Link>
+            <Link to="/pricing" className="hp-footer-link">Pricing</Link>
             <a href="#" className="hp-footer-link">Privacy Policy</a>
             <a href="#" className="hp-footer-link">Terms of Service</a>
           </div>
