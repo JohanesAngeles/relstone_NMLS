@@ -8,25 +8,34 @@ import {
 } from "lucide-react";
 
 /* ─── localStorage progress helpers (must match CoursePortal) ────── */
-// CoursePortal saves:
-//   course-progress-{id}    → JSON array of completed step indices
-//   course-currentIdx-{id}  → current step index (string)
 const getLocalProgress = (courseId) => {
   try {
     const completed = localStorage.getItem(`course-progress-${courseId}`);
     const idxRaw    = localStorage.getItem(`course-currentIdx-${courseId}`);
-    const completedSet = completed ? JSON.parse(completed) : [];
-    const currentIdx   = idxRaw !== null ? parseInt(idxRaw, 10) : 0;
-    return { completedCount: completedSet.length, currentIdx };
-  } catch {
-    return { completedCount: 0, currentIdx: 0 };
-  }
+    return {
+      completedCount: completed ? JSON.parse(completed).length : 0,
+      currentIdx:     idxRaw !== null ? parseInt(idxRaw, 10) : 0,
+    };
+  } catch { return { completedCount: 0, currentIdx: 0 }; }
 };
 
-// Given completed step count and total steps, return 0-100
 const calcProgress = (completedCount, totalSteps) => {
   if (!totalSteps) return 0;
   return Math.min(100, Math.round((completedCount / totalSteps) * 100));
+};
+
+const countSteps = (course) => {
+  if (!course?.modules?.length) return 0;
+  let count = 0;
+  const coursePdf = course.pdf_url || null;
+  course.modules.forEach((mod) => {
+    const modPdf = mod.pdf_url || coursePdf;
+    count++;
+    if (mod.show_pdf_before_quiz && modPdf) count++;
+    if (mod.quiz?.length) count++;
+  });
+  if (course.final_exam?.questions?.length) count++;
+  return count;
 };
 
 /* ─── MyCourses ──────────────────────────────────────────────────── */
@@ -41,10 +50,6 @@ const MyCourses = () => {
   const [typeFilter, setTypeFilter]   = useState("all");
   const [search, setSearch]           = useState("");
   const [showFilters, setShowFilters] = useState(false);
-
-  // ── courseSteps: map of courseId → total step count from API ──
-  // We fetch this so we can calculate % from localStorage completed count.
-  // Falls back to 0 if not loaded yet (progress bar shows 0 until steps load).
   const [courseSteps, setCourseSteps] = useState({});
 
   useEffect(() => {
@@ -55,55 +60,92 @@ const MyCourses = () => {
           API.get("/dashboard/transcript"),
         ]);
         setData({ dashboard: dashRes.data, transcript: transcriptRes.data });
-      } catch {
-        setError("Failed to load courses");
-      } finally {
-        setLoading(false);
-      }
+      } catch { setError("Failed to load courses"); }
+      finally { setLoading(false); }
     };
     load();
   }, []);
 
-  // ── Build unified course lists from API data ──
-  const { inProgress, completed, wishlist, allStates, allTypes } = useMemo(() => {
-    if (!data) return { inProgress: [], completed: [], wishlist: [], allStates: [], allTypes: [] };
+  // ── KEY FIX: auto-save completion for any course that reached 100% locally
+  //    but wasn't recorded on the server (e.g. student closed browser before
+  //    clicking "Complete Course" on the final exam screen)
+  useEffect(() => {
+    if (!data) return;
 
-    const available = data.dashboard?.available_courses || [];
-    const orders    = data.dashboard?.orders || [];
+    const available     = data.dashboard?.available_courses || [];
+    const transcriptIds = new Set(
+      (data.transcript?.transcript || []).map((t) =>
+        String(t.course_id?._id || t.course_id)
+      )
+    );
+
+    available
+      .filter((c) => !c.already_completed && !transcriptIds.has(String(c.course_id)))
+      .forEach(async (c) => {
+        try {
+          // Fetch total steps if we don't have them yet
+          let totalSteps = c.total_steps || courseSteps[String(c.course_id)] || 0;
+          if (!totalSteps) {
+            const res    = await API.get(`/courses/${c.course_id}`);
+            const course = res.data?.data || res.data;
+            totalSteps   = countSteps(course);
+            setCourseSteps((prev) => ({ ...prev, [String(c.course_id)]: totalSteps }));
+          }
+
+          const { completedCount } = getLocalProgress(c.course_id);
+          if (totalSteps > 0 && completedCount >= totalSteps) {
+            // Progress is 100% locally but not saved — save it now
+            console.log(`Auto-saving completion for course ${c.course_id}`);
+            await API.post("/dashboard/complete", { courseId: c.course_id });
+            // Reload data to move card to Completed tab
+            const [dashRes, transcriptRes] = await Promise.all([
+              API.get("/dashboard"),
+              API.get("/dashboard/transcript"),
+            ]);
+            setData({ dashboard: dashRes.data, transcript: transcriptRes.data });
+          }
+        } catch (err) {
+          console.warn(`Could not auto-save completion for ${c.course_id}:`, err.message);
+        }
+      });
+  }, [data]);
+
+  const { inProgress, completed, allStates, allTypes } = useMemo(() => {
+    if (!data) return { inProgress: [], completed: [], allStates: [], allTypes: [] };
+
+    const available  = data.dashboard?.available_courses || [];
+    const orders     = data.dashboard?.orders || [];
     const transcript = data.transcript?.transcript || [];
 
-    // Completed courses from transcript
-    const completedCourses = transcript.map((t) => ({
-      id:              t.course_id || t._id,
-      title:           t.course_title,
-      type:            t.type,
-      credit_hours:    t.credit_hours,
-      nmls_id:         t.nmls_course_id,
-      completed_at:    t.completed_at,
-      certificate_url: t.certificate_url,
-      state:           t.state || "Federal",
-      progress:        100,
-      status:          "completed",
-    }));
+    // ── Completed courses from transcript ──
+    const completedCourses = transcript.map((t) => {
+      const courseObj = t.course_id || {};
+      const courseId  = courseObj?._id || courseObj || t._id;
+      return {
+        id:              courseId,
+        title:           t.course_title || courseObj?.title || "—",
+        type:            t.type         || courseObj?.type,
+        credit_hours:    t.credit_hours || courseObj?.credit_hours,
+        nmls_id:         t.nmls_course_id,
+        completed_at:    t.completed_at,
+        certificate_course_id: courseObj?._id || courseId,
+        state:           t.state || "Federal",
+        progress:        100,
+        status:          "completed",
+      };
+    });
 
-    // In-progress: read progress from localStorage instead of API
+    // ── In-progress courses ──
     const inProgressCourses = available
       .filter((c) => !c.already_completed)
       .map((c) => {
         const order = orders.find((o) =>
           (o.items || []).some((i) => String(i.course_id?._id) === String(c.course_id))
         );
-
-        // ── Pull real progress from localStorage ──
         const { completedCount } = getLocalProgress(c.course_id);
-        // Total steps: use API value if available, else fall back to courseSteps map
-        const totalSteps = c.total_steps || courseSteps[String(c.course_id)] || 0;
-        const localProgress = calcProgress(completedCount, totalSteps);
-        // Use local progress if we have any data, else fall back to API progress
-        const progress = completedCount > 0
-          ? localProgress
-          : (c.progress || 0);
-
+        const totalSteps         = c.total_steps || courseSteps[String(c.course_id)] || 0;
+        const localProgress      = calcProgress(completedCount, totalSteps);
+        const progress           = completedCount > 0 ? localProgress : (c.progress || 0);
         return {
           id:            c.course_id,
           title:         c.title,
@@ -128,48 +170,25 @@ const MyCourses = () => {
       ...inProgressCourses.map((c) => c.type),
     ])].filter(Boolean);
 
-    return {
-      inProgress:  inProgressCourses,
-      completed:   completedCourses,
-      wishlist:    [],
-      allStates,
-      allTypes,
-    };
+    return { inProgress: inProgressCourses, completed: completedCourses, allStates, allTypes };
   }, [data, courseSteps]);
 
-  // ── Fetch total step counts for in-progress courses ──
-  // This lets us show accurate % without opening each course.
-  // We batch-fetch only courses that have localStorage progress data.
+  // Fetch step counts for courses with local progress
   useEffect(() => {
     if (!data) return;
     const available = data.dashboard?.available_courses || [];
     const toFetch = available
-      .filter((c) => !c.already_completed)
-      .filter((c) => {
-        // Only fetch if we don't have total_steps from API
-        if (c.total_steps) return false;
-        // And the user has actually started the course
-        const { completedCount } = getLocalProgress(c.course_id);
-        return completedCount > 0;
-      });
-
-    if (!toFetch.length) return;
-
-    // Fetch each course to get module count → total steps
+      .filter((c) => !c.already_completed && !c.total_steps)
+      .filter((c) => getLocalProgress(c.course_id).completedCount > 0);
     toFetch.forEach(async (c) => {
       try {
-        const res  = await API.get(`/courses/${c.course_id}`);
+        const res    = await API.get(`/courses/${c.course_id}`);
         const course = res.data?.data || res.data;
-        // Mirror buildContent logic from CoursePortal to count total steps
-        const steps = countSteps(course);
-        setCourseSteps((prev) => ({ ...prev, [String(c.course_id)]: steps }));
-      } catch {
-        // Silently ignore — progress bar stays at 0
-      }
+        setCourseSteps((prev) => ({ ...prev, [String(c.course_id)]: countSteps(course) }));
+      } catch {}
     });
   }, [data]);
 
-  // Filter
   const filterCourses = (list) =>
     list.filter((c) => {
       const matchState  = stateFilter === "all" || c.state === stateFilter;
@@ -194,18 +213,11 @@ const MyCourses = () => {
   if (loading) return (
     <Layout>
       <style>{css}</style>
-      <div style={S.center}>
-        <div className="mc-spinner" />
-        <div style={{ marginTop: 12, color: "rgba(11,18,32,0.55)", fontSize: 13 }}>Loading your courses…</div>
-      </div>
+      <div style={S.center}><div className="mc-spinner" /><div style={{ marginTop:12,color:"rgba(11,18,32,0.55)",fontSize:13 }}>Loading your courses…</div></div>
     </Layout>
   );
-
   if (error) return (
-    <Layout>
-      <style>{css}</style>
-      <div style={S.center}><div style={S.errorBox}>{error}</div></div>
-    </Layout>
+    <Layout><style>{css}</style><div style={S.center}><div style={S.errorBox}>{error}</div></div></Layout>
   );
 
   return (
@@ -213,85 +225,62 @@ const MyCourses = () => {
       <style>{css}</style>
       <div style={S.shell}>
 
-        {/* ── Page Header ── */}
         <div style={S.pageHeader}>
           <div>
             <div style={S.pageKicker}>My Learning</div>
             <div style={S.pageTitle}>My Courses</div>
           </div>
-          <button style={S.browsBtn} onClick={() => navigate("/courses")}>
+          <button style={S.browsBtn} onClick={() => navigate("/courses")} type="button">
             <BookOpen size={16} /> Browse More Courses <ChevronRight size={16} />
           </button>
         </div>
 
-        {/* ── Tabs + Search + Filters ── */}
         <div style={S.toolbar}>
           <div style={S.tabs}>
             {tabList.map((t) => (
-              <button
-                key={t.key}
-                type="button"
+              <button key={t.key} type="button"
                 style={{ ...S.tab, ...(activeTab === t.key ? S.tabActive : {}) }}
                 onClick={() => setActiveTab(t.key)}
               >
                 {t.label}
-                <span style={{ ...S.tabCount, ...(activeTab === t.key ? S.tabCountActive : {}) }}>
-                  {t.count}
-                </span>
+                <span style={{ ...S.tabCount, ...(activeTab === t.key ? S.tabCountActive : {}) }}>{t.count}</span>
               </button>
             ))}
           </div>
           <div style={S.toolRight}>
             <div style={S.searchWrap}>
-              <Search size={14} style={{ color: "rgba(9,25,37,0.45)", flexShrink: 0 }} />
-              <input
-                style={S.searchInput}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search courses…"
-              />
+              <Search size={14} style={{ color:"rgba(9,25,37,0.45)",flexShrink:0 }} />
+              <input style={S.searchInput} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search courses…" />
             </div>
-            <button
-              style={{ ...S.filterBtn, ...(showFilters ? S.filterBtnActive : {}) }}
-              onClick={() => setShowFilters((p) => !p)}
-              type="button"
-            >
+            <button style={{ ...S.filterBtn, ...(showFilters ? S.filterBtnActive : {}) }} onClick={() => setShowFilters((p) => !p)} type="button">
               <Filter size={14} /> Filters
               {(stateFilter !== "all" || typeFilter !== "all") && <span style={S.filterDot} />}
             </button>
           </div>
         </div>
 
-        {/* ── Filter Panel ── */}
         {showFilters && (
           <div style={S.filterPanel}>
             <div style={S.filterGroup}>
               <div style={S.filterLabel}>State</div>
               <div style={S.filterOptions}>
                 <FilterChip label="All States" active={stateFilter === "all"} onClick={() => setStateFilter("all")} />
-                {allStates.map((s) => (
-                  <FilterChip key={s} label={s} active={stateFilter === s} onClick={() => setStateFilter(s)} />
-                ))}
+                {allStates.map((s) => <FilterChip key={s} label={s} active={stateFilter === s} onClick={() => setStateFilter(s)} />)}
               </div>
             </div>
             <div style={S.filterGroup}>
               <div style={S.filterLabel}>Course Type</div>
               <div style={S.filterOptions}>
                 <FilterChip label="All Types" active={typeFilter === "all"} onClick={() => setTypeFilter("all")} />
-                {allTypes.map((t) => (
-                  <FilterChip key={t} label={String(t).toUpperCase()} active={typeFilter === t} onClick={() => setTypeFilter(t)} />
-                ))}
+                {allTypes.map((t) => <FilterChip key={t} label={String(t).toUpperCase()} active={typeFilter === t} onClick={() => setTypeFilter(t)} />)}
               </div>
             </div>
             {(stateFilter !== "all" || typeFilter !== "all") && (
-              <button style={S.clearFilters} onClick={() => { setStateFilter("all"); setTypeFilter("all"); }} type="button">
-                Clear all filters
-              </button>
+              <button style={S.clearFilters} onClick={() => { setStateFilter("all"); setTypeFilter("all"); }} type="button">Clear all filters</button>
             )}
           </div>
         )}
 
-        {/* ── Course Grid ── */}
         {currentList.length === 0 ? (
           <EmptyTab tab={activeTab} onBrowse={() => navigate("/courses")} />
         ) : (
@@ -301,7 +290,7 @@ const MyCourses = () => {
                 key={course.id}
                 course={course}
                 onResume={() => navigate(`/courses/${course.id}/learn`)}
-                onCertificate={() => window.open(course.certificate_url, "_blank")}
+                onViewCertificate={() => navigate(`/certificate/${course.certificate_course_id || course.id}`)}
               />
             ))}
           </div>
@@ -312,36 +301,19 @@ const MyCourses = () => {
   );
 };
 
-/* ─── countSteps: mirrors buildContent() from CoursePortal ──────── */
-// Returns total number of steps so we can calculate % from localStorage.
-const countSteps = (course) => {
-  if (!course?.modules?.length) return 0;
-  let count = 0;
-  const coursePdf = course.pdf_url || null;
-  course.modules.forEach((mod) => {
-    const modPdf = mod.pdf_url || coursePdf;
-    count++; // lesson step
-    if (mod.show_pdf_before_quiz && modPdf) count++; // pdf_gate step
-    if (mod.quiz?.length) count++; // checkpoint / quiz_fundamentals step
-  });
-  if (course.final_exam?.questions?.length) count++; // final exam
-  return count;
-};
-
 /* ─── Course Card ────────────────────────────────────────────────── */
-const CourseCard = ({ course, onResume, onCertificate }) => {
+const CourseCard = ({ course, onResume, onViewCertificate }) => {
   const isCompleted = course.status === "completed";
   const isWishlist  = course.status === "wishlist";
   const progress    = course.progress || 0;
 
   const lastAccessed = course.last_accessed
-    ? new Date(course.last_accessed).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    ? new Date(course.last_accessed).toLocaleDateString("en-US", { month:"short",day:"numeric",year:"numeric" })
     : null;
   const completedAt = course.completed_at
-    ? new Date(course.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    ? new Date(course.completed_at).toLocaleDateString("en-US", { month:"short",day:"numeric",year:"numeric" })
     : null;
 
-  // Steps label e.g. "3 / 10 steps"
   const stepsLabel =
     !isCompleted && !isWishlist && course.completedSteps > 0 && course.totalSteps > 0
       ? `${course.completedSteps} / ${course.totalSteps} steps`
@@ -354,13 +326,15 @@ const CourseCard = ({ course, onResume, onCertificate }) => {
       <div style={S.cardBody}>
         <div style={S.cardHeader}>
           <div style={S.cardIconWrap}>
-            {isCompleted ? <CheckCircle size={20} color="#22C55E" /> : isWishlist ? <Heart size={20} color="#F59E0B" /> : <BookOpen size={20} color="#2EABFE" />}
+            {isCompleted
+              ? <Award size={20} color="#F59E0B" />
+              : isWishlist
+                ? <Heart size={20} color="#F59E0B" />
+                : <BookOpen size={20} color="#2EABFE" />}
           </div>
           <div style={S.cardBadges}>
             <span style={badgeStyle(course.type)}>{String(course.type || "").toUpperCase()}</span>
-            {course.state && course.state !== "Federal" && (
-              <span style={S.stateBadge}>{course.state}</span>
-            )}
+            {course.state && course.state !== "Federal" && <span style={S.stateBadge}>{course.state}</span>}
           </div>
         </div>
 
@@ -371,7 +345,6 @@ const CourseCard = ({ course, onResume, onCertificate }) => {
           {course.nmls_id && <span style={S.metaItem}>NMLS #{course.nmls_id}</span>}
         </div>
 
-        {/* Progress bar — in-progress only */}
         {!isCompleted && !isWishlist && (
           <div style={S.progressWrap}>
             <div style={S.progressTop}>
@@ -379,31 +352,32 @@ const CourseCard = ({ course, onResume, onCertificate }) => {
               <span style={S.progressPct}>{progress}%</span>
             </div>
             <div style={S.progressTrack}>
-              <div style={{ ...S.progressFill, width: `${progress}%` }} />
+              <div style={{ ...S.progressFill, width:`${progress}%` }} />
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
               {lastAccessed && <div style={S.lastAccessed}>Last accessed {lastAccessed}</div>}
               {stepsLabel   && <div style={S.stepsLabel}>{stepsLabel}</div>}
             </div>
           </div>
         )}
 
-        {isCompleted && completedAt && (
-          <div style={S.completedDate}>
-            <CheckCircle size={12} color="#22C55E" /> Completed {completedAt}
+        {isCompleted && (
+          <div style={S.completedBadgeRow}>
+            <div style={S.completedBadge}>
+              <CheckCircle size={13} color="#22C55E" />
+              <span>Completed{completedAt ? ` · ${completedAt}` : ""}</span>
+            </div>
           </div>
         )}
 
         <div style={S.cardActions}>
           {isCompleted ? (
             <>
-              {course.certificate_url && (
-                <button style={S.certBtn} onClick={onCertificate} type="button">
-                  <Award size={14} /> View Certificate
-                </button>
-              )}
+              <button style={S.certBtn} onClick={onViewCertificate} type="button">
+                <Award size={14} /> View Certificate
+              </button>
               <button style={S.resumeBtn} onClick={onResume} type="button">
-                <PlayCircle size={14} /> Review Course
+                <PlayCircle size={14} /> Review
               </button>
             </>
           ) : isWishlist ? (
@@ -423,17 +397,15 @@ const CourseCard = ({ course, onResume, onCertificate }) => {
 
 /* ─── Filter Chip ────────────────────────────────────────────────── */
 const FilterChip = ({ label, active, onClick }) => (
-  <button type="button" onClick={onClick} style={{ ...S.chip, ...(active ? S.chipActive : {}) }}>
-    {label}
-  </button>
+  <button type="button" onClick={onClick} style={{ ...S.chip, ...(active ? S.chipActive : {}) }}>{label}</button>
 );
 
 /* ─── Empty States ───────────────────────────────────────────────── */
 const EmptyTab = ({ tab, onBrowse }) => {
   const config = {
-    inprogress: { icon: "📚", title: "No courses in progress",   sub: "Enroll in a course to start learning." },
-    completed:  { icon: "🏆", title: "No completed courses yet", sub: "Finish a course to see it here." },
-    wishlist:   { icon: "❤️", title: "Your wishlist is empty",    sub: "Save courses you're interested in." },
+    inprogress: { icon:"📚", title:"No courses in progress",   sub:"Enroll in a course to start learning." },
+    completed:  { icon:"🏆", title:"No completed courses yet", sub:"Finish a course to earn your certificate." },
+    wishlist:   { icon:"❤️", title:"Your wishlist is empty",    sub:"Save courses you're interested in." },
   };
   const { icon, title, sub } = config[tab] || config.inprogress;
   return (
@@ -441,94 +413,102 @@ const EmptyTab = ({ tab, onBrowse }) => {
       <div style={S.emptyIcon}>{icon}</div>
       <div style={S.emptyTitle}>{title}</div>
       <div style={S.emptySub}>{sub}</div>
-      <button style={S.emptyBtn} onClick={onBrowse} type="button">
-        Browse Courses <ChevronRight size={16} />
-      </button>
+      <button style={S.emptyBtn} onClick={onBrowse} type="button">Browse Courses <ChevronRight size={16} /></button>
     </div>
   );
 };
 
-/* ─── Style helpers ──────────────────────────────────────────────── */
+/* ─── Helpers ────────────────────────────────────────────────────── */
 const badgeStyle = (type) => {
   const t = String(type || "").toUpperCase();
-  const base = { display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: 999, fontSize: 11, fontWeight: 800 };
-  if (t === "PE") return { ...base, color: "#2EABFE", background: "rgba(46,171,254,0.12)", border: "1px solid rgba(46,171,254,0.22)" };
-  if (t === "CE") return { ...base, color: "rgba(0,140,140,1)", background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.20)" };
-  return { ...base, color: "rgba(9,25,37,0.78)", background: "rgba(2,8,23,0.06)", border: "1px solid rgba(2,8,23,0.10)" };
+  const base = { display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,fontSize:11,fontWeight:800 };
+  if (t === "PE") return { ...base, color:"#2EABFE",           background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.22)" };
+  if (t === "CE") return { ...base, color:"rgba(0,140,140,1)", background:"rgba(0,180,180,0.12)", border:"1px solid rgba(0,180,180,0.20)" };
+  return { ...base, color:"rgba(9,25,37,0.78)", background:"rgba(2,8,23,0.06)", border:"1px solid rgba(2,8,23,0.10)" };
 };
 
 /* ─── CSS ────────────────────────────────────────────────────────── */
 const css = `
-.mc-spinner { width:34px;height:34px;border-radius:999px;border:3px solid rgba(2,8,23,0.10);border-top-color:#2EABFE;animation:mc-spin 1s linear infinite; }
-@keyframes mc-spin { to { transform:rotate(360deg); } }
-.mc-card { transition: box-shadow .2s, transform .2s; }
-.mc-card:hover { box-shadow: 0 16px 48px rgba(2,8,23,0.12) !important; transform: translateY(-3px); }
+.mc-spinner{width:34px;height:34px;border-radius:999px;border:3px solid rgba(2,8,23,0.10);border-top-color:#2EABFE;animation:mc-spin 1s linear infinite;}
+@keyframes mc-spin{to{transform:rotate(360deg);}}
+.mc-card{transition:box-shadow .2s,transform .2s;}
+.mc-card:hover{box-shadow:0 16px 48px rgba(2,8,23,0.12) !important;transform:translateY(-3px);}
 `;
 
 /* ─── Styles ─────────────────────────────────────────────────────── */
 const S = {
-  shell:      { maxWidth: 1180, margin: "0 auto", padding: "24px 18px 48px" },
-  center:     { minHeight: "60vh", display: "grid", placeItems: "center" },
-  errorBox:   { padding: "14px 20px", borderRadius: 14, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.20)", color: "rgba(180,30,30,1)", fontWeight: 700, fontSize: 13 },
+  shell:      { maxWidth:1180,margin:"0 auto",padding:"24px 18px 48px" },
+  center:     { minHeight:"60vh",display:"grid",placeItems:"center" },
+  errorBox:   { padding:"14px 20px",borderRadius:14,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.20)",color:"rgba(180,30,30,1)",fontWeight:700,fontSize:13 },
 
-  pageHeader: { display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 22 },
-  pageKicker: { fontSize: 12, fontWeight: 800, color: "#2EABFE", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 },
-  pageTitle:  { fontSize: 26, fontWeight: 950, color: "#091925", letterSpacing: "-0.4px" },
-  browsBtn:   { display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 13, color: "rgba(9,25,37,0.75)" },
+  pageHeader: { display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:22 },
+  pageKicker: { fontSize:12,fontWeight:800,color:"#2EABFE",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4 },
+  pageTitle:  { fontSize:26,fontWeight:950,color:"#091925",letterSpacing:"-0.4px" },
+  browsBtn:   { display:"inline-flex",alignItems:"center",gap:8,padding:"10px 16px",borderRadius:12,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,color:"rgba(9,25,37,0.75)" },
 
-  toolbar:        { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 14 },
-  tabs:           { display: "flex", gap: 6 },
-  tab:            { display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 13, color: "rgba(9,25,37,0.60)" },
-  tabActive:      { background: "#091925", color: "#fff", border: "1px solid #091925", boxShadow: "0 4px 14px rgba(9,25,37,0.18)" },
-  tabCount:       { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, borderRadius: 999, background: "rgba(2,8,23,0.08)", fontSize: 11, fontWeight: 900, color: "rgba(9,25,37,0.55)", padding: "0 5px" },
-  tabCountActive: { background: "rgba(255,255,255,0.18)", color: "#fff" },
-  toolRight:      { display: "flex", alignItems: "center", gap: 8 },
-  searchWrap:     { display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 10, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", minWidth: 220 },
-  searchInput:    { border: "none", outline: "none", fontSize: 13, fontWeight: 600, color: "rgba(9,25,37,0.80)", background: "transparent", width: "100%" },
-  filterBtn:      { display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 13, color: "rgba(9,25,37,0.65)", position: "relative" },
-  filterBtnActive:{ border: "1px solid rgba(46,171,254,0.40)", color: "#2EABFE", background: "rgba(46,171,254,0.06)" },
-  filterDot:      { position: "absolute", top: 6, right: 6, width: 7, height: 7, borderRadius: 999, background: "#2EABFE", border: "2px solid #fff" },
+  toolbar:        { display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:14 },
+  tabs:           { display:"flex",gap:6 },
+  tab:            { display:"inline-flex",alignItems:"center",gap:7,padding:"9px 14px",borderRadius:999,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,color:"rgba(9,25,37,0.60)" },
+  tabActive:      { background:"#091925",color:"#fff",border:"1px solid #091925",boxShadow:"0 4px 14px rgba(9,25,37,0.18)" },
+  tabCount:       { display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,height:20,borderRadius:999,background:"rgba(2,8,23,0.08)",fontSize:11,fontWeight:900,color:"rgba(9,25,37,0.55)",padding:"0 5px" },
+  tabCountActive: { background:"rgba(255,255,255,0.18)",color:"#fff" },
+  toolRight:      { display:"flex",alignItems:"center",gap:8 },
+  searchWrap:     { display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderRadius:10,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",minWidth:220 },
+  searchInput:    { border:"none",outline:"none",fontSize:13,fontWeight:600,color:"rgba(9,25,37,0.80)",background:"transparent",width:"100%" },
+  filterBtn:      { display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:10,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,color:"rgba(9,25,37,0.65)",position:"relative" },
+  filterBtnActive:{ border:"1px solid rgba(46,171,254,0.40)",color:"#2EABFE",background:"rgba(46,171,254,0.06)" },
+  filterDot:      { position:"absolute",top:6,right:6,width:7,height:7,borderRadius:999,background:"#2EABFE",border:"2px solid #fff" },
 
-  filterPanel:   { display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start", padding: "16px 18px", borderRadius: 16, border: "1px solid rgba(46,171,254,0.18)", background: "rgba(46,171,254,0.04)", marginBottom: 16 },
-  filterGroup:   { display: "grid", gap: 8 },
-  filterLabel:   { fontSize: 11, fontWeight: 900, color: "rgba(9,25,37,0.50)", textTransform: "uppercase", letterSpacing: ".06em" },
-  filterOptions: { display: "flex", gap: 6, flexWrap: "wrap" },
-  chip:          { padding: "6px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.12)", background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "rgba(9,25,37,0.65)" },
-  chipActive:    { background: "#091925", color: "#fff", border: "1px solid #091925" },
-  clearFilters:  { alignSelf: "flex-end", padding: "6px 12px", borderRadius: 999, border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.06)", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "rgba(180,30,30,0.85)" },
+  filterPanel:   { display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start",padding:"16px 18px",borderRadius:16,border:"1px solid rgba(46,171,254,0.18)",background:"rgba(46,171,254,0.04)",marginBottom:16 },
+  filterGroup:   { display:"grid",gap:8 },
+  filterLabel:   { fontSize:11,fontWeight:900,color:"rgba(9,25,37,0.50)",textTransform:"uppercase",letterSpacing:".06em" },
+  filterOptions: { display:"flex",gap:6,flexWrap:"wrap" },
+  chip:          { padding:"6px 12px",borderRadius:999,border:"1px solid rgba(2,8,23,0.12)",background:"#fff",cursor:"pointer",fontSize:12,fontWeight:700,color:"rgba(9,25,37,0.65)" },
+  chipActive:    { background:"#091925",color:"#fff",border:"1px solid #091925" },
+  clearFilters:  { alignSelf:"flex-end",padding:"6px 12px",borderRadius:999,border:"1px solid rgba(239,68,68,0.25)",background:"rgba(239,68,68,0.06)",cursor:"pointer",fontSize:12,fontWeight:700,color:"rgba(180,30,30,0.85)" },
 
-  grid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 },
+  grid: { display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16 },
 
-  card:        { borderRadius: 18, border: "1px solid rgba(2,8,23,0.08)", background: "#fff", overflow: "hidden", position: "relative" },
-  cardAccent:  { height: 4, width: "100%" },
-  cardBody:    { padding: 18 },
-  cardHeader:  { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  cardIconWrap:{ width: 38, height: 38, borderRadius: 12, background: "rgba(2,8,23,0.04)", border: "1px solid rgba(2,8,23,0.07)", display: "grid", placeItems: "center" },
-  cardBadges:  { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" },
-  stateBadge:  { display: "inline-flex", alignItems: "center", padding: "3px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, color: "rgba(9,25,37,0.65)", background: "rgba(2,8,23,0.05)", border: "1px solid rgba(2,8,23,0.10)" },
-  cardTitle:   { fontWeight: 900, fontSize: 14, color: "rgba(9,25,37,0.88)", lineHeight: 1.45, marginBottom: 8 },
-  cardMeta:    { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 },
-  metaItem:    { display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 700, color: "rgba(9,25,37,0.50)" },
+  card:        { borderRadius:18,border:"1px solid rgba(2,8,23,0.08)",background:"#fff",overflow:"hidden",position:"relative" },
+  cardAccent:  { height:4,width:"100%" },
+  cardBody:    { padding:18 },
+  cardHeader:  { display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 },
+  cardIconWrap:{ width:38,height:38,borderRadius:12,background:"rgba(2,8,23,0.04)",border:"1px solid rgba(2,8,23,0.07)",display:"grid",placeItems:"center" },
+  cardBadges:  { display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end" },
+  stateBadge:  { display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,fontSize:11,fontWeight:700,color:"rgba(9,25,37,0.65)",background:"rgba(2,8,23,0.05)",border:"1px solid rgba(2,8,23,0.10)" },
+  cardTitle:   { fontWeight:900,fontSize:14,color:"rgba(9,25,37,0.88)",lineHeight:1.45,marginBottom:8 },
+  cardMeta:    { display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 },
+  metaItem:    { display:"inline-flex",alignItems:"center",gap:4,fontSize:12,fontWeight:700,color:"rgba(9,25,37,0.50)" },
 
-  progressWrap:  { marginBottom: 14 },
-  progressTop:   { display: "flex", justifyContent: "space-between", marginBottom: 6 },
-  progressLabel: { fontSize: 11, fontWeight: 800, color: "rgba(9,25,37,0.50)", textTransform: "uppercase", letterSpacing: ".04em" },
-  progressPct:   { fontSize: 12, fontWeight: 900, color: "#2EABFE" },
-  progressTrack: { height: 6, borderRadius: 999, background: "rgba(2,8,23,0.07)", overflow: "hidden", marginBottom: 6 },
-  progressFill:  { height: "100%", borderRadius: 999, background: "linear-gradient(90deg, #2EABFE, #00B4B4)", transition: "width .4s" },
-  lastAccessed:  { fontSize: 11, fontWeight: 700, color: "rgba(9,25,37,0.42)" },
-  stepsLabel:    { fontSize: 11, fontWeight: 700, color: "rgba(9,25,37,0.42)" },
-  completedDate: { display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "rgba(21,128,61,0.85)", marginBottom: 14 },
+  progressWrap:  { marginBottom:14 },
+  progressTop:   { display:"flex",justifyContent:"space-between",marginBottom:6 },
+  progressLabel: { fontSize:11,fontWeight:800,color:"rgba(9,25,37,0.50)",textTransform:"uppercase",letterSpacing:".04em" },
+  progressPct:   { fontSize:12,fontWeight:900,color:"#2EABFE" },
+  progressTrack: { height:6,borderRadius:999,background:"rgba(2,8,23,0.07)",overflow:"hidden",marginBottom:6 },
+  progressFill:  { height:"100%",borderRadius:999,background:"linear-gradient(90deg,#2EABFE,#00B4B4)",transition:"width .4s" },
+  lastAccessed:  { fontSize:11,fontWeight:700,color:"rgba(9,25,37,0.42)" },
+  stepsLabel:    { fontSize:11,fontWeight:700,color:"rgba(9,25,37,0.42)" },
 
-  cardActions: { display: "flex", gap: 8, marginTop: 4 },
-  resumeBtn:   { flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 11, border: "none", background: "#091925", color: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 13 },
-  certBtn:     { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 12px", borderRadius: 11, border: "1px solid rgba(34,197,94,0.30)", background: "rgba(34,197,94,0.08)", color: "rgba(21,128,61,1)", cursor: "pointer", fontWeight: 800, fontSize: 13, flexShrink: 0 },
+  completedBadgeRow: { marginBottom:12 },
+  completedBadge:    { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:999,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.22)",fontSize:12,fontWeight:800,color:"rgba(21,128,61,1)" },
 
-  empty:      { textAlign: "center", padding: "60px 20px", borderRadius: 20, border: "1px dashed rgba(2,8,23,0.14)", background: "rgba(2,8,23,0.02)", marginTop: 8 },
-  emptyIcon:  { fontSize: 40, marginBottom: 14 },
-  emptyTitle: { fontWeight: 950, fontSize: 17, color: "rgba(9,25,37,0.82)", marginBottom: 6 },
-  emptySub:   { fontSize: 13, color: "rgba(9,25,37,0.50)", fontWeight: 600, marginBottom: 20 },
-  emptyBtn:   { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 12, border: "none", background: "#091925", color: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 13 },
+  cardActions: { display:"flex",gap:8,marginTop:4 },
+  resumeBtn:   { flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px",borderRadius:11,border:"none",background:"#091925",color:"#fff",cursor:"pointer",fontWeight:800,fontSize:13 },
+  certBtn: {
+    flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
+    padding:"10px",borderRadius:11,
+    border:"1px solid rgba(245,158,11,0.40)",
+    background:"linear-gradient(135deg,rgba(245,158,11,0.14),rgba(245,158,11,0.06))",
+    color:"rgba(146,84,0,1)",
+    cursor:"pointer",fontWeight:800,fontSize:13,
+    boxShadow:"0 2px 10px rgba(245,158,11,0.15)",
+  },
+
+  empty:      { textAlign:"center",padding:"60px 20px",borderRadius:20,border:"1px dashed rgba(2,8,23,0.14)",background:"rgba(2,8,23,0.02)",marginTop:8 },
+  emptyIcon:  { fontSize:40,marginBottom:14 },
+  emptyTitle: { fontWeight:950,fontSize:17,color:"rgba(9,25,37,0.82)",marginBottom:6 },
+  emptySub:   { fontSize:13,color:"rgba(9,25,37,0.50)",fontWeight:600,marginBottom:20 },
+  emptyBtn:   { display:"inline-flex",alignItems:"center",gap:8,padding:"11px 20px",borderRadius:12,border:"none",background:"#091925",color:"#fff",cursor:"pointer",fontWeight:800,fontSize:13 },
 };
 
 export default MyCourses;

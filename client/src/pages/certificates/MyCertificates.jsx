@@ -9,6 +9,30 @@ import {
   CheckCircle, ExternalLink, Copy, Info,
 } from "lucide-react";
 
+/* ─── helper: safely extract course data from a transcript entry ─── */
+// The transcript entry can have course_id as either:
+//   - A populated object: { _id, title, type, credit_hours, nmls_course_id, ... }
+//   - A raw ObjectId string
+const parseCert = (t) => {
+  const courseObj = typeof t.course_id === "object" && t.course_id !== null
+    ? t.course_id
+    : {};
+  const courseId  = courseObj._id || t.course_id || t._id;
+
+  return {
+    _id:             t._id,
+    course_id:       courseId,              // clean ID for navigation
+    course_title:    t.course_title  || courseObj.title          || "—",
+    course_type:     t.type          || courseObj.type           || "—",
+    credit_hours:    t.credit_hours  || courseObj.credit_hours,
+    nmls_course_id:  t.nmls_course_id|| courseObj.nmls_course_id || "—",
+    state_approval:  courseObj.state_approval_number             || "—",
+    completed_at:    t.completed_at,
+    state:           t.state,
+  };
+};
+
+/* ─── MyCertificates ─────────────────────────────────────────────── */
 const MyCertificates = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -16,7 +40,7 @@ const MyCertificates = () => {
   const [certificates, setCertificates] = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState("");
-  const [preview, setPreview]           = useState(null);
+  const [preview, setPreview]           = useState(null); // parsed cert object
   const [copied, setCopied]             = useState(false);
 
   useEffect(() => { fetchCertificates(); }, []);
@@ -24,8 +48,22 @@ const MyCertificates = () => {
   const fetchCertificates = async () => {
     setLoading(true); setError("");
     try {
-      const res = await API.get("/dashboard/transcript");
-      setCertificates(res.data?.transcript || []);
+      // Use /certificates endpoint — returns completions fully populated with course data
+      const res = await API.get("/certificates");
+      const raw = res.data?.certificates || [];
+      // Map to the shape parseCert expects
+      const mapped = raw.map((c) => ({
+        _id:            c._id,
+        course_id:      String(c.course_id || ""),
+        course_title:   c.course_title  || "—",
+        course_type:    c.course_type   || "—",
+        credit_hours:   c.credit_hours,
+        nmls_course_id: c.nmls_course_id || "—",
+        state_approval: c.state_approval_number || "—",
+        completed_at:   c.completed_at,
+        state:          c.state,
+      }));
+      setCertificates(mapped);
     } catch {
       setError("Failed to load certificates.");
     } finally {
@@ -34,9 +72,9 @@ const MyCertificates = () => {
   };
 
   const handleLinkedIn = (cert) => {
-    const name       = encodeURIComponent(cert?.course_id?.title || "NMLS Course");
-    const org        = encodeURIComponent("Relstone NMLS");
-    const issueDate  = cert?.completed_at ? new Date(cert.completed_at) : new Date();
+    const name      = encodeURIComponent(cert.course_title || "NMLS Course");
+    const org       = encodeURIComponent("Relstone NMLS");
+    const issueDate = cert.completed_at ? new Date(cert.completed_at) : new Date();
     const url = `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${name}&organizationName=${org}&issueMonth=${issueDate.getMonth() + 1}&issueYear=${issueDate.getFullYear()}`;
     window.open(url, "_blank");
   };
@@ -45,6 +83,10 @@ const MyCertificates = () => {
     navigator.clipboard.writeText(id);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const goToCert = (cert) => {
+    if (cert.course_id) navigate(`/certificate/${cert.course_id}`);
   };
 
   return (
@@ -57,10 +99,7 @@ const MyCertificates = () => {
           user={user}
           onClose={() => setPreview(null)}
           onLinkedIn={() => handleLinkedIn(preview)}
-          onViewFull={() => {
-            const courseId = preview?.course_id?._id || preview?.course_id;
-            if (courseId) navigate(`/certificate/${courseId}`);
-          }}
+          onViewFull={() => { goToCert(preview); setPreview(null); }}
           onCopyId={handleCopyId}
           copied={copied}
         />
@@ -96,14 +135,11 @@ const MyCertificates = () => {
             <div style={S.grid}>
               {certificates.map((cert, i) => (
                 <CertificateCard
-                  key={cert?._id || i}
+                  key={cert._id || i}
                   cert={cert}
                   user={user}
                   onPreview={() => setPreview(cert)}
-                  onViewFull={() => {
-                    const courseId = cert?.course_id?._id || cert?.course_id;
-                    if (courseId) navigate(`/certificate/${courseId}`);
-                  }}
+                  onViewFull={() => goToCert(cert)}
                   onLinkedIn={() => handleLinkedIn(cert)}
                 />
               ))}
@@ -115,30 +151,34 @@ const MyCertificates = () => {
   );
 };
 
-/* ── Certificate Card ── */
+/* ── Certificate Card ─────────────────────────────────────────────── */
 const CertificateCard = ({ cert, user, onPreview, onViewFull, onLinkedIn }) => {
-  const course      = cert?.course_id || {};
-  const completedAt = cert?.completed_at ? new Date(cert.completed_at) : null;
-  const courseType  = String(course?.type || "").toUpperCase();
+  const completedAt = cert.completed_at ? new Date(cert.completed_at) : null;
+  const courseType  = String(cert.course_type || "").toUpperCase();
 
   return (
     <div style={S.card}>
       <div style={{ ...S.cardAccent, background: courseType === "PE" ? "#2EABFE" : "#00B4B4" }} />
       <div style={S.cardBody}>
         <div style={S.cardTop}>
-          <div style={{ ...S.cardIconWrap, background: courseType === "PE" ? "rgba(46,171,254,0.08)" : "rgba(0,180,180,0.08)", border: courseType === "PE" ? "1px solid rgba(46,171,254,0.18)" : "1px solid rgba(0,180,180,0.18)" }}>
+          <div style={{
+            ...S.cardIconWrap,
+            background: courseType === "PE" ? "rgba(46,171,254,0.08)" : "rgba(0,180,180,0.08)",
+            border:     courseType === "PE" ? "1px solid rgba(46,171,254,0.18)" : "1px solid rgba(0,180,180,0.18)",
+          }}>
             <Award size={22} color={courseType === "PE" ? "#2EABFE" : "#00B4B4"} />
           </div>
-          <span style={typeBadge(courseType)}>{courseType || "—"}</span>
+          <span style={typeBadge(courseType)}>{courseType || "CE"}</span>
         </div>
 
-        <div style={S.cardTitle}>{course?.title || "Course Title Unavailable"}</div>
+        {/* Course title — parsed cleanly */}
+        <div style={S.cardTitle}>{cert.course_title}</div>
 
         <div style={S.metaGrid}>
-          <MetaItem icon={<Clock size={13} />}   label="Credit Hours" value={course?.credit_hours ? `${course.credit_hours} hrs` : "—"} />
+          <MetaItem icon={<Clock size={13} />}    label="Credit Hours" value={cert.credit_hours ? `${cert.credit_hours} hrs` : "—"} />
           <MetaItem icon={<Calendar size={13} />} label="Completed"    value={completedAt ? completedAt.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "—"} />
-          <MetaItem icon={<MapPin size={13} />}   label="State"        value={user?.state || "—"} />
-          <MetaItem icon={<FileText size={13} />} label="Approval No." value={course?.state_approval_number || "—"} />
+          <MetaItem icon={<MapPin size={13} />}   label="State"        value={cert.state || user?.state || "—"} />
+          <MetaItem icon={<FileText size={13} />} label="Approval No." value={cert.state_approval || "—"} />
         </div>
 
         <div style={S.completionBadge}>
@@ -162,19 +202,17 @@ const CertificateCard = ({ cert, user, onPreview, onViewFull, onLinkedIn }) => {
   );
 };
 
-/* ── Quick Preview Modal ── */
+/* ── Quick Preview Modal ──────────────────────────────────────────── */
 const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, onCopyId, copied }) => {
-  const course      = cert?.course_id || {};
-  const completedAt = cert?.completed_at ? new Date(cert.completed_at) : null;
-  const courseType  = String(course?.type || "").toUpperCase();
-  const certId      = cert?._id ? String(cert._id).slice(-10).toUpperCase() : "N/A";
+  const completedAt = cert.completed_at ? new Date(cert.completed_at) : null;
+  const courseType  = String(cert.course_type || "").toUpperCase();
+  const certId      = cert._id ? String(cert._id).slice(-10).toUpperCase() : "N/A";
 
   return (
     <>
       <div style={M.backdrop} onClick={onClose} />
       <div style={M.modal} role="dialog" aria-modal="true">
 
-        {/* Modal header */}
         <div style={M.modalHead}>
           <div style={M.modalHeadLeft}>
             <Award size={17} color="#2EABFE" />
@@ -204,14 +242,14 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
                 <div style={M.certSeal}>
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
                     <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="1.8" strokeLinejoin="round"/>
-                    <path d="M2 17l10 5 10-5" stroke="#2EABFE" strokeWidth="1.8" strokeLinejoin="round"/>
-                    <path d="M2 12l10 5 10-5" stroke="#60C3FF" strokeWidth="1.8" strokeLinejoin="round"/>
+                    <path d="M2 17l10 5 10-5"             stroke="#2EABFE" strokeWidth="1.8" strokeLinejoin="round"/>
+                    <path d="M2 12l10 5 10-5"             stroke="#60C3FF" strokeWidth="1.8" strokeLinejoin="round"/>
                   </svg>
                 </div>
                 <div style={M.certOrg}>Relstone NMLS</div>
                 <div style={M.certDocTitle}>Certificate of Completion</div>
                 <div style={M.certCourseType}>
-                  {courseType === "PE" ? "Pre-Licensing Education (PE)" : courseType === "CE" ? "Continuing Education (CE)" : "NMLS Education"}
+                  {courseType === "PE" ? "Pre-Licensing Education (PE)" : "Continuing Education (CE)"}
                 </div>
               </div>
 
@@ -225,13 +263,13 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
                 <div style={M.certPresentsTo}>This is to certify that</div>
                 <div style={M.certStudentName}>{user?.name || "Student Name"}</div>
                 <div style={M.certHasCompleted}>has successfully completed</div>
-                <div style={M.certCourseName}>{course?.title || "Course Title"}</div>
+                <div style={M.certCourseName}>{cert.course_title}</div>
 
                 <div style={M.certDetails}>
-                  <CertDetail label="Credit Hours"     value={course?.credit_hours ? `${course.credit_hours} Hours` : "—"} />
+                  <CertDetail label="Credit Hours"     value={cert.credit_hours ? `${cert.credit_hours} Hours` : "—"} />
                   <CertDetail label="Completion Date"  value={completedAt ? completedAt.toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" }) : "—"} />
-                  <CertDetail label="State"            value={user?.state || "—"} />
-                  <CertDetail label="State Approval #" value={course?.state_approval_number || "—"} />
+                  <CertDetail label="State"            value={cert.state || user?.state || "—"} />
+                  <CertDetail label="State Approval #" value={cert.state_approval || "—"} />
                   <CertDetail label="NMLS ID"          value={user?.nmls_id || "—"} />
                   <CertDetail label="Certificate ID"   value={certId} />
                 </div>
@@ -246,10 +284,10 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
                 <div style={M.certSealCircle}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                     <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="1.6" strokeLinejoin="round"/>
-                    <path d="M2 17l10 5 10-5" stroke="#2EABFE" strokeWidth="1.6" strokeLinejoin="round"/>
-                    <path d="M2 12l10 5 10-5" stroke="#60C3FF" strokeWidth="1.6" strokeLinejoin="round"/>
+                    <path d="M2 17l10 5 10-5"             stroke="#2EABFE" strokeWidth="1.6" strokeLinejoin="round"/>
+                    <path d="M2 12l10 5 10-5"             stroke="#60C3FF" strokeWidth="1.6" strokeLinejoin="round"/>
                   </svg>
-                  <div style={{ fontSize:7, fontWeight:900, color:"#2EABFE", letterSpacing:".10em", marginTop:3 }}>OFFICIAL</div>
+                  <div style={{ fontSize: 7, fontWeight: 900, color: "#2EABFE", letterSpacing: ".10em", marginTop: 3 }}>OFFICIAL</div>
                 </div>
                 <div style={M.certSigBlock}>
                   <div style={M.certSigLine} />
@@ -289,10 +327,10 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
               <button style={M.viewFullBtn} onClick={onViewFull} type="button">
                 <Download size={15} />
                 <div>
-                  <div style={{ fontWeight:800, fontSize:13 }}>Download / Print PDF</div>
-                  <div style={{ fontSize:11, opacity:.70, marginTop:2 }}>Opens full certificate page</div>
+                  <div style={{ fontWeight: 800, fontSize: 13 }}>Download / Print PDF</div>
+                  <div style={{ fontSize: 11, opacity: .70, marginTop: 2 }}>Opens full certificate page</div>
                 </div>
-                <ExternalLink size={13} style={{ marginLeft:"auto", opacity:.55 }} />
+                <ExternalLink size={13} style={{ marginLeft: "auto", opacity: .55 }} />
               </button>
             </div>
 
@@ -301,10 +339,10 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
               <button style={M.linkedinFull} onClick={onLinkedIn} type="button">
                 <Linkedin size={16} />
                 <div>
-                  <div style={{ fontWeight:800, fontSize:13 }}>Add to LinkedIn Profile</div>
-                  <div style={{ fontSize:11, opacity:.75, marginTop:2 }}>Showcase your certification</div>
+                  <div style={{ fontWeight: 800, fontSize: 13 }}>Add to LinkedIn Profile</div>
+                  <div style={{ fontSize: 11, opacity: .75, marginTop: 2 }}>Showcase your certification</div>
                 </div>
-                <ExternalLink size={13} style={{ marginLeft:"auto", opacity:.6 }} />
+                <ExternalLink size={13} style={{ marginLeft: "auto", opacity: .6 }} />
               </button>
             </div>
 
@@ -330,7 +368,7 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
   );
 };
 
-/* ── Submission Banner ── */
+/* ── Submission Banner ───────────────────────────────────────────── */
 const SubmissionBanner = () => {
   const [open, setOpen] = useState(false);
   return (
@@ -344,7 +382,7 @@ const SubmissionBanner = () => {
       </div>
       <button style={S.instrToggle} onClick={() => setOpen(v => !v)} type="button">
         {open ? "Hide" : "Show steps"}
-        <ChevronRight size={14} style={{ transform: open ? "rotate(90deg)" : "none", transition:"transform .2s" }} />
+        <ChevronRight size={14} style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
         <div style={S.instrSteps}>
@@ -363,7 +401,7 @@ const SubmissionBanner = () => {
   );
 };
 
-/* ── Empty State ── */
+/* ── Empty State ─────────────────────────────────────────────────── */
 const EmptyState = ({ navigate }) => (
   <div style={S.emptyWrap}>
     <div style={S.emptyIconWrap}><Award size={36} color="rgba(9,25,37,0.25)" /></div>
@@ -375,7 +413,7 @@ const EmptyState = ({ navigate }) => (
   </div>
 );
 
-/* ── Atoms ── */
+/* ── Atoms ───────────────────────────────────────────────────────── */
 const MetaItem = ({ icon, label, value }) => (
   <div style={S.metaItem}>
     <div style={S.metaIcon}>{icon}</div>
@@ -408,7 +446,7 @@ const SUBMISSION_STEPS = [
   "Contact Relstone support if your CE does not appear in NMLS within 10 business days.",
 ];
 
-/* ── CSS ── */
+/* ── CSS ─────────────────────────────────────────────────────────── */
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 *{box-sizing:border-box}
@@ -416,7 +454,7 @@ const css = `
 @keyframes mc-spin{to{transform:rotate(360deg);}}
 `;
 
-/* ── Page Styles ── */
+/* ── Page Styles ─────────────────────────────────────────────────── */
 const S = {
   shell:            { maxWidth:1180, margin:"0 auto", padding:"24px 18px 48px" },
   center:           { minHeight:"50vh", display:"grid", placeItems:"center" },
@@ -464,7 +502,7 @@ const S = {
   emptyBtn:         { display:"inline-flex", alignItems:"center", gap:8, padding:"12px 20px", borderRadius:14, border:"none", background:"#091925", color:"#fff", cursor:"pointer", fontWeight:800, fontSize:14 },
 };
 
-/* ── Modal Styles ── */
+/* ── Modal Styles ────────────────────────────────────────────────── */
 const M = {
   backdrop:         { position:"fixed", inset:0, zIndex:200, background:"rgba(9,25,37,0.65)", backdropFilter:"blur(6px)" },
   modal:            { position:"fixed", zIndex:201, top:"50%", left:"50%", transform:"translate(-50%,-50%)", width:"min(1020px,96vw)", maxHeight:"92vh", background:"#fff", borderRadius:24, boxShadow:"0 40px 100px rgba(9,25,37,0.25)", display:"flex", flexDirection:"column", overflow:"hidden" },

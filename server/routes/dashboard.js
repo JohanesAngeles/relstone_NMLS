@@ -1,141 +1,180 @@
-const express  = require('express');
-const router   = express.Router();
-const User     = require('../models/User');
-const Course   = require('../models/Course');
-const Order    = require('../models/Order');
+const express = require('express');
+const router  = express.Router();
+const User    = require('../models/User');
+const Course  = require('../models/Course');
+const Order   = require('../models/Order');
 const authMiddleware = require('../middleware/auth');
 
-// ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: build enriched transcript from user.completions
+// ─────────────────────────────────────────────────────────────────────────────
+const buildTranscript = async (user) => {
+  const completions = user.completions || [];
+  if (completions.length === 0) return [];
+
+  const courseIds = completions
+    .map((c) => c.course_id?._id || c.course_id)
+    .filter(Boolean);
+
+  const courses = await Course.find({ _id: { $in: courseIds } })
+    .select('title type credit_hours nmls_course_id state_approval_number states_approved');
+
+  const courseMap = {};
+  courses.forEach((c) => { courseMap[String(c._id)] = c; });
+
+  return completions.map((c) => {
+    const cId    = String(c.course_id?._id || c.course_id || '');
+    const course = courseMap[cId] || {};
+
+    return {
+      _id:             c._id,
+      course_id: {
+        _id:                   cId,
+        title:                 course.title                || '—',
+        type:                  course.type                 || '—',
+        credit_hours:          course.credit_hours         || 0,
+        nmls_course_id:        course.nmls_course_id       || '—',
+        state_approval_number: course.state_approval_number || '—',
+      },
+      course_title:    course.title           || '—',
+      type:            course.type            || '—',
+      credit_hours:    course.credit_hours    || 0,
+      nmls_course_id:  course.nmls_course_id  || '—',
+      completed_at:    c.completed_at,
+      certificate_url: c.certificate_url || null,
+      state:           course.states_approved?.[0] || user.state || '—',
+    };
+  });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/dashboard
-// ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .select('-password')
-      .populate('completions.course_id', 'title type credit_hours nmls_course_id')
-      .lean();
-
+    const user = await User.findById(req.user.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Split completions by type
-    const peCompletions = (user.completions || []).filter(
-      (c) => String(c.course_id?.type || '').toUpperCase() === 'PE'
-    );
-    const ceCompletions = (user.completions || []).filter(
-      (c) => String(c.course_id?.type || '').toUpperCase() === 'CE'
-    );
+    // ── FIX: query by BOTH user_id field names to be safe,
+    //         and ensure status is exactly 'completed' (lowercase)
+    const orders = await Order.find({
+      user_id: req.user.id,
+      status:  'completed',
+    }).populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url');
 
-    // Fetch ALL orders for this student (paid AND pending)
-    const orders = await Order.find({ user_id: req.user.id })
-      .populate('items.course_id', 'title type credit_hours nmls_course_id price')
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // Courses the student has already completed (by course_id string)
-    const completedIds = new Set(
-      (user.completions || []).map((c) => c.course_id?._id?.toString())
+    // Set of completed course IDs for quick lookup
+    const completedCourseIds = new Set(
+      (user.completions || []).map((c) => String(c.course_id?._id || c.course_id))
     );
 
-    // Build "available courses" from PAID orders
-    // These are courses paid for but not yet in completions
-    const availableCourses = [];
+    const seen = new Set();
+    const available_courses = [];
+
     orders.forEach((order) => {
-      if (String(order.status).toLowerCase() !== 'paid') return;
       (order.items || []).forEach((item) => {
-        const cid = item.course_id?._id?.toString();
-        if (!cid) return;
-        // avoid duplicates and already-completed
-        const alreadyAdded = availableCourses.some((a) => a.course_id === cid);
-        if (!alreadyAdded) {
-          availableCourses.push({
-            course_id:    cid,
-            title:        item.course_id?.title        || 'Course',
-            type:         item.course_id?.type         || '',
-            credit_hours: item.course_id?.credit_hours || 0,
-            nmls_course_id: item.course_id?.nmls_course_id || '',
-            already_completed: completedIds.has(cid),
-            order_id:     order._id,
-          });
-        }
+        const course = item.course_id;
+        if (!course) return;
+        const courseId = String(course._id);
+        if (seen.has(courseId)) return;
+        seen.add(courseId);
+
+        available_courses.push({
+          course_id:         courseId,
+          title:             course.title,
+          type:              course.type,
+          credit_hours:      course.credit_hours,
+          nmls_course_id:    course.nmls_course_id,
+          state:             course.states_approved?.[0] || 'Federal',
+          already_completed: completedCourseIds.has(courseId),
+          progress:          0,
+        });
       });
     });
 
     res.json({
-      profile: {
-        name:     user.name,
-        email:    user.email,
-        nmls_id:  user.nmls_id,
-        state:    user.state,
-        role:     user.role,
+      user: {
+        name:    user.name,
+        email:   user.email,
+        state:   user.state,
+        nmls_id: user.nmls_id,
+        role:    user.role,
       },
-      completions: {
-        PE:    peCompletions,
-        CE:    ceCompletions,
-        total: user.completions?.length || 0,
-      },
-      available_courses: availableCourses,  // ← paid but not yet completed
+      available_courses,
       orders,
-      pending_courses: [],
     });
   } catch (err) {
-    console.error('[dashboard]', err);
+    console.error('GET /dashboard error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/dashboard/transcript
-// ─────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 router.get('/transcript', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .select('name email nmls_id state completions')
-      .populate('completions.course_id', 'title type credit_hours nmls_course_id')
-      .lean();
-
+    const user = await User.findById(req.user.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const transcript = (user.completions || []).map((c) => ({
-      course_title:   c.course_id?.title          || 'Unknown',
-      nmls_course_id: c.course_id?.nmls_course_id || '—',
-      type:           c.course_id?.type           || '—',
-      credit_hours:   c.course_id?.credit_hours   || 0,
-      completed_at:   c.completed_at,
-      certificate_url: c.certificate_url          || null,
-    }));
-
-    res.json({
-      student: { name: user.name, email: user.email, nmls_id: user.nmls_id, state: user.state },
-      transcript,
-      total_hours: transcript.reduce((s, t) => s + Number(t.credit_hours || 0), 0),
-    });
+    const transcript = await buildTranscript(user);
+    res.json({ transcript });
   } catch (err) {
+    console.error('GET /dashboard/transcript error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────
-// POST /api/dashboard/complete/:courseId
-// ─────────────────────────────────────────────────────────────────────
-router.post('/complete/:courseId', authMiddleware, async (req, res) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/dashboard/complete
+// Called by CoursePortal when student passes the final exam.
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/complete', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const { courseId } = req.body;
 
-    const alreadyDone = user.completions.some(
-      (c) => c.course_id?.toString() === req.params.courseId
+    // ── FIX: log incoming data so you can debug if this still fails
+    console.log(`POST /dashboard/complete — user: ${req.user.id}, courseId: ${courseId}`);
+
+    if (!courseId) return res.status(400).json({ message: 'courseId is required' });
+
+    const [user, course] = await Promise.all([
+      User.findById(req.user.id),
+      Course.findById(courseId).select('title type credit_hours nmls_course_id states_approved'),
+    ]);
+
+    if (!user)   return res.status(404).json({ message: 'User not found' });
+    if (!course) return res.status(404).json({ message: 'Course not found' });
+
+    // Idempotent — don't double-save
+    const alreadyDone = (user.completions || []).some(
+      (c) => String(c.course_id?._id || c.course_id) === String(courseId)
     );
-    if (alreadyDone) return res.status(400).json({ message: 'Already completed' });
+
+    if (alreadyDone) {
+      console.log(`Course ${courseId} already completed for user ${req.user.id}`);
+      return res.json({ message: 'Already completed', already_existed: true });
+    }
 
     user.completions.push({
-      course_id:       req.params.courseId,
-      completed_at:    new Date(),
-      certificate_url: null,
+      course_id:    courseId,
+      completed_at: new Date(),
     });
+
     await user.save();
 
-    res.json({ message: 'Course marked as complete' });
+    console.log(`✅ Completion saved — user: ${req.user.id}, course: ${courseId}`);
+
+    res.json({
+      message:         'Course completion saved successfully',
+      already_existed: false,
+      completion: {
+        course_id:    courseId,
+        course_title: course.title,
+        completed_at: new Date(),
+      },
+    });
   } catch (err) {
+    console.error('POST /dashboard/complete error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
