@@ -7,39 +7,6 @@ import {
 } from "lucide-react";
 import API from "../../api/axios";
 
-/* ─── localStorage helpers ───────────────────────────────────────── */
-const storageKey    = (courseId) => `course-progress-${courseId}`;
-const storageIdxKey = (courseId) => `course-currentIdx-${courseId}`;
-
-const loadCompleted = (courseId) => {
-  try {
-    const saved = localStorage.getItem(storageKey(courseId));
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  } catch { return new Set(); }
-};
-
-const saveCompleted = (courseId, set) => {
-  try { localStorage.setItem(storageKey(courseId), JSON.stringify([...set])); } catch {}
-};
-
-const loadCurrentIdx = (courseId) => {
-  try {
-    const saved = localStorage.getItem(storageIdxKey(courseId));
-    return saved !== null ? parseInt(saved, 10) : 0;
-  } catch { return 0; }
-};
-
-const saveCurrentIdx = (courseId, idx) => {
-  try { localStorage.setItem(storageIdxKey(courseId), String(idx)); } catch {}
-};
-
-const clearProgress = (courseId) => {
-  try {
-    localStorage.removeItem(storageKey(courseId));
-    localStorage.removeItem(storageIdxKey(courseId));
-  } catch {}
-};
-
 /* ─── Build content array from DB course ────────────────────────── */
 const buildContent = (course) => {
   const content = [];
@@ -96,8 +63,21 @@ const CoursePortal = () => {
   // ── transcript data for this course (if already completed) ──
   const [transcriptEntry, setTranscriptEntry] = useState(null);
 
-  const [completed, setCompleted]   = useState(() => loadCompleted(id));
-  const [currentIdx, setCurrentIdx] = useState(() => loadCurrentIdx(id));
+  const [completed, setCompleted]   = useState(() => new Set());
+  const [currentIdx, setCurrentIdx] = useState(() => 0);
+
+  const saveProgressRef = useRef({ t: null });
+  const saveProgress = ({ nextCompletedSet, nextIdx, totalSteps }) => {
+    const completed_idxs = [...nextCompletedSet].sort((a, b) => a - b);
+    if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
+    saveProgressRef.current.t = setTimeout(() => {
+      API.put(`/dashboard/progress/${id}`, {
+        completed_idxs,
+        current_idx: nextIdx,
+        total_steps: totalSteps,
+      }).catch(() => {});
+    }, 250);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -121,15 +101,27 @@ const CoursePortal = () => {
         if (entry) {
           setTranscriptEntry(entry);
           setFinished(true); // show completion screen immediately
-          clearProgress(id);
           return;
         }
 
-        setCurrentIdx((prev) => {
-          const safe = Math.min(prev, built.length - 1);
-          if (safe !== prev) saveCurrentIdx(id, safe);
-          return safe < 0 ? 0 : safe;
-        });
+        // Load progress from DB
+        const progRes = await API.get(`/dashboard/progress/${id}`).catch(() => ({ data: null }));
+        const prog = progRes.data || {};
+        const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
+        const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
+
+        const safeIdx = Math.max(0, Math.min(idx, built.length > 0 ? built.length - 1 : 0));
+        const nextCompleted = new Set(
+          completed_idxs.filter((n) => Number.isFinite(n) && n >= 0 && n < built.length)
+        );
+
+        setCompleted(nextCompleted);
+        setCurrentIdx(safeIdx);
+
+        // Ensure total step count stays accurate for MyCourses
+        if ((prog.total_steps || 0) !== built.length) {
+          saveProgress({ nextCompletedSet: nextCompleted, nextIdx: safeIdx, totalSteps: built.length });
+        }
       } catch (err) {
         console.error("Failed to load course:", err);
         setError("Could not load course content.");
@@ -146,14 +138,14 @@ const CoursePortal = () => {
   const markComplete = (idx) => {
     setCompleted((prev) => {
       const next = new Set([...prev, idx]);
-      saveCompleted(id, next);
+      saveProgress({ nextCompletedSet: next, nextIdx: currentIdx, totalSteps: content.length });
       return next;
     });
   };
 
   const navigateTo = (idx) => {
     setCurrentIdx(idx);
-    saveCurrentIdx(id, idx);
+    saveProgress({ nextCompletedSet: completed, nextIdx: idx, totalSteps: content.length });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -167,7 +159,6 @@ const CoursePortal = () => {
 
   const handleFinish = async () => {
     markComplete(currentIdx);
-    clearProgress(id);
     // ── Save completion to backend so certificate appears in My Certificates ──
     try {
       await API.post("/dashboard/complete", { courseId: id });

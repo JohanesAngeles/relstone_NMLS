@@ -3,6 +3,7 @@ const router  = express.Router();
 const Order   = require('../models/Order');
 const Course  = require('../models/Course');
 const User    = require('../models/User');
+const CourseProgress = require('../models/CourseProgress');
 const authMiddleware = require('../middleware/auth');
 
 // @route   POST /api/orders
@@ -55,6 +56,27 @@ router.post('/', authMiddleware, async (req, res) => {
       total_amount: total,
       status:       'completed',
     });
+
+    // Reset per-course progress on new purchase (per user)
+    await Promise.all(
+      orderItems.map((it) =>
+        CourseProgress.findOneAndUpdate(
+          { user_id: req.user.id, course_id: it.course_id },
+          {
+            $set: {
+              completed_idxs: [],
+              current_idx: 0,
+              is_completed: false,
+              completed_at: null,
+              last_activity_at: new Date(),
+              reset_at: new Date(),
+            },
+            $setOnInsert: { user_id: req.user.id, course_id: it.course_id },
+          },
+          { upsert: true, new: true }
+        )
+      )
+    );
 
     const populated = await Order.findById(order._id)
       .populate('items.course_id', 'title nmls_course_id type credit_hours states_approved pdf_url');

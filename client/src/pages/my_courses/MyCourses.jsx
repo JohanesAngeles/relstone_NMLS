@@ -7,37 +7,6 @@ import {
   ChevronRight, Heart, Filter, Search,
 } from "lucide-react";
 
-/* ─── localStorage progress helpers (must match CoursePortal) ────── */
-const getLocalProgress = (courseId) => {
-  try {
-    const completed = localStorage.getItem(`course-progress-${courseId}`);
-    const idxRaw    = localStorage.getItem(`course-currentIdx-${courseId}`);
-    return {
-      completedCount: completed ? JSON.parse(completed).length : 0,
-      currentIdx:     idxRaw !== null ? parseInt(idxRaw, 10) : 0,
-    };
-  } catch { return { completedCount: 0, currentIdx: 0 }; }
-};
-
-const calcProgress = (completedCount, totalSteps) => {
-  if (!totalSteps) return 0;
-  return Math.min(100, Math.round((completedCount / totalSteps) * 100));
-};
-
-const countSteps = (course) => {
-  if (!course?.modules?.length) return 0;
-  let count = 0;
-  const coursePdf = course.pdf_url || null;
-  course.modules.forEach((mod) => {
-    const modPdf = mod.pdf_url || coursePdf;
-    count++;
-    if (mod.show_pdf_before_quiz && modPdf) count++;
-    if (mod.quiz?.length) count++;
-  });
-  if (course.final_exam?.questions?.length) count++;
-  return count;
-};
-
 /* ─── MyCourses ──────────────────────────────────────────────────── */
 const MyCourses = () => {
   const navigate = useNavigate();
@@ -50,7 +19,6 @@ const MyCourses = () => {
   const [typeFilter, setTypeFilter]   = useState("all");
   const [search, setSearch]           = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [courseSteps, setCourseSteps] = useState({});
 
   useEffect(() => {
     const load = async () => {
@@ -65,50 +33,6 @@ const MyCourses = () => {
     };
     load();
   }, []);
-
-  // ── KEY FIX: auto-save completion for any course that reached 100% locally
-  //    but wasn't recorded on the server (e.g. student closed browser before
-  //    clicking "Complete Course" on the final exam screen)
-  useEffect(() => {
-    if (!data) return;
-
-    const available     = data.dashboard?.available_courses || [];
-    const transcriptIds = new Set(
-      (data.transcript?.transcript || []).map((t) =>
-        String(t.course_id?._id || t.course_id)
-      )
-    );
-
-    available
-      .filter((c) => !c.already_completed && !transcriptIds.has(String(c.course_id)))
-      .forEach(async (c) => {
-        try {
-          // Fetch total steps if we don't have them yet
-          let totalSteps = c.total_steps || courseSteps[String(c.course_id)] || 0;
-          if (!totalSteps) {
-            const res    = await API.get(`/courses/${c.course_id}`);
-            const course = res.data?.data || res.data;
-            totalSteps   = countSteps(course);
-            setCourseSteps((prev) => ({ ...prev, [String(c.course_id)]: totalSteps }));
-          }
-
-          const { completedCount } = getLocalProgress(c.course_id);
-          if (totalSteps > 0 && completedCount >= totalSteps) {
-            // Progress is 100% locally but not saved — save it now
-            console.log(`Auto-saving completion for course ${c.course_id}`);
-            await API.post("/dashboard/complete", { courseId: c.course_id });
-            // Reload data to move card to Completed tab
-            const [dashRes, transcriptRes] = await Promise.all([
-              API.get("/dashboard"),
-              API.get("/dashboard/transcript"),
-            ]);
-            setData({ dashboard: dashRes.data, transcript: transcriptRes.data });
-          }
-        } catch (err) {
-          console.warn(`Could not auto-save completion for ${c.course_id}:`, err.message);
-        }
-      });
-  }, [data]);
 
   const { inProgress, completed, allStates, allTypes } = useMemo(() => {
     if (!data) return { inProgress: [], completed: [], allStates: [], allTypes: [] };
@@ -142,10 +66,9 @@ const MyCourses = () => {
         const order = orders.find((o) =>
           (o.items || []).some((i) => String(i.course_id?._id) === String(c.course_id))
         );
-        const { completedCount } = getLocalProgress(c.course_id);
-        const totalSteps         = c.total_steps || courseSteps[String(c.course_id)] || 0;
-        const localProgress      = calcProgress(completedCount, totalSteps);
-        const progress           = completedCount > 0 ? localProgress : (c.progress || 0);
+        const completedCount = Number.isFinite(c.completed_steps) ? c.completed_steps : 0;
+        const totalSteps     = Number.isFinite(c.total_steps) ? c.total_steps : 0;
+        const progress       = Number.isFinite(c.progress) ? c.progress : 0;
         return {
           id:            c.course_id,
           title:         c.title,
@@ -171,22 +94,6 @@ const MyCourses = () => {
     ])].filter(Boolean);
 
     return { inProgress: inProgressCourses, completed: completedCourses, allStates, allTypes };
-  }, [data, courseSteps]);
-
-  // Fetch step counts for courses with local progress
-  useEffect(() => {
-    if (!data) return;
-    const available = data.dashboard?.available_courses || [];
-    const toFetch = available
-      .filter((c) => !c.already_completed && !c.total_steps)
-      .filter((c) => getLocalProgress(c.course_id).completedCount > 0);
-    toFetch.forEach(async (c) => {
-      try {
-        const res    = await API.get(`/courses/${c.course_id}`);
-        const course = res.data?.data || res.data;
-        setCourseSteps((prev) => ({ ...prev, [String(c.course_id)]: countSteps(course) }));
-      } catch {}
-    });
   }, [data]);
 
   const filterCourses = (list) =>
