@@ -5,6 +5,8 @@ import {
   CheckCircle2, Hash, FileText, Layers, Tag, Globe,
 } from "lucide-react";
 import API from "../../api/axios";
+import InnerBreadcrumbs from "../../components/InnerBreadcrumbs";
+import GlobalSearchBar from "../../components/GlobalSearchBar";
 
 const REVIEW_BANK = [
   { name: 'Sarah M.', text: 'Clear explanations and great pacing. I felt fully ready for testing.', rating: 5 },
@@ -92,6 +94,12 @@ const CourseDetails = () => {
             <span style={{ color: "rgba(11,18,32,0.30)" }}>/</span>
             <span style={{ fontWeight: 900, color: "rgba(11,18,32,0.82)" }}>{course.title}</span>
           </div>
+          <div style={{ marginLeft: 'auto' }}>
+            <GlobalSearchBar minWidth={320} />
+          </div>
+        </div>
+        <div style={S.breadcrumbWrap}>
+          <InnerBreadcrumbs />
         </div>
       </header>
 
@@ -316,6 +324,7 @@ const S = {
 
   topbar:  { position: "sticky", top: 0, zIndex: 20, background: "rgba(246,247,251,0.88)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(2,8,23,0.08)" },
   topbarInner: { maxWidth: 1180, margin: "0 auto", padding: "13px 18px", display: "flex", alignItems: "center", gap: 14 },
+  breadcrumbWrap: { maxWidth: 1180, margin: "0 auto", padding: "0 18px 10px" },
   backBtn: { display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.82)", flexShrink: 0 },
   breadcrumb: { display: "flex", alignItems: "center", gap: 8, fontSize: 13, minWidth: 0, overflow: "hidden" },
 

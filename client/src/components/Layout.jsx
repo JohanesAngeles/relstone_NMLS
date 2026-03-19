@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, FileText } from 'lucide-react';
+import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Users } from 'lucide-react';
 import logo from '../assets/images/Left Side Logo.png';
+import InnerBreadcrumbs from './InnerBreadcrumbs';
+import GlobalSearchBar from './GlobalSearchBar';
 
 
 /* ─── Logout Confirm Dialog ─────────────────────────────────────── */
@@ -34,15 +36,24 @@ const Layout = ({ children, title, subtitle, actions }) => {
 
   const handleLogout = () => { logout(); window.location.href = '/'; };
 
-
-  const navLinks = [
-    { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
-    { path: '/courses',   label: 'Courses',   icon: <BookOpen size={15} /> },
-    { path: '/checkout',  label: 'Checkout',  icon: <ShoppingCart size={15} /> },
-  ];
+  const role = String(user?.role || 'student').toLowerCase();
+  const isAdminView = role === 'admin' || role === 'instructor';
 
 
-  const isActive = (path) => location.pathname === path;
+  const navLinks = isAdminView
+    ? [
+        { path: '/instructor/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
+        { path: '/instructor/students', label: 'Students', icon: <Users size={15} /> },
+        { path: '/courses', label: 'Courses', icon: <BookOpen size={15} /> },
+      ]
+    : [
+        { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
+        { path: '/courses', label: 'Courses', icon: <BookOpen size={15} /> },
+        { path: '/checkout', label: 'Checkout', icon: <ShoppingCart size={15} /> },
+      ];
+
+
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
 
   return (
@@ -94,6 +105,8 @@ const Layout = ({ children, title, subtitle, actions }) => {
           <div style={S.navRight}>
             {actions}
 
+            <GlobalSearchBar minWidth={280} />
+
 
             <button
               style={S.userBtn}
@@ -116,9 +129,10 @@ const Layout = ({ children, title, subtitle, actions }) => {
 
 
         {/* Page title bar */}
-        {(title || subtitle) && (
+        {(title || subtitle || location.pathname !== '/home') && (
           <div style={S.titleBar}>
             <div style={S.titleBarInner}>
+              <InnerBreadcrumbs />
               {title    && <div style={S.pageTitle}>{title}</div>}
               {subtitle && <div style={S.pageSub}>{subtitle}</div>}
             </div>
@@ -156,7 +170,7 @@ const S = {
   userName:     { fontWeight: 800, fontSize: 13, color: 'rgba(9,25,37,0.80)' },
   logoutBtn:    { width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(2,8,23,0.10)', background: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', color: 'rgba(9,25,37,0.65)', transition: 'all .15s' },
   titleBar:     { borderTop: '1px solid rgba(2,8,23,0.06)', background: 'rgba(255,255,255,0.60)' },
-  titleBarInner:{ maxWidth: 1180, margin: '0 auto', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 10 },
+  titleBarInner:{ maxWidth: 1180, margin: '0 auto', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   pageTitle:    { fontWeight: 900, fontSize: 14, color: '#091925' },
   pageSub:      { fontSize: 12, fontWeight: 700, color: 'rgba(9,25,37,0.50)' },
 };

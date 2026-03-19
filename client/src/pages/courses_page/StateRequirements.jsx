@@ -1,36 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Clock, MapPin, ShieldCheck } from 'lucide-react';
 import API from '../../api/axios';
-
-const STATE_CODES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DC','DE','FL','GA',
-  'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
-  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM',
-  'NY','NC','ND','OH','OK','OR','PA','RI','SC','SD',
-  'TN','TX','UT','VT','VA','WA','WV','WI','WY',
-];
-
-const STATE_NAMES = {
-  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
-  CO: 'Colorado', CT: 'Connecticut', DC: 'District of Columbia', DE: 'Delaware', FL: 'Florida',
-  GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
-  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts',
-  MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska',
-  NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York',
-  NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon',
-  PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee',
-  TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia',
-  WI: 'Wisconsin', WY: 'Wyoming',
-};
+import InnerBreadcrumbs from '../../components/InnerBreadcrumbs';
+import GlobalSearchBar from '../../components/GlobalSearchBar';
+import { STATE_CODES, STATE_NAMES } from '../../data/navigationData';
 
 const StateRequirements = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [stateCode, setStateCode] = useState('TX');
+  const queryState = (searchParams.get('state') || 'TX').toUpperCase();
+  const defaultState = STATE_CODES.includes(queryState) ? queryState : 'TX';
+
+  const [stateCode, setStateCode] = useState(defaultState);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (STATE_CODES.includes(queryState) && queryState !== stateCode) {
+      setStateCode(queryState);
+    }
+  }, [queryState, stateCode]);
 
   useEffect(() => {
     const loadCourses = async () => {
@@ -80,6 +72,10 @@ const StateRequirements = () => {
             <div style={S.title}>State Requirements</div>
             <div style={S.sub}>Review your licensing path before selecting a course.</div>
           </div>
+          <GlobalSearchBar minWidth={320} />
+        </div>
+        <div style={S.breadcrumbWrap}>
+          <InnerBreadcrumbs />
         </div>
       </header>
 
@@ -167,6 +163,7 @@ const S = {
   page: { minHeight: '100vh', background: '#f6f7fb' },
   topbar: { position: 'sticky', top: 0, zIndex: 20, borderBottom: '1px solid rgba(2,8,23,0.08)', background: 'rgba(246,247,251,0.9)', backdropFilter: 'blur(10px)' },
   topbarInner: { maxWidth: 1160, margin: '0 auto', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 },
+  breadcrumbWrap: { maxWidth: 1160, margin: '0 auto', padding: '0 16px 10px' },
   backBtn: { display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid rgba(2,8,23,0.1)', borderRadius: 999, background: '#fff', padding: '9px 12px', fontWeight: 800, cursor: 'pointer' },
   titleWrap: { display: 'grid', gap: 3 },
   title: { fontWeight: 900, color: '#091925' },

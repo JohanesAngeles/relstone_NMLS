@@ -5,6 +5,8 @@ import {
   Mail, Building2, CreditCard, CheckCircle2,
 } from "lucide-react";
 import API from "../../api/axios";
+import InnerBreadcrumbs from "../../components/InnerBreadcrumbs";
+import GlobalSearchBar from "../../components/GlobalSearchBar";
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -127,11 +129,15 @@ const Checkout = () => {
             </div>
           </div>
           <div style={S.right}>
+            <GlobalSearchBar minWidth={300} />
             <div style={S.cartBadge}>
               <ShoppingCart size={16} />
               <span>{cart.length} item{cart.length !== 1 ? "s" : ""}</span>
             </div>
           </div>
+        </div>
+        <div style={S.breadcrumbWrap}>
+          <InnerBreadcrumbs />
         </div>
       </header>
 
@@ -282,6 +288,7 @@ const S = {
   page:       { minHeight:"100vh", background:"var(--rs-bg)" },
   topbar:     { position:"sticky", top:0, zIndex:20, background:"rgba(246,247,251,0.82)", backdropFilter:"blur(10px)", borderBottom:"1px solid rgba(2,8,23,0.08)" },
   topbarInner:{ maxWidth:1180, margin:"0 auto", padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 },
+  breadcrumbWrap:{ maxWidth:1180, margin:"0 auto", padding:"0 18px 10px" },
   left:       { display:"flex", alignItems:"center", gap:12, minWidth:0 },
   right:      { display:"flex", alignItems:"center", gap:10 },
   backBtn:    { display:"inline-flex", alignItems:"center", gap:8, padding:"10px 12px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", cursor:"pointer", fontWeight:900, fontSize:13, color:"rgba(11,18,32,0.82)" },

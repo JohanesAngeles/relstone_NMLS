@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, BadgeDollarSign, BookOpen, CheckCircle2 } from 'lucide-react';
+import InnerBreadcrumbs from '../../components/InnerBreadcrumbs';
+import GlobalSearchBar from '../../components/GlobalSearchBar';
 
 const BUNDLES = [
   {
@@ -53,6 +55,10 @@ const PricingPage = () => {
             <div style={S.title}>Pricing & Bundles</div>
             <div style={S.sub}>Compare options and select your course path.</div>
           </div>
+          <GlobalSearchBar minWidth={320} />
+        </div>
+        <div style={S.breadcrumbWrap}>
+          <InnerBreadcrumbs />
         </div>
       </header>
 
@@ -142,6 +148,7 @@ const S = {
   page: { minHeight: '100vh', background: '#f6f7fb' },
   topbar: { position: 'sticky', top: 0, zIndex: 20, borderBottom: '1px solid rgba(2,8,23,0.08)', background: 'rgba(246,247,251,0.9)', backdropFilter: 'blur(10px)' },
   topbarInner: { maxWidth: 1160, margin: '0 auto', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 },
+  breadcrumbWrap: { maxWidth: 1160, margin: '0 auto', padding: '0 16px 10px' },
   backBtn: { display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid rgba(2,8,23,0.1)', borderRadius: 999, background: '#fff', padding: '9px 12px', fontWeight: 800, cursor: 'pointer' },
   titleWrap: { display: 'grid', gap: 3 },
   title: { fontWeight: 900, color: '#091925' },

@@ -18,6 +18,8 @@ import {
   AlertCircle,
   Star,
 } from "lucide-react";
+import InnerBreadcrumbs from "../../components/InnerBreadcrumbs";
+import GlobalSearchBar from "../../components/GlobalSearchBar";
 
 /* ─── Logout Confirm (inline) ────────────────────────────────────── */
 const LogoutConfirm = ({ onConfirm, onCancel }) => (
@@ -173,6 +175,7 @@ const InstructorDashboard = () => {
           </div>
 
           <div style={S.topbarRight}>
+            <GlobalSearchBar minWidth={280} />
             {/* role badge */}
             <div style={S.instructorPill}>
               <Star size={13} style={{ color: "var(--rs-teal)" }} />
@@ -192,6 +195,9 @@ const InstructorDashboard = () => {
               Sign out
             </button>
           </div>
+        </div>
+        <div style={S.breadcrumbWrap}>
+          <InnerBreadcrumbs />
         </div>
       </header>
 
@@ -734,6 +740,7 @@ const S = {
     display: "flex", alignItems: "center",
     justifyContent: "space-between", gap: 12,
   },
+  breadcrumbWrap: { maxWidth: 1200, margin: "0 auto", padding: "0 18px 10px" },
   brandLeft:    { display: "flex", alignItems: "center", gap: 12 },
   brandLogo:    { height: 32, objectFit: "contain" },
   brandTitle:   { fontWeight: 900, letterSpacing: "-0.2px", fontSize: 15 },
