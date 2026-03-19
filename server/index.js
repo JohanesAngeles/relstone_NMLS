@@ -1,6 +1,7 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
+<<<<<<< HEAD
 const express    = require('express');
 const mongoose   = require('mongoose');
 const cors       = require('cors');
@@ -16,6 +17,18 @@ const instructorRoutes  = require('./routes/instructor');
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 const authMiddleware = require('./middleware/auth');
+=======
+dotenv.config();
+
+const authRoutes = require('./routes/auth');
+const authMiddleware = require('./middleware/auth');
+const courseRoutes = require('./routes/courses');
+const orderRoutes = require('./routes/orders');
+const dashboardRoutes = require('./routes/dashboard');
+const certificateRoutes = require('./routes/certificates');
+const instructorRoutes = require('./routes/instructor');
+const notificationRoutes = require('./routes/notifications');
+>>>>>>> 9d9b1b6 (Backup: my current progress before pulling updates)
 
 const app = express();
 
@@ -39,7 +52,12 @@ app.use('/api/courses',      courseRoutes);
 app.use('/api/orders',       orderRoutes);
 app.use('/api/dashboard',    dashboardRoutes);
 app.use('/api/certificates', certificateRoutes);
+<<<<<<< HEAD
 app.use('/api/instructor',   instructorRoutes);
+=======
+app.use('/api/instructor', instructorRoutes);
+app.use('/api/notifications', notificationRoutes);
+>>>>>>> 9d9b1b6 (Backup: my current progress before pulling updates)
 
 // ── Protected test route ──────────────────────────────────────────────────────
 app.get('/api/protected', authMiddleware, (req, res) => {
@@ -61,8 +79,14 @@ if (process.env.NODE_ENV === 'production') {
 // ── Start server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8000;
 
+const mongoUri = process.env.MONGO_URI;
+if (!mongoUri || typeof mongoUri !== 'string') {
+  console.error('MongoDB connection failed: MONGO_URI is not defined or not a string. Check your .env file and dotenv config.');
+  process.exit(1);
+}
+
 mongoose
-  .connect(process.env.MONGO_URI)
+  .connect(mongoUri)
   .then(() => {
     console.log('MongoDB connected');
     app.listen(PORT, () => {

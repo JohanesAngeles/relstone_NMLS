@@ -33,6 +33,15 @@ const userSchema = new mongoose.Schema({
     sms_reminders:        { type: Boolean, default: false },
     sms_completions:      { type: Boolean, default: false },
   },
+  notifications: [
+    {
+      type: { type: String, default: 'system' },
+      title: { type: String, default: '' },
+      body: { type: String, default: '' },
+      read: { type: Boolean, default: false },
+      createdAt: { type: Date, default: Date.now },
+    }
+  ],
 
   // ── Course History ────────────────────────────────────────────────
   completions: [

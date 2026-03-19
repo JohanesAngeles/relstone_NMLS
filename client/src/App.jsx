@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import PrivateRoute from './components/PrivateRoute';
 import LandingPage from './pages/landing_page/LandingPage';
 import AuthModal from './pages/auth_page/AuthModal';
@@ -16,6 +17,7 @@ import HomePage from './pages/HomePage';
 import MyCourses from './pages/my_courses/MyCourses';
 import Profile from './pages/profile/Profile';
 import MyCertificates from './pages/certificates/MyCertificates';
+import NotificationsCenter from './pages/notifications/NotificationsCenter';
 import OrdersBilling from './pages/OrdersBilling';
 
 
@@ -45,8 +47,9 @@ const LandingWrapper = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Routes>
+      <NotificationProvider>
+        <Router>
+          <Routes>
           {/* Public — Landing (redirects to /home if logged in) */}
           <Route path="/" element={<LandingWrapper />} />
 
@@ -130,9 +133,15 @@ function App() {
               <MyCertificates />
             </PrivateRoute>
           } />
+          <Route path="/notifications" element={
+            <PrivateRoute>
+              <NotificationsCenter />
+            </PrivateRoute>
+          } />
           <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
         </Routes>
       </Router>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

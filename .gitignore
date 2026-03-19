@@ -1,0 +1,7 @@
+# Root ignores (repo-wide)
+TESTING_GUIDE.md
+QUICK_START_TESTING.md
+
+node_modules/
+**/node_modules/
+
