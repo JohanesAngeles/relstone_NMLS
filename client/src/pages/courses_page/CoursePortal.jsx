@@ -74,7 +74,7 @@ const CoursePortal = () => {
   const [loading, setLoading]         = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [finished, setFinished]       = useState(false);
-  const [reviewMode, setReviewMode]   = useState(false); // ← NEW: review mode for completed
+  const [reviewMode, setReviewMode]   = useState(false);
   const [error, setError]             = useState(null);
   const [transcriptEntry, setTranscriptEntry] = useState(null);
 
@@ -151,14 +151,12 @@ const CoursePortal = () => {
         const transcript = transcriptRes.data?.transcript || [];
         const entry = transcript.find((t) => String(t.course_id?._id || t.course_id) === String(id));
 
-        // ── If already completed → go into review mode instead of showing completion screen
         if (entry) {
           setTranscriptEntry(entry);
           setFinished(true);
-          // Mark all steps as completed for review navigation
           const allIdxs = new Set(built.map((_, i) => i));
           setCompleted(allIdxs);
-          setReviewMode(true); // ← enter review mode
+          setReviewMode(true);
           setLoading(false);
           return;
         }
@@ -184,7 +182,7 @@ const CoursePortal = () => {
   const progress = reviewMode ? 100 : (content.length ? Math.round((completed.size / content.length) * 100) : 0);
 
   const markComplete = (idx) => {
-    if (reviewMode) return; // don't save progress in review mode
+    if (reviewMode) return;
     setCompleted((prev) => {
       const next = new Set([...prev, idx]);
       saveProgress({ nextCompletedSet: next, nextIdx: currentIdx, totalSteps: content.length });
@@ -199,7 +197,6 @@ const CoursePortal = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // In review mode all navigation is free
   const canNavigateTo = (idx) => reviewMode ? true : (idx === 0 || completed.has(idx - 1));
 
   const goNext = () => {
@@ -218,8 +215,8 @@ const CoursePortal = () => {
     setCompleted(allIdxs);
   };
 
-  const handleRocsAgreed = () => { setRocsAgreed(true); setShowRocs(false); };
-  const handleRocsCancel = () => { navigate(`/courses/${id}`); };
+  const handleRocsAgreed    = () => { setRocsAgreed(true); setShowRocs(false); };
+  const handleRocsCancel    = () => { navigate(`/courses/${id}`); };
   const handleBioSigVerified = () => { setBioSigVerified(true); setShowBioSig(false); if (!rocsAgreed) setShowRocs(true); };
   const handleBioSigCancel   = () => { navigate(`/courses/${id}`); };
 
@@ -255,7 +252,6 @@ const CoursePortal = () => {
     <div style={S.page}>
       <style>{css}</style>
 
-      {/* ── Modals: skip in review mode ── */}
       {!reviewMode && showBioSig && !bioSigVerified && (
         <BioSigModal courseId={id} courseName={course?.title || ""} onVerified={handleBioSigVerified} onCancel={handleBioSigCancel} />
       )}
@@ -276,7 +272,6 @@ const CoursePortal = () => {
         </div>
       )}
 
-      {/* ── Review Mode Banner ── */}
       {reviewMode && (
         <div style={S.reviewBanner}>
           <Eye size={15} style={{ flexShrink: 0 }} />
@@ -425,7 +420,7 @@ const PDFViewer = ({ url }) => {
 
 /* ─── PDF Gate View ──────────────────────────────────────────────── */
 const PDFGateView = ({ item, onComplete, onPrev, reviewMode }) => {
-  const [confirmed, setConfirmed] = useState(reviewMode); // auto-confirmed in review
+  const [confirmed, setConfirmed] = useState(reviewMode);
   useEffect(() => { setConfirmed(reviewMode); }, [item.id, reviewMode]);
   return (
     <div style={S.lessonWrap}>
@@ -581,11 +576,10 @@ const InstructorLockScreen = ({ item, onPrev }) => (
 );
 
 /* ─── Review Answers Panel ───────────────────────────────────────── */
-// Shows the best (highest score) past attempt with all answers highlighted
 const ReviewAnswersPanel = ({ item, courseId }) => {
   const [attempts, setAttempts] = useState([]);
   const [loading,  setLoading]  = useState(true);
-  const [selected, setSelected] = useState(0); // which attempt to show
+  const [selected, setSelected] = useState(0);
 
   useEffect(() => {
     const fetch = async () => {
@@ -600,7 +594,6 @@ const ReviewAnswersPanel = ({ item, courseId }) => {
   }, [item.id, courseId]);
 
   if (loading) return <div style={{ textAlign: "center", padding: 24, color: "rgba(10,22,40,0.45)", fontSize: 13 }}>Loading past answers…</div>;
-
   if (attempts.length === 0) return (
     <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(2,8,23,0.03)", border: "1px solid rgba(2,8,23,0.08)", fontSize: 13, color: "rgba(10,22,40,0.55)", fontWeight: 700 }}>
       No recorded attempts found for this quiz.
@@ -611,7 +604,6 @@ const ReviewAnswersPanel = ({ item, courseId }) => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Attempt selector */}
       {attempts.length > 1 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {attempts.map((a, i) => (
@@ -626,8 +618,6 @@ const ReviewAnswersPanel = ({ item, courseId }) => {
           ))}
         </div>
       )}
-
-      {/* Score summary */}
       <div style={{ padding: "14px 18px", borderRadius: 14, textAlign: "center",
         background: attempt.passed ? "linear-gradient(135deg,rgba(34,197,94,0.10),rgba(0,180,180,0.10))" : "rgba(239,68,68,0.06)",
         border: `1px solid ${attempt.passed ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.20)"}` }}>
@@ -636,8 +626,6 @@ const ReviewAnswersPanel = ({ item, courseId }) => {
           {attempt.passed ? "✓ Passed" : "✗ Failed"} · {new Date(attempt.submitted_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
         </div>
       </div>
-
-      {/* Questions — read-only with correct answers shown */}
       {item.questions.map((q, qi) => {
         const studentAnswer = attempt.answers ? attempt.answers[q.id] : undefined;
         const hasAnswer = studentAnswer !== undefined;
@@ -651,20 +639,16 @@ const ReviewAnswersPanel = ({ item, courseId }) => {
                 const isStudentPick = hasAnswer && studentAnswer === oi;
                 const isWrong       = isStudentPick && !isCorrect;
                 return (
-                  <div key={oi} style={{ ...S.option,
-                    ...(isCorrect   ? S.optionCorrect   : {}),
-                    ...(isWrong     ? S.optionWrong     : {}),
-                    cursor: "default" }}>
+                  <div key={oi} style={{ ...S.option, ...(isCorrect ? S.optionCorrect : {}), ...(isWrong ? S.optionWrong : {}), cursor: "default" }}>
                     <span style={S.optionLetter}>{String.fromCharCode(65 + oi)}</span>
                     <span style={S.optionText}>{opt}</span>
-                    {isCorrect   && <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(34,197,94,1)" }} />}
-                    {isWrong     && <X size={15} style={{ flexShrink: 0, color: "rgba(239,68,68,1)" }} />}
+                    {isCorrect && <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(34,197,94,1)" }} />}
+                    {isWrong   && <X size={15} style={{ flexShrink: 0, color: "rgba(239,68,68,1)" }} />}
                     {isStudentPick && !isWrong && !isCorrect && <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(46,171,254,1)" }}>Your answer</span>}
                   </div>
                 );
               })}
             </div>
-            {/* Answer legend */}
             <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(21,128,61,1)", display: "flex", alignItems: "center", gap: 4 }}>
                 <CheckCircle2 size={12} /> Correct answer
@@ -697,7 +681,6 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
   const isLocked     = !reviewMode && attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
   if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
 
-  // ── Review mode: show read-only past answers ──
   if (reviewMode) return (
     <div style={S.checkWrap}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
@@ -729,6 +712,7 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
         moduleOrder: item.moduleOrder, scorePct: pct, correct: correctCount,
         total: item.questions.length, passed: ok, passingScore: 100,
         timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
+        answers,
       });
       await onAttemptLogged();
     } catch { }
@@ -794,14 +778,12 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
   );
 };
 
-/* ─── Quiz View ──────────────────────────────────────────────────── */
+/* ─── Quiz View — NO TIMER, answer all questions to submit ───────── */
 const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogged, reviewMode }) => {
   const [answers, setAnswers]     = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore]         = useState(0);
   const [passed, setPassed]       = useState(false);
-  const [timeLeft, setTimeLeft]   = useState((item.timeLimitMin || 90) * 60);
-  const timerRef  = useRef(null);
   const startedAt = useRef(Date.now());
 
   const attemptCount = attemptInfo?.count || 0;
@@ -810,18 +792,9 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   useEffect(() => {
     if (!reviewMode) {
       setAnswers({}); setSubmitted(false); setScore(0); setPassed(false);
-      setTimeLeft((item.timeLimitMin || 90) * 60);
       startedAt.current = Date.now();
     }
   }, [item.id, reviewMode]);
-
-  useEffect(() => {
-    if (submitted || isLocked || reviewMode) return;
-    timerRef.current = setInterval(() => {
-      setTimeLeft((t) => { if (t <= 1) { clearInterval(timerRef.current); doSubmit(); return 0; } return t - 1; });
-    }, 1000);
-    return () => clearInterval(timerRef.current);
-  }, [submitted, isLocked, reviewMode]);
 
   if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
 
@@ -844,7 +817,6 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   );
 
   const doSubmit = async () => {
-    clearInterval(timerRef.current);
     const correct = item.questions.filter((q) => answers[q.id] === q.correct).length;
     const pct     = Math.round((correct / item.questions.length) * 100);
     const ok      = pct >= (item.passingScore || 70);
@@ -856,36 +828,34 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
         scorePct: pct, correct, total: item.questions.length,
         passed: ok, passingScore: item.passingScore || 70,
         timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
-        answers, // ← save answers so review mode can show them
+        answers,
       });
       await onAttemptLogged();
     } catch { }
   };
 
-  const fmt          = (s) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
-  const handleRetry  = () => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); setTimeLeft((item.timeLimitMin || 90) * 60); startedAt.current = Date.now(); };
-  const allAnswered    = item.questions.every((q) => answers[q.id] !== undefined);
-  const answered       = Object.keys(answers).length;
-  const correctCount   = item.questions.filter((q) => answers[q.id] === q.correct).length;
-  const urgentTime     = timeLeft < 300;
+  const handleRetry  = () => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); startedAt.current = Date.now(); };
+
+  const allAnswered  = item.questions.every((q) => answers[q.id] !== undefined);
+  const answered     = Object.keys(answers).length;
+  const correctCount = item.questions.filter((q) => answers[q.id] === q.correct).length;
   const isFundamentals = item.id?.includes("checkpoint-mod-") && !item.id?.includes("final-exam");
 
   return (
     <div style={S.checkWrap}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div style={isFundamentals ? S.typePillAmber : S.typePillGreen}>
           {isFundamentals ? <ClipboardList size={14} /> : <Trophy size={14} />}
           {isFundamentals ? " Fundamentals Exam" : " Final Exam"}
         </div>
-        {!submitted && (
-          <div style={{ ...S.timerBadge, background: urgentTime ? "rgba(239,68,68,0.10)" : "rgba(46,171,254,0.10)", border: `1px solid ${urgentTime ? "rgba(239,68,68,0.30)" : "rgba(46,171,254,0.25)"}`, color: urgentTime ? "rgba(185,28,28,1)" : "var(--cp-blue)" }}>
-            {fmt(timeLeft)}
-          </div>
-        )}
       </div>
+
       <h1 style={S.lessonTitle}>{item.title}</h1>
-      <p style={S.checkSubtitle}>Score {item.passingScore || 70}% or higher to pass · {item.questions.length} questions{!submitted && ` · ${answered}/${item.questions.length} answered`}</p>
+      <p style={S.checkSubtitle}>
+        Score {item.passingScore || 70}% or higher to pass · {item.questions.length} questions
+        {!submitted && ` · ${answered}/${item.questions.length} answered`}
+      </p>
 
       {attemptCount === 0 && !submitted && <AttemptWarning1st />}
       {attemptCount === 1 && !submitted && <AttemptWarning2nd />}
@@ -894,7 +864,12 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
       {submitted && (
         <div style={passed ? S.scorePassed : S.scoreFailed}>
           <div style={S.scoreNumber}>{score}%</div>
-          <div style={S.scoreLabel}>{passed ? `Passed! ${correctCount}/${item.questions.length} correct.` : `Need ${item.passingScore || 70}% — got ${correctCount}/${item.questions.length} correct.`}</div>
+          <div style={S.scoreLabel}>
+            {passed
+              ? `Passed! ${correctCount}/${item.questions.length} correct.`
+              : `Need ${item.passingScore || 70}% — got ${correctCount}/${item.questions.length} correct.`
+            }
+          </div>
           {!passed && attemptCount >= 2 && (
             <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 12, background: "rgba(185,28,28,0.08)", border: "1px solid rgba(185,28,28,0.25)", color: "rgba(185,28,28,1)", fontSize: 13, fontWeight: 700 }}>
               All 3 attempts used. Please contact your instructor to unlock this exam.
@@ -908,11 +883,14 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
         </div>
       )}
 
+      {/* ── Answer progress bar ── */}
       {!submitted && (
         <div style={{ background: "rgba(2,8,23,0.07)", borderRadius: 999, height: 6, overflow: "hidden" }}>
           <div style={{ height: "100%", borderRadius: 999, background: "var(--cp-blue)", width: `${(answered / item.questions.length) * 100}%`, transition: "width 0.3s" }} />
         </div>
       )}
+
+      {/* ── Early submit hint ── */}
       {!submitted && allAnswered && (
         <div style={S.earlySubmitHint}>
           <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(21,128,61,1)" }} />
@@ -950,7 +928,9 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
       <div style={S.navRow}>
         {!submitted && <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>}
         {!submitted
-          ? <button style={{ ...S.nextBtn, ...(!allAnswered ? S.nextBtnDim : {}) }} onClick={allAnswered ? doSubmit : undefined} disabled={!allAnswered} type="button">Submit Exam</button>
+          ? <button style={{ ...S.nextBtn, ...(!allAnswered ? S.nextBtnDim : {}) }} onClick={allAnswered ? doSubmit : undefined} disabled={!allAnswered} type="button">
+              Submit Exam
+            </button>
           : passed
             ? <button style={isFundamentals ? S.nextBtn : S.finishBtn} onClick={onFinish} type="button">
                 {isFundamentals ? <>Continue to Final Exam <ArrowRight size={16} /></> : <><Trophy size={16} /> Complete Course</>}
@@ -962,7 +942,7 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   );
 };
 
-/* ─── Completion Screen (shown briefly after finishing, then review mode takes over) ── */
+/* ─── Completion Screen ──────────────────────────────────────────── */
 const CompletionScreen = ({ course, transcriptEntry, navigate, courseId }) => {
   const completedAt = transcriptEntry?.completed_at
     ? new Date(transcriptEntry.completed_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
