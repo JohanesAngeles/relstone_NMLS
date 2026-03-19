@@ -220,53 +220,82 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* ════════ COURSES ════════ */}
-      <section className="lp-courses" id="courses">
-        <div className="lp-container">
-          <div className="lp-section-center">
-            <p className="lp-eyebrow-blue">COURSE CATALOG</p>
-            <h2 className="lp-h2">CHOOSE YOUR <span className="lp-blue">COURSE</span></h2>
-            <p className="lp-sub">All courses are NMLS-approved, fully online, and report directly to your NMLS record upon completion.</p>
+      // ─── Course Catalog Section ──────────────────────────────────────────────────
+<section className="lp-courses" id="courses">
+  <div className="lp-container">
+    <div className="lp-section-center">
+      <p className="lp-eyebrow-blue">COURSE CATALOG</p>
+      <h2 className="lp-h2">CHOOSE YOUR <span className="lp-blue">COURSE</span></h2>
+      <p className="lp-sub">All courses are NMLS-approved, fully online, and report directly to your NMLS record upon completion.</p>
+    </div>
+    <div className="lp-course-grid">
+      {[
+        { 
+          tag: 'CALIFORNIA DFPI', 
+          title: '8-Hour CA-DFPI SAFE Comprehensive: Annual MLO Fundamentals', 
+          pills: [{l:'NMLS Approved', c:'blue'}, {l:'California', c:'green'}, {l:'Required', c:'orange'}], 
+          hrs: 8, 
+          price: '$99', 
+          desc: 'Covers federal mortgage law (3 hrs), ethics (2 hrs), non-traditional mortgage lending (2 hrs), and California state law & DFPI regulations (1 hr).', 
+          bullets: ['3 Hours Federal Law', '2 Hours Ethics', '2 Hours Non-Traditional Lending', '1 Hour CA-DFPI Law', 'Direct NMLS Reporting'], 
+          cta: user ? 'View Course' : 'Enroll Now', 
+          action: () => user ? navigate('/courses') : setModal('register') 
+        },
+        { 
+          tag: 'FLORIDA DBPR', 
+          title: '8-Hour FL SAFE Comprehensive: Annual MLO Fundamentals', 
+          pills: [{l:'NMLS Approved', c:'blue'}, {l:'Florida', c:'green'}], 
+          hrs: 8, 
+          price: '$99', 
+          desc: 'Covers federal mortgage law (3 hrs), ethics (2 hrs), non-traditional mortgage lending (2 hrs), and Florida state law & regulations (1 hr).', 
+          bullets: ['3 Hours Federal Law Updates', '2 Hours Ethics', '2 Hours Non-Traditional Lending', '1 Hour Florida Law', 'Direct NMLS Reporting'], 
+          cta: user ? 'View Course' : 'Enroll Now', 
+          action: () => user ? navigate('/courses') : setModal('register') 
+        },
+        { 
+          tag: 'HAWAII DFI', 
+          title: '8-Hour HI SAFE Comprehensive: Annual MLO Fundamentals', 
+          pills: [{l:'NMLS Approved', c:'blue'}, {l:'Hawaii', c:'teal'}], 
+          hrs: 8, 
+          price: '$99', 
+          desc: 'Covers federal mortgage law (3 hrs), ethics (2 hrs), non-traditional mortgage lending (2 hrs), and Hawaii state law & regulations (1 hr).', 
+          bullets: ['3 Hours Federal Law', '2 Hours Ethics', '2 Hours Non-Traditional Lending', '1 Hour Hawaii Law', 'Direct NMLS Reporting'], 
+          cta: user ? 'View Course' : 'Enroll Now', 
+          action: () => user ? navigate('/courses') : setModal('register') 
+        },
+      ].map((c, i) => (
+        <div key={i} className="lp-course-card">
+          <div className="lp-course-header">
+            <p className="lp-course-tag">{c.tag}</p>
+            <h3 className="lp-course-title">{c.title}</h3>
+            <div className="lp-course-pills">
+              {c.pills.map(p => <span key={p.l} className={`lp-cpill lp-cpill--${p.c}`}>{p.l}</span>)}
+            </div>
           </div>
-          <div className="lp-course-grid">
-            {[
-              { tag:'PRE-LICENSING EDUCATION', title:'SAFE Act Pre-Licensing Educ. (PE)', pills:[{l:'NMLS Approved',c:'blue'},{l:'All States',c:'green'},{l:'Required',c:'orange'}], hrs:20, price:'$199', desc:'The federally mandated 20-hour pre-licensing course required for all new mortgage loan originators. Covers federal law, ethics, lending standards, and electives.', bullets:['3 Hours Federal Law','3 Hours Ethics','2 Hours Non-Traditional Lending','12 Hours Elective Topics','Direct NMLS Reporting'], cta:user?'View Course':'Enroll Now', action:()=>user?navigate('/courses'):setModal('register') },
-              { tag:'CONTINUING EDUCATION', title:'Annual Continuing Education (CE)', pills:[{l:'NMLS Approved',c:'blue'},{l:'Annual Renewal',c:'green'}], hrs:8, price:'$99', desc:'The 8-hour annual continuing education requirement for all licensed mortgage loan originators. Keeps you up to date with laws, ethics, and lending regulations.', bullets:['3 Hours Federal Law Updates','2 Hours Ethics','2 Hours Non-Traditional Lending','1 Hour Elective','Direct NMLS Reporting'], cta:user?'View Course':'Enroll Now', action:()=>user?navigate('/courses'):setModal('register') },
-              { tag:'STATE-SPECIFIC ELECTIVES', title:'State Law & Regulation Courses', pills:[{l:'NMLS Approved',c:'blue'},{l:'State-Specific',c:'red'}], hrs:'3+', price:'$49+', desc:"State-specific law courses required by individual state licensing authorities. Check your state's NMLS requirements for exact credit hours needed.", bullets:['California, Texas, Florida, NY + more','State-specific regulatory updates','Fulfills state elective requirements','Direct NMLS Reporting','Expert-designed mortgage training content'], cta:'View States', action:()=>user?navigate('/courses'):setModal('register') },
-            ].map((c, i) => (
-              <div key={i} className="lp-course-card">
-                {/* Card header band */}
-                <div className="lp-course-header">
-                  <p className="lp-course-tag">{c.tag}</p>
-                  <h3 className="lp-course-title">{c.title}</h3>
-                  <div className="lp-course-pills">
-                    {c.pills.map(p => <span key={p.l} className={`lp-cpill lp-cpill--${p.c}`}>{p.l}</span>)}
-                  </div>
-                </div>
-                <div className="lp-course-body">
-                  <div className="lp-course-hrs">
-                    <span className="lp-hrs-num">{c.hrs}</span>
-                    <div className="lp-hrs-lbl"><div>NMLS CREDIT</div><div>HOURS</div></div>
-                  </div>
-                  <p className="lp-course-desc">{c.desc}</p>
-                  <ul className="lp-course-bullets">
-                    {c.bullets.map(b => (
-                      <li key={b}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="lp-course-footer">
-                    <span className="lp-course-price">{c.price}<span className="lp-course-unit">/course</span></span>
-                    <button className="lp-btn-blue" onClick={c.action}>{c.cta}</button>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="lp-course-body">
+            <div className="lp-course-hrs">
+              <span className="lp-hrs-num">{c.hrs}</span>
+              <div className="lp-hrs-lbl"><div>NMLS CREDIT</div><div>HOURS</div></div>
+            </div>
+            <p className="lp-course-desc">{c.desc}</p>
+            <ul className="lp-course-bullets">
+              {c.bullets.map(b => (
+                <li key={b}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  {b}
+                </li>
+              ))}
+            </ul>
+            <div className="lp-course-footer">
+              <span className="lp-course-price">{c.price}<span className="lp-course-unit">/course</span></span>
+              <button className="lp-btn-blue" onClick={c.action}>{c.cta}</button>
+            </div>
           </div>
         </div>
-      </section>
+      ))}
+    </div>
+  </div>
+</section>
 
       {/* ════════ FEATURES ════════ */}
       <section className="lp-features" id="features">
