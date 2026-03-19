@@ -6,19 +6,20 @@ import logo from "../../assets/images/Left Side Logo.png";
 import {
   Users, Search, CheckCircle, Clock, Award,
   BookOpen, ArrowLeft, Eye, PlusCircle, X, Check,
+  Unlock, AlertTriangle,
 } from "lucide-react";
 
 const ViewStudents = () => {
   const { logout } = useAuth();
   const navigate   = useNavigate();
 
-  const [students, setStudents]         = useState([]);
-  const [loading,  setLoading]          = useState(true);
-  const [error,    setError]            = useState("");
-  const [q,        setQ]                = useState("");
-  const [filter,   setFilter]           = useState("all");
-  const [selected, setSelected]         = useState(null);  // detail modal
-  const [assigning, setAssigning]       = useState(null);  // assign modal → student
+  const [students, setStudents]   = useState([]);
+  const [loading,  setLoading]    = useState(true);
+  const [error,    setError]      = useState("");
+  const [q,        setQ]          = useState("");
+  const [filter,   setFilter]     = useState("all");
+  const [selected, setSelected]   = useState(null);
+  const [assigning, setAssigning] = useState(null);
 
   const reload = async () => {
     try {
@@ -101,7 +102,6 @@ const ViewStudents = () => {
 
         {/* ── Main card ── */}
         <div style={S.card}>
-          {/* toolbar */}
           <div style={S.toolbar}>
             <div style={S.toolbarLeft}>
               <div style={S.searchWrap}>
@@ -122,7 +122,6 @@ const ViewStudents = () => {
             <span style={S.resultCount}>{filtered.length} student{filtered.length !== 1 ? "s" : ""}</span>
           </div>
 
-          {/* table */}
           {filtered.length === 0 ? (
             <div style={S.emptyWrap}>
               <div style={S.emptyIcon}><Users size={22} /></div>
@@ -158,10 +157,7 @@ const ViewStudents = () => {
         </div>
       </div>
 
-      {/* ── Detail modal ── */}
-      {selected && <StudentModal student={selected} onClose={() => setSelected(null)} />}
-
-      {/* ── Assign Course modal ── */}
+      {selected  && <StudentModal student={selected} onClose={() => setSelected(null)} />}
       {assigning && (
         <AssignModal
           student={assigning}
@@ -223,6 +219,163 @@ const StudentRow = ({ student, onView, onAssign }) => {
   );
 };
 
+/* ─── Student detail modal ────────────────────────────────────────── */
+const StudentModal = ({ student, onClose }) => {
+  const completions = student.completions || [];
+
+  // ── Quiz lock state ───────────────────────────────────────────────
+  const [locks,         setLocks]         = useState([]);
+  const [locksLoading,  setLocksLoading]  = useState(true);
+  const [unlocking,     setUnlocking]     = useState(null); // quizId being unlocked
+  const [unlockSuccess, setUnlockSuccess] = useState({});   // quizId → true
+
+  useEffect(() => {
+    const fetchLocks = async () => {
+      try {
+        const res = await API.get("/quiz-attempts/instructor/pending");
+        // Filter only this student's locks
+        const myLocks = (res.data?.pending || []).filter(
+          (p) => String(p.user_id) === String(student._id)
+        );
+        setLocks(myLocks);
+      } catch { /* silent */ }
+      finally { setLocksLoading(false); }
+    };
+    fetchLocks();
+  }, [student._id]);
+
+  const handleUnlock = async (lock) => {
+    setUnlocking(lock.quiz_id);
+    try {
+      await API.post("/quiz-attempts/instructor/unlock", {
+        userId:   student._id,
+        courseId: lock.course_id,
+        quizId:   lock.quiz_id,
+      });
+      setUnlockSuccess((prev) => ({ ...prev, [lock.quiz_id]: true }));
+      setLocks((prev) => prev.filter((l) => l.quiz_id !== lock.quiz_id));
+    } catch {
+      /* silent — show nothing, user can retry */
+    } finally {
+      setUnlocking(null);
+    }
+  };
+
+  return (
+    <>
+      <div style={S.backdrop} onClick={onClose} />
+      <div style={S.modal}>
+        <div style={S.modalHeader}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={S.modalAvatar}>{(student.name || "S")[0].toUpperCase()}</div>
+            <div>
+              <div style={S.modalName}>{student.name}</div>
+              <div style={S.modalEmail}>{student.email}</div>
+            </div>
+          </div>
+          <button style={S.closeBtn} onClick={onClose} type="button">✕</button>
+        </div>
+
+        <div style={S.infoGrid}>
+          <InfoField label="NMLS ID" value={student.nmls_id  || "Not set"} />
+          <InfoField label="State"   value={student.state    || "Not set"} />
+          <InfoField label="Role"    value="Student" />
+          <InfoField label="Joined"  value={student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "—"} />
+        </div>
+
+        {/* ── Quiz Locks section ───────────────────────────────────── */}
+        <div style={{ ...S.modalSection, marginBottom: 20 }}>
+          <div style={S.modalSectionTitle}>
+            <AlertTriangle size={14} style={{ color: "rgba(185,28,28,0.80)" }} />
+            Quiz Locks
+            {locks.length > 0 && (
+              <span style={{ ...S.modalBadge, background:"rgba(239,68,68,0.10)", color:"rgba(185,28,28,1)", border:"1px solid rgba(239,68,68,0.25)" }}>
+                {locks.length}
+              </span>
+            )}
+          </div>
+
+          {locksLoading ? (
+            <div style={S.modalEmpty}><span>Checking for locked quizzes…</span></div>
+          ) : locks.length === 0 ? (
+            <div style={S.modalEmpty}>
+              <Check size={16} style={{ color: "rgba(34,197,94,0.7)" }} />
+              <span>No locked quizzes — student is in good standing.</span>
+            </div>
+          ) : (
+            <div style={{ display:"grid", gap:10 }}>
+              {locks.map((lock) => {
+                const isUnlocking = unlocking === lock.quiz_id;
+                const isDone      = unlockSuccess[lock.quiz_id];
+                return (
+                  <div key={lock.quiz_id} style={S.lockCard}>
+                    <div style={S.lockCardLeft}>
+                      <div style={S.lockCardTitle}>{lock.quiz_title || lock.quiz_id}</div>
+                      <div style={S.lockCardMeta}>
+                        {lock.course?.title || "Unknown course"} · {lock.fail_count} failed attempt{lock.fail_count !== 1 ? "s" : ""}
+                        <span style={S.lockCardDate}>
+                          · Last attempt: {lock.last_attempt ? new Date(lock.last_attempt).toLocaleDateString() : "—"}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      style={{ ...S.unlockBtn, ...(isUnlocking || isDone ? S.unlockBtnDim : {}) }}
+                      onClick={() => !isUnlocking && !isDone && handleUnlock(lock)}
+                      disabled={isUnlocking || isDone}
+                      type="button"
+                    >
+                      {isDone
+                        ? <><Check size={13} /> Unlocked</>
+                        : isUnlocking
+                          ? "Unlocking…"
+                          : <><Unlock size={13} /> Unlock</>
+                      }
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Completed courses ────────────────────────────────────── */}
+        <div style={S.modalSection}>
+          <div style={S.modalSectionTitle}>
+            Completed Courses <span style={S.modalBadge}>{completions.length}</span>
+          </div>
+          {completions.length === 0 ? (
+            <div style={S.modalEmpty}><BookOpen size={18} style={{ opacity:0.4 }} /><span>No completed courses yet.</span></div>
+          ) : (
+            <div style={{ display:"grid", gap:10 }}>
+              {completions.map((c, i) => {
+                const course = c.course_id || {};
+                const type   = (course.type || "").toUpperCase();
+                return (
+                  <div key={i} style={S.completionCard}>
+                    <div style={S.completionTop}>
+                      <span style={type === "PE" ? S.typePE : S.typeCE}>{type || "—"}</span>
+                      <span style={S.completionTitle}>{course.title || "Course"}</span>
+                    </div>
+                    <div style={S.completionMeta}>
+                      <span style={S.metaItem}><Clock size={12} />{course.credit_hours ?? "—"} credit hrs</span>
+                      <span style={S.metaItem}><CheckCircle size={12} />{c.completed_at ? new Date(c.completed_at).toLocaleDateString() : "—"}</span>
+                      {c.certificate_url && (
+                        <a href={c.certificate_url} target="_blank" rel="noreferrer" style={S.certLink}>
+                          <Award size={12} /> Certificate
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
+
 /* ─── Assign Course Modal ─────────────────────────────────────────── */
 const AssignModal = ({ student, onClose, onAssigned }) => {
   const [courses,  setCourses]  = useState([]);
@@ -233,7 +386,6 @@ const AssignModal = ({ student, onClose, onAssigned }) => {
   const [error,    setError]    = useState("");
   const [q,        setQ]        = useState("");
 
-  // IDs of courses already completed by the student
   const completedIds = new Set(
     (student.completions || []).map((c) => c.course_id?._id || c.course_id)
   );
@@ -281,7 +433,6 @@ const AssignModal = ({ student, onClose, onAssigned }) => {
     <>
       <div style={S.backdrop} onClick={onClose} />
       <div style={S.modal}>
-        {/* Header */}
         <div style={S.modalHeader}>
           <div>
             <div style={S.modalName}>Assign Course</div>
@@ -290,14 +441,12 @@ const AssignModal = ({ student, onClose, onAssigned }) => {
           <button style={S.closeBtn} onClick={onClose} type="button">✕</button>
         </div>
 
-        {/* Search courses */}
         <div style={S.assignSearch}>
           <Search size={14} style={{ opacity: 0.5 }} />
           <input style={S.searchInput} value={q} onChange={(e) => setQ(e.target.value)}
             placeholder="Filter courses…" />
         </div>
 
-        {/* Course list */}
         <div style={S.courseList}>
           {loading ? (
             <div style={{ padding:18, color:"rgba(11,18,32,0.55)", fontWeight:700 }}>Loading courses…</div>
@@ -308,19 +457,12 @@ const AssignModal = ({ student, onClose, onAssigned }) => {
               const alreadyDone = completedIds.has(course._id);
               const isSelected  = selected === course._id;
               return (
-                <div
-                  key={course._id}
-                  style={{
-                    ...S.courseOption,
-                    ...(isSelected ? S.courseOptionSelected : {}),
-                    ...(alreadyDone ? S.courseOptionDone : {}),
-                  }}
+                <div key={course._id}
+                  style={{ ...S.courseOption, ...(isSelected ? S.courseOptionSelected : {}), ...(alreadyDone ? S.courseOptionDone : {}) }}
                   onClick={() => !alreadyDone && setSelected(course._id)}
                 >
                   <div style={S.courseOptionLeft}>
-                    <span style={course.type === "PE" ? S.typePE : S.typeCE}>
-                      {course.type}
-                    </span>
+                    <span style={course.type === "PE" ? S.typePE : S.typeCE}>{course.type}</span>
                     <div>
                       <div style={S.courseOptionTitle}>{course.title}</div>
                       <div style={S.courseOptionMeta}>{course.credit_hours} credit hrs · ${Number(course.price||0).toFixed(2)}</div>
@@ -336,7 +478,6 @@ const AssignModal = ({ student, onClose, onAssigned }) => {
 
         {error && <div style={S.errorMsg}>{error}</div>}
 
-        {/* Footer */}
         <div style={S.assignFooter}>
           <button style={S.cancelBtn} onClick={onClose} type="button">Cancel</button>
           <button
@@ -347,66 +488,6 @@ const AssignModal = ({ student, onClose, onAssigned }) => {
           >
             {success ? <><Check size={15} /> Assigned!</> : saving ? "Assigning…" : <><PlusCircle size={15} /> Assign Course</>}
           </button>
-        </div>
-      </div>
-    </>
-  );
-};
-
-/* ─── Student detail modal ────────────────────────────────────────── */
-const StudentModal = ({ student, onClose }) => {
-  const completions = student.completions || [];
-  return (
-    <>
-      <div style={S.backdrop} onClick={onClose} />
-      <div style={S.modal}>
-        <div style={S.modalHeader}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={S.modalAvatar}>{(student.name || "S")[0].toUpperCase()}</div>
-            <div>
-              <div style={S.modalName}>{student.name}</div>
-              <div style={S.modalEmail}>{student.email}</div>
-            </div>
-          </div>
-          <button style={S.closeBtn} onClick={onClose} type="button">✕</button>
-        </div>
-        <div style={S.infoGrid}>
-          <InfoField label="NMLS ID" value={student.nmls_id  || "Not set"} />
-          <InfoField label="State"   value={student.state    || "Not set"} />
-          <InfoField label="Role"    value="Student" />
-          <InfoField label="Joined"  value={student.createdAt ? new Date(student.createdAt).toLocaleDateString() : "—"} />
-        </div>
-        <div style={S.modalSection}>
-          <div style={S.modalSectionTitle}>
-            Completed Courses <span style={S.modalBadge}>{completions.length}</span>
-          </div>
-          {completions.length === 0 ? (
-            <div style={S.modalEmpty}><BookOpen size={18} style={{ opacity:0.4 }} /><span>No completed courses yet.</span></div>
-          ) : (
-            <div style={{ display:"grid", gap:10 }}>
-              {completions.map((c, i) => {
-                const course = c.course_id || {};
-                const type   = (course.type || "").toUpperCase();
-                return (
-                  <div key={i} style={S.completionCard}>
-                    <div style={S.completionTop}>
-                      <span style={type === "PE" ? S.typePE : S.typeCE}>{type || "—"}</span>
-                      <span style={S.completionTitle}>{course.title || "Course"}</span>
-                    </div>
-                    <div style={S.completionMeta}>
-                      <span style={S.metaItem}><Clock size={12} />{course.credit_hours ?? "—"} credit hrs</span>
-                      <span style={S.metaItem}><CheckCircle size={12} />{c.completed_at ? new Date(c.completed_at).toLocaleDateString() : "—"}</span>
-                      {c.certificate_url && (
-                        <a href={c.certificate_url} target="_blank" rel="noreferrer" style={S.certLink}>
-                          <Award size={12} /> Certificate
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       </div>
     </>
@@ -441,11 +522,11 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--rs-bg);}
 .rs-tr:hover{background:rgba(0,180,180,0.04);}
 `;
 
-/* ─── Styles ──────────────────────────────────────────────────────── */
+/* ─── Styles ─────────────────────────────────────────────────────── */
 const S = {
-  page:   { minHeight:"100vh", background:"var(--rs-bg)" },
-  center: { minHeight:"100vh", display:"grid", placeItems:"center" },
-  topbar: { position:"sticky", top:0, zIndex:30, background:"rgba(246,247,251,0.88)", backdropFilter:"blur(12px)", borderBottom:"1px solid rgba(2,8,23,0.08)" },
+  page:    { minHeight:"100vh", background:"var(--rs-bg)", fontFamily:"Inter,system-ui,sans-serif" },
+  center:  { minHeight:"100vh", display:"grid", placeItems:"center" },
+  topbar:  { background:"#fff", borderBottom:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 2px 12px rgba(2,8,23,0.05)" },
   topbarInner: { maxWidth:1200, margin:"0 auto", padding:"13px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 },
   brandLeft:   { display:"flex", alignItems:"center", gap:12 },
   brandLogo:   { height:30, objectFit:"contain" },
@@ -508,7 +589,17 @@ const S = {
   modalSection:{ borderTop:"1px solid rgba(2,8,23,0.08)", paddingTop:20 },
   modalSectionTitle:{ fontWeight:950, fontSize:14, color:"var(--rs-dark)", marginBottom:12, display:"flex", alignItems:"center", gap:8 },
   modalBadge:  { padding:"2px 9px", borderRadius:999, fontSize:11, fontWeight:900, background:"rgba(0,180,180,0.10)", color:"var(--rs-teal)", border:"1px solid rgba(0,180,180,0.22)" },
-  modalEmpty:  { display:"flex", alignItems:"center", gap:10, padding:"18px 14px", borderRadius:14, background:"rgba(2,8,23,0.02)", border:"1px dashed rgba(2,8,23,0.12)", color:"var(--rs-muted)", fontWeight:700, fontSize:13 },
+  modalEmpty:  { display:"flex", alignItems:"center", gap:10, padding:"14px", borderRadius:14, background:"rgba(2,8,23,0.02)", border:"1px dashed rgba(2,8,23,0.12)", color:"var(--rs-muted)", fontWeight:700, fontSize:13 },
+
+  // quiz lock card
+  lockCard:     { display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"12px 14px", borderRadius:14, border:"1px solid rgba(239,68,68,0.22)", background:"rgba(239,68,68,0.04)" },
+  lockCardLeft: { flex:1, minWidth:0 },
+  lockCardTitle:{ fontWeight:800, fontSize:13, color:"rgba(185,28,28,1)", marginBottom:3 },
+  lockCardMeta: { fontSize:12, fontWeight:700, color:"var(--rs-muted)", lineHeight:1.5 },
+  lockCardDate: { color:"rgba(11,18,32,0.40)" },
+  unlockBtn:    { display:"inline-flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:10, border:"none", background:"rgba(34,197,94,0.90)", color:"#fff", cursor:"pointer", fontWeight:900, fontSize:12, flexShrink:0, whiteSpace:"nowrap" },
+  unlockBtnDim: { opacity:0.55, cursor:"not-allowed" },
+
   completionCard: { padding:"12px 14px", borderRadius:14, border:"1px solid rgba(2,8,23,0.08)", background:"rgba(2,8,23,0.02)" },
   completionTop:  { display:"flex", alignItems:"center", gap:9, marginBottom:8 },
   completionTitle:{ fontWeight:800, color:"rgba(11,18,32,0.86)", fontSize:13 },
@@ -518,7 +609,7 @@ const S = {
   typePE:      { padding:"3px 8px", borderRadius:999, fontSize:11, fontWeight:900, color:"var(--rs-blue)", background:"rgba(46,171,254,0.10)", border:"1px solid rgba(46,171,254,0.22)", flexShrink:0 },
   typeCE:      { padding:"3px 8px", borderRadius:999, fontSize:11, fontWeight:900, color:"rgba(0,140,140,1)", background:"rgba(0,180,180,0.10)", border:"1px solid rgba(0,180,180,0.20)", flexShrink:0 },
 
-  // assign modal specifics
+  // assign modal
   assignSearch:{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:14, border:"1px solid rgba(2,8,23,0.10)", background:"rgba(2,8,23,0.02)", marginBottom:12 },
   courseList:  { display:"grid", gap:8, maxHeight:320, overflowY:"auto", marginBottom:16 },
   courseOption:{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"12px 14px", borderRadius:14, border:"1px solid rgba(2,8,23,0.08)", background:"rgba(2,8,23,0.01)", cursor:"pointer", transition:"all 0.15s" },
