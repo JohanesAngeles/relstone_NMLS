@@ -750,4 +750,4 @@ button[style*='background: #2EABFE']:disabled {
 }
 `;
 
-export default AuthModal;
+export default AuthModal; 

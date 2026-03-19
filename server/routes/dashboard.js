@@ -3,6 +3,7 @@ const router  = express.Router();
 const User    = require('../models/User');
 const Course  = require('../models/Course');
 const Order   = require('../models/Order');
+const CourseProgress = require('../models/CourseProgress');
 const authMiddleware = require('../middleware/auth');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -70,6 +71,14 @@ router.get('/', authMiddleware, async (req, res) => {
     const seen = new Set();
     const available_courses = [];
 
+    const progressDocs = await CourseProgress.find({ user_id: req.user.id }).select(
+      'course_id completed_idxs current_idx total_steps is_completed last_activity_at reset_at'
+    );
+    const progressMap = new Map();
+    progressDocs.forEach((p) => {
+      progressMap.set(String(p.course_id), p);
+    });
+
     orders.forEach((order) => {
       (order.items || []).forEach((item) => {
         const course = item.course_id;
@@ -77,6 +86,12 @@ router.get('/', authMiddleware, async (req, res) => {
         const courseId = String(course._id);
         if (seen.has(courseId)) return;
         seen.add(courseId);
+
+        const p = progressMap.get(courseId);
+        const completedCount = Array.isArray(p?.completed_idxs) ? p.completed_idxs.length : 0;
+        const totalSteps = p?.total_steps || 0;
+        const percent =
+          totalSteps > 0 ? Math.min(100, Math.round((completedCount / totalSteps) * 100)) : 0;
 
         available_courses.push({
           course_id:         courseId,
@@ -86,7 +101,12 @@ router.get('/', authMiddleware, async (req, res) => {
           nmls_course_id:    course.nmls_course_id,
           state:             course.states_approved?.[0] || 'Federal',
           already_completed: completedCourseIds.has(courseId),
-          progress:          0,
+          progress:          percent,
+          total_steps:       totalSteps,
+          completed_steps:   completedCount,
+          current_idx:       p?.current_idx || 0,
+          last_activity_at:  p?.last_activity_at || null,
+          reset_at:          p?.reset_at || null,
         });
       });
     });
@@ -104,6 +124,98 @@ router.get('/', authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error('GET /dashboard error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Progress APIs (per-user, per-course)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/dashboard/progress/:courseId
+router.get('/progress/:courseId', authMiddleware, async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    if (!courseId) return res.status(400).json({ message: 'courseId is required' });
+
+    const doc = await CourseProgress.findOne({
+      user_id: req.user.id,
+      course_id: courseId,
+    }).select('course_id completed_idxs current_idx total_steps is_completed completed_at last_activity_at reset_at');
+
+    if (!doc) {
+      return res.json({
+        course_id: courseId,
+        completed_idxs: [],
+        current_idx: 0,
+        total_steps: 0,
+        is_completed: false,
+        completed_at: null,
+        last_activity_at: null,
+        reset_at: null,
+      });
+    }
+
+    res.json(doc);
+  } catch (err) {
+    console.error('GET /dashboard/progress/:courseId error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// PUT /api/dashboard/progress/:courseId
+router.put('/progress/:courseId', authMiddleware, async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const { completed_idxs, current_idx, total_steps } = req.body || {};
+    if (!courseId) return res.status(400).json({ message: 'courseId is required' });
+
+    const update = {
+      last_activity_at: new Date(),
+    };
+
+    if (Array.isArray(completed_idxs)) update.completed_idxs = completed_idxs;
+    if (Number.isFinite(current_idx)) update.current_idx = current_idx;
+    if (Number.isFinite(total_steps)) update.total_steps = total_steps;
+
+    const doc = await CourseProgress.findOneAndUpdate(
+      { user_id: req.user.id, course_id: courseId },
+      { $set: update, $setOnInsert: { user_id: req.user.id, course_id: courseId } },
+      { new: true, upsert: true }
+    ).select('course_id completed_idxs current_idx total_steps is_completed completed_at last_activity_at reset_at');
+
+    res.json(doc);
+  } catch (err) {
+    console.error('PUT /dashboard/progress/:courseId error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// POST /api/dashboard/progress/:courseId/reset
+router.post('/progress/:courseId/reset', authMiddleware, async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    if (!courseId) return res.status(400).json({ message: 'courseId is required' });
+
+    const doc = await CourseProgress.findOneAndUpdate(
+      { user_id: req.user.id, course_id: courseId },
+      {
+        $set: {
+          completed_idxs: [],
+          current_idx: 0,
+          is_completed: false,
+          completed_at: null,
+          last_activity_at: new Date(),
+          reset_at: new Date(),
+        },
+        $setOnInsert: { user_id: req.user.id, course_id: courseId },
+      },
+      { new: true, upsert: true }
+    ).select('course_id completed_idxs current_idx total_steps is_completed completed_at last_activity_at reset_at');
+
+    res.json({ message: 'Progress reset', progress: doc });
+  } catch (err) {
+    console.error('POST /dashboard/progress/:courseId/reset error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
@@ -161,6 +273,20 @@ router.post('/complete', authMiddleware, async (req, res) => {
     });
 
     await user.save();
+
+    // Mark progress completed (doesn't affect transcript; transcript is source of truth)
+    await CourseProgress.findOneAndUpdate(
+      { user_id: req.user.id, course_id: courseId },
+      {
+        $set: {
+          is_completed: true,
+          completed_at: new Date(),
+          last_activity_at: new Date(),
+        },
+        $setOnInsert: { user_id: req.user.id, course_id: courseId },
+      },
+      { upsert: true }
+    );
 
     console.log(`✅ Completion saved — user: ${req.user.id}, course: ${courseId}`);
 
