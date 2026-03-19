@@ -4,7 +4,7 @@ import API from "../../api/axios.js";
 import Layout from "../../components/Layout.jsx";
 import {
   BookOpen, Clock, CheckCircle, PlayCircle, Award,
-  ChevronRight, Heart, Filter, Search,
+  ChevronRight, Heart, Filter, Search, Eye,
 } from "lucide-react";
 
 /* ─── MyCourses ──────────────────────────────────────────────────── */
@@ -188,6 +188,14 @@ const MyCourses = () => {
           </div>
         )}
 
+        {/* ── Completed tab info banner ── */}
+        {activeTab === "completed" && completed.length > 0 && (
+          <div style={S.reviewInfoBanner}>
+            <Eye size={14} style={{ flexShrink: 0 }} />
+            <span>Click <strong>Review Course</strong> on any completed course to revisit the content and see your quiz answers.</span>
+          </div>
+        )}
+
         {currentList.length === 0 ? (
           <EmptyTab tab={activeTab} onBrowse={() => navigate("/courses")} />
         ) : (
@@ -228,6 +236,7 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
 
   return (
     <div style={S.card} className="mc-card">
+      {/* ── Colored top accent bar ── */}
       <div style={{ ...S.cardAccent, background: course.type === "PE" ? "#2EABFE" : course.type === "CE" ? "#00B4B4" : "#F59E0B" }} />
 
       <div style={S.cardBody}>
@@ -242,6 +251,10 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
           <div style={S.cardBadges}>
             <span style={badgeStyle(course.type)}>{String(course.type || "").toUpperCase()}</span>
             {course.state && course.state !== "Federal" && <span style={S.stateBadge}>{course.state}</span>}
+            {/* ── Completed badge shown on card header ── */}
+            {isCompleted && (
+              <span style={S.completedHeaderBadge}>✓ Completed</span>
+            )}
           </div>
         </div>
 
@@ -252,6 +265,7 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
           {course.nmls_id && <span style={S.metaItem}>NMLS #{course.nmls_id}</span>}
         </div>
 
+        {/* ── Progress bar for in-progress courses ── */}
         {!isCompleted && !isWishlist && (
           <div style={S.progressWrap}>
             <div style={S.progressTop}>
@@ -268,6 +282,7 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
           </div>
         )}
 
+        {/* ── Completion date row ── */}
         {isCompleted && (
           <div style={S.completedBadgeRow}>
             <div style={S.completedBadge}>
@@ -277,14 +292,17 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
           </div>
         )}
 
+        {/* ── Action buttons ── */}
         <div style={S.cardActions}>
           {isCompleted ? (
             <>
+              {/* Certificate button */}
               <button style={S.certBtn} onClick={onViewCertificate} type="button">
-                <Award size={14} /> View Certificate
+                <Award size={14} /> Certificate
               </button>
-              <button style={S.resumeBtn} onClick={onResume} type="button">
-                <PlayCircle size={14} /> Review
+              {/* Review Course button — opens CoursePortal in review mode */}
+              <button style={S.reviewBtn} onClick={onResume} type="button">
+                <Eye size={14} /> Review Course
               </button>
             </>
           ) : isWishlist ? (
@@ -374,6 +392,16 @@ const S = {
   chipActive:    { background:"#091925",color:"#fff",border:"1px solid #091925" },
   clearFilters:  { alignSelf:"flex-end",padding:"6px 12px",borderRadius:999,border:"1px solid rgba(239,68,68,0.25)",background:"rgba(239,68,68,0.06)",cursor:"pointer",fontSize:12,fontWeight:700,color:"rgba(180,30,30,0.85)" },
 
+  // ── Review info banner shown on completed tab ──
+  reviewInfoBanner: {
+    display:"flex",alignItems:"center",gap:10,
+    padding:"12px 16px",borderRadius:12,marginBottom:16,
+    background:"rgba(245,158,11,0.07)",
+    border:"1px solid rgba(245,158,11,0.25)",
+    color:"rgba(146,84,0,1)",
+    fontSize:13,fontWeight:700,lineHeight:1.5,
+  },
+
   grid: { display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16 },
 
   card:        { borderRadius:18,border:"1px solid rgba(2,8,23,0.08)",background:"#fff",overflow:"hidden",position:"relative" },
@@ -381,8 +409,18 @@ const S = {
   cardBody:    { padding:18 },
   cardHeader:  { display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 },
   cardIconWrap:{ width:38,height:38,borderRadius:12,background:"rgba(2,8,23,0.04)",border:"1px solid rgba(2,8,23,0.07)",display:"grid",placeItems:"center" },
-  cardBadges:  { display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end" },
+  cardBadges:  { display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center" },
   stateBadge:  { display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,fontSize:11,fontWeight:700,color:"rgba(9,25,37,0.65)",background:"rgba(2,8,23,0.05)",border:"1px solid rgba(2,8,23,0.10)" },
+
+  // ── Small "✓ Completed" badge shown in card header ──
+  completedHeaderBadge: {
+    display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,
+    fontSize:11,fontWeight:800,
+    color:"rgba(21,128,61,1)",
+    background:"rgba(34,197,94,0.10)",
+    border:"1px solid rgba(34,197,94,0.25)",
+  },
+
   cardTitle:   { fontWeight:900,fontSize:14,color:"rgba(9,25,37,0.88)",lineHeight:1.45,marginBottom:8 },
   cardMeta:    { display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 },
   metaItem:    { display:"inline-flex",alignItems:"center",gap:4,fontSize:12,fontWeight:700,color:"rgba(9,25,37,0.50)" },
@@ -400,7 +438,16 @@ const S = {
   completedBadge:    { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:999,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.22)",fontSize:12,fontWeight:800,color:"rgba(21,128,61,1)" },
 
   cardActions: { display:"flex",gap:8,marginTop:4 },
-  resumeBtn:   { flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px",borderRadius:11,border:"none",background:"#091925",color:"#fff",cursor:"pointer",fontWeight:800,fontSize:13 },
+
+  // ── Resume / Start Learning button ──
+  resumeBtn: {
+    flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,
+    padding:"10px",borderRadius:11,border:"none",
+    background:"#091925",color:"#fff",
+    cursor:"pointer",fontWeight:800,fontSize:13,
+  },
+
+  // ── View Certificate button ──
   certBtn: {
     flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
     padding:"10px",borderRadius:11,
@@ -409,6 +456,16 @@ const S = {
     color:"rgba(146,84,0,1)",
     cursor:"pointer",fontWeight:800,fontSize:13,
     boxShadow:"0 2px 10px rgba(245,158,11,0.15)",
+  },
+
+  // ── Review Course button — new style ──
+  reviewBtn: {
+    flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
+    padding:"10px",borderRadius:11,
+    border:"1px solid rgba(46,171,254,0.30)",
+    background:"rgba(46,171,254,0.08)",
+    color:"#2EABFE",
+    cursor:"pointer",fontWeight:800,fontSize:13,
   },
 
   empty:      { textAlign:"center",padding:"60px 20px",borderRadius:20,border:"1px dashed rgba(2,8,23,0.14)",background:"rgba(2,8,23,0.02)",marginTop:8 },

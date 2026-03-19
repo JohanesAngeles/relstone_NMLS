@@ -4,6 +4,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle2, PlayCircle,
   BookOpen, ClipboardList, Trophy, Lock, ChevronRight,
   AlertCircle, Star, X, FileText, ExternalLink, Award, Clock,
+  Eye,
 } from "lucide-react";
 import API from "../../api/axios";
 import RocsModal from "../../components/RocsModal";
@@ -73,30 +74,24 @@ const CoursePortal = () => {
   const [loading, setLoading]         = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [finished, setFinished]       = useState(false);
+  const [reviewMode, setReviewMode]   = useState(false); // ← NEW: review mode for completed
   const [error, setError]             = useState(null);
   const [transcriptEntry, setTranscriptEntry] = useState(null);
 
   const [completed, setCompleted]   = useState(() => new Set());
   const [currentIdx, setCurrentIdx] = useState(0);
 
-  // ── ROCS state ────────────────────────────────────────────────────
   const [rocsChecked, setRocsChecked] = useState(false);
   const [rocsAgreed, setRocsAgreed]   = useState(false);
   const [showRocs, setShowRocs]       = useState(false);
 
-  // ── BioSig state ──────────────────────────────────────────────────
   const [bioSigVerified, setBioSigVerified] = useState(false);
   const [showBioSig,     setShowBioSig]     = useState(false);
 
-  // ── Inactivity warning ────────────────────────────────────────────
   const [inactivityWarning, setInactivityWarning] = useState(false);
-
-  // ── Quiz attempts map: quizId → { count, passed, locked, unlocked_by_instructor }
   const [quizAttempts, setQuizAttempts] = useState({});
-
-  // ── CE expiry ─────────────────────────────────────────────────────
   const [isExpired,      setIsExpired]      = useState(false);
-  const [expiresWarning, setExpiresWarning] = useState(null); 
+  const [expiresWarning, setExpiresWarning] = useState(null);
 
   const saveProgressRef = useRef({ t: null });
 
@@ -104,43 +99,29 @@ const CoursePortal = () => {
     const completed_idxs = [...nextCompletedSet].sort((a, b) => a - b);
     if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
     saveProgressRef.current.t = setTimeout(() => {
-      API.put(`/dashboard/progress/${id}`, {
-        completed_idxs, current_idx: nextIdx, total_steps: totalSteps,
-      }).catch(() => {});
-      API.put(`/enrollment/${id}/progress`, {
-        completed_idxs, current_idx: nextIdx, total_steps: totalSteps,
-      }).catch(() => {});
+      API.put(`/dashboard/progress/${id}`, { completed_idxs, current_idx: nextIdx, total_steps: totalSteps }).catch(() => {});
+      API.put(`/enrollment/${id}/progress`, { completed_idxs, current_idx: nextIdx, total_steps: totalSteps }).catch(() => {});
     }, 250);
   }, [id]);
 
   const handleInactivityLogout = useCallback(() => {
     setInactivityWarning(true);
-    setCompleted((prev) => {
-      const next = new Set(prev);
-      next.delete(currentIdx);
-      return next;
-    });
+    setCompleted((prev) => { const next = new Set(prev); next.delete(currentIdx); return next; });
     window.scrollTo({ top: 0, behavior: "smooth" });
     setTimeout(() => setInactivityWarning(false), 8000);
   }, [currentIdx]);
 
   const currentModuleOrder = content[currentIdx]?.moduleOrder ?? 0;
   const { flush: flushSeatTime, getSeatSeconds } = useSeatTimer({
-    courseId:           id,
-    moduleOrder:        currentModuleOrder,
-    enabled:            rocsAgreed && !finished,
+    courseId: id, moduleOrder: currentModuleOrder,
+    enabled: rocsAgreed && !finished && !reviewMode,
     onInactivityLogout: handleInactivityLogout,
   });
 
-  // ── Refresh quiz attempts ─────────────────────────────────────────
   const refreshAttempts = useCallback(async () => {
-    try {
-      const res = await API.get(`/quiz-attempts/${id}`);
-      setQuizAttempts(res.data?.attempts || {});
-    } catch { /* silent */ }
+    try { const res = await API.get(`/quiz-attempts/${id}`); setQuizAttempts(res.data?.attempts || {}); } catch { }
   }, [id]);
 
-  // ── Load on mount ─────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
@@ -155,61 +136,55 @@ const CoursePortal = () => {
         const built = buildContent(data);
         setContent(built);
 
-                // CE expiry check
         if (data.type === 'CE' && data.expires_at) {
-          const now      = new Date();
-          const expiry   = new Date(data.expires_at);
+          const now = new Date(), expiry = new Date(data.expires_at);
           const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
-          if (now > expiry) {
-            setIsExpired(true);
-          } else if (daysLeft <= 30) {
-            setExpiresWarning(daysLeft);
-          }
+          if (now > expiry) setIsExpired(true);
+          else if (daysLeft <= 30) setExpiresWarning(daysLeft);
         }
 
         const agreed = rocsRes.data?.agreed || false;
-        setRocsAgreed(agreed);
-        setRocsChecked(true);
+        setRocsAgreed(agreed); setRocsChecked(true);
         if (!agreed) setShowRocs(true);
-
-        setBioSigVerified(false);
-        setShowBioSig(true);
+        setBioSigVerified(false); setShowBioSig(true);
 
         const transcript = transcriptRes.data?.transcript || [];
-        const entry = transcript.find(
-          (t) => String(t.course_id?._id || t.course_id) === String(id)
-        );
-        if (entry) { setTranscriptEntry(entry); setFinished(true); return; }
+        const entry = transcript.find((t) => String(t.course_id?._id || t.course_id) === String(id));
+
+        // ── If already completed → go into review mode instead of showing completion screen
+        if (entry) {
+          setTranscriptEntry(entry);
+          setFinished(true);
+          // Mark all steps as completed for review navigation
+          const allIdxs = new Set(built.map((_, i) => i));
+          setCompleted(allIdxs);
+          setReviewMode(true); // ← enter review mode
+          setLoading(false);
+          return;
+        }
 
         const progRes = await API.get(`/dashboard/progress/${id}`).catch(() => ({ data: null }));
         const prog = progRes.data || {};
         const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
         const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
         const safeIdx = Math.max(0, Math.min(idx, built.length > 0 ? built.length - 1 : 0));
-        const nextCompleted = new Set(
-          completed_idxs.filter((n) => Number.isFinite(n) && n >= 0 && n < built.length)
-        );
-        setCompleted(nextCompleted);
-        setCurrentIdx(safeIdx);
-        if ((prog.total_steps || 0) !== built.length) {
-          saveProgress({ nextCompletedSet: nextCompleted, nextIdx: safeIdx, totalSteps: built.length });
-        }
-
+        const nextCompleted = new Set(completed_idxs.filter((n) => Number.isFinite(n) && n >= 0 && n < built.length));
+        setCompleted(nextCompleted); setCurrentIdx(safeIdx);
+        if ((prog.total_steps || 0) !== built.length) saveProgress({ nextCompletedSet: nextCompleted, nextIdx: safeIdx, totalSteps: built.length });
         await refreshAttempts();
       } catch (err) {
         console.error("Failed to load course:", err);
         setError("Could not load course content.");
-      } finally {
-        setLoading(false);
-      }
+      } finally { setLoading(false); }
     };
     load();
   }, [id, saveProgress, refreshAttempts]);
 
   const current  = content[currentIdx] || null;
-  const progress = content.length ? Math.round((completed.size / content.length) * 100) : 0;
+  const progress = reviewMode ? 100 : (content.length ? Math.round((completed.size / content.length) * 100) : 0);
 
   const markComplete = (idx) => {
+    if (reviewMode) return; // don't save progress in review mode
     setCompleted((prev) => {
       const next = new Set([...prev, idx]);
       saveProgress({ nextCompletedSet: next, nextIdx: currentIdx, totalSteps: content.length });
@@ -218,31 +193,33 @@ const CoursePortal = () => {
   };
 
   const navigateTo = (idx) => {
-    flushSeatTime();
+    if (!reviewMode) flushSeatTime();
     setCurrentIdx(idx);
-    saveProgress({ nextCompletedSet: completed, nextIdx: idx, totalSteps: content.length });
+    if (!reviewMode) saveProgress({ nextCompletedSet: completed, nextIdx: idx, totalSteps: content.length });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const goNext = () => { markComplete(currentIdx); if (currentIdx < content.length - 1) navigateTo(currentIdx + 1); };
+  // In review mode all navigation is free
+  const canNavigateTo = (idx) => reviewMode ? true : (idx === 0 || completed.has(idx - 1));
+
+  const goNext = () => {
+    markComplete(currentIdx);
+    if (currentIdx < content.length - 1) navigateTo(currentIdx + 1);
+  };
   const goPrev = () => { if (currentIdx > 0) navigateTo(currentIdx - 1); };
-  const canNavigateTo = (idx) => idx === 0 || completed.has(idx - 1);
 
   const handleFinish = async () => {
-    markComplete(currentIdx);
-    flushSeatTime();
-    try {
-      await Promise.all([
-        API.post("/dashboard/complete", { courseId: id }),
-        API.post(`/enrollment/${id}/complete`),
-      ]);
-    } catch (err) { console.warn("Could not save completion:", err.message); }
+    markComplete(currentIdx); flushSeatTime();
+    try { await Promise.all([API.post("/dashboard/complete", { courseId: id }), API.post(`/enrollment/${id}/complete`)]); }
+    catch (err) { console.warn("Could not save completion:", err.message); }
     setFinished(true);
+    setReviewMode(true);
+    const allIdxs = new Set(content.map((_, i) => i));
+    setCompleted(allIdxs);
   };
 
   const handleRocsAgreed = () => { setRocsAgreed(true); setShowRocs(false); };
   const handleRocsCancel = () => { navigate(`/courses/${id}`); };
-
   const handleBioSigVerified = () => { setBioSigVerified(true); setShowBioSig(false); if (!rocsAgreed) setShowRocs(true); };
   const handleBioSigCancel   = () => { navigate(`/courses/${id}`); };
 
@@ -257,56 +234,58 @@ const CoursePortal = () => {
     </div>
   );
 
-  if (finished) return <CompletionScreen course={course} transcriptEntry={transcriptEntry} navigate={navigate} courseId={id} />;
-
-  if (finished) return <CompletionScreen course={course} transcriptEntry={transcriptEntry} navigate={navigate} courseId={id} />;
-
-if (isExpired) return (
-  <div style={S.page}><style>{css}</style>
-    <div style={S.loadCenter}>
-      <div style={{ textAlign: "center", maxWidth: 480, padding: "0 24px" }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-        <div style={{ fontSize: 22, fontWeight: 900, color: "#0a1628", marginBottom: 10 }}>Course Access Expired</div>
-        <div style={{ fontSize: 15, color: "rgba(10,22,40,0.60)", fontWeight: 600, lineHeight: 1.7, marginBottom: 24 }}>
-          This CE course expired on {new Date(course?.expires_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.
-          Per NMLS requirements, CE courses must be completed by December 31 of the calendar year.
-          Please contact your provider to enroll in a new course for the current year.
+  if (isExpired) return (
+    <div style={S.page}><style>{css}</style>
+      <div style={S.loadCenter}>
+        <div style={{ textAlign: "center", maxWidth: 480, padding: "0 24px" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+          <div style={{ fontSize: 22, fontWeight: 900, color: "#0a1628", marginBottom: 10 }}>Course Access Expired</div>
+          <div style={{ fontSize: 15, color: "rgba(10,22,40,0.60)", fontWeight: 600, lineHeight: 1.7, marginBottom: 24 }}>
+            This CE course expired on {new Date(course?.expires_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.
+            Per NMLS requirements, CE courses must be completed by December 31 of the calendar year.
+          </div>
+          <button style={{ padding: "12px 24px", borderRadius: 12, border: "none", background: "#2EABFE", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}
+            onClick={() => navigate("/my-courses")} type="button">Back to My Courses</button>
         </div>
-        <button style={{ padding: "12px 24px", borderRadius: 12, border: "none", background: "#2EABFE", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}
-          onClick={() => navigate("/my-courses")} type="button">
-          Back to My Courses
-        </button>
       </div>
     </div>
-  </div>
-);
+  );
 
   return (
     <div style={S.page}>
       <style>{css}</style>
 
-      {showBioSig && !bioSigVerified && (
+      {/* ── Modals: skip in review mode ── */}
+      {!reviewMode && showBioSig && !bioSigVerified && (
         <BioSigModal courseId={id} courseName={course?.title || ""} onVerified={handleBioSigVerified} onCancel={handleBioSigCancel} />
       )}
-
-      {showRocs && rocsChecked && !rocsAgreed && bioSigVerified && (
+      {!reviewMode && showRocs && rocsChecked && !rocsAgreed && bioSigVerified && (
         <RocsModal courseId={id} courseName={course?.title || ""} onAgreed={handleRocsAgreed} onCancel={handleRocsCancel} />
       )}
 
-      {inactivityWarning && (
+      {inactivityWarning && !reviewMode && (
         <div style={S.inactivityBanner}>
           <AlertCircle size={15} style={{ flexShrink: 0 }} />
-          You were logged out due to inactivity. Your progress was saved, but time for this unit was not counted. Please continue from where you left off.
+          You were logged out due to inactivity. Your progress was saved, but time for this unit was not counted.
+        </div>
+      )}
+      {expiresWarning !== null && !reviewMode && (
+        <div style={S.inactivityBanner}>
+          <AlertCircle size={15} style={{ flexShrink: 0 }} />
+          This CE course expires on December 31. You have {expiresWarning} day{expiresWarning !== 1 ? "s" : ""} left to complete it.
         </div>
       )}
 
-      {expiresWarning !== null && (
-        <div style={S.inactivityBanner}>
-          <AlertCircle size={15} style={{ flexShrink: 0 }} />
-          This CE course expires on December 31. You have {expiresWarning} day{expiresWarning !== 1 ? "s" : ""} left to complete it. Per NMLS requirements, CE courses must be completed by December 31.
+      {/* ── Review Mode Banner ── */}
+      {reviewMode && (
+        <div style={S.reviewBanner}>
+          <Eye size={15} style={{ flexShrink: 0 }} />
+          <span>You are in <strong>Review Mode</strong> — this course is already completed. All content is unlocked for your review.</span>
+          <button style={S.reviewExitBtn} onClick={() => navigate("/my-courses")} type="button">
+            Back to My Courses
+          </button>
         </div>
       )}
-
 
       {error && <div style={S.errorBanner}><AlertCircle size={14} /> {error}</div>}
 
@@ -317,14 +296,17 @@ if (isExpired) return (
           </button>
           <div style={S.courseNameWrap}>
             <div style={S.courseName}>{course?.title || "Course"}</div>
-            <div style={S.courseType}>{course?.type} · {course?.credit_hours} credit hrs</div>
+            <div style={S.courseType}>
+              {course?.type} · {course?.credit_hours} credit hrs
+              {reviewMode && <span style={{ marginLeft: 8, color: "#F59E0B", fontWeight: 800 }}>· Review Mode</span>}
+            </div>
           </div>
         </div>
         <div style={S.topbarCenter}>
           <div style={S.progressBarWrap}>
-            <div style={{ ...S.progressBarFill, width: `${progress}%` }} />
+            <div style={{ ...S.progressBarFill, width: `${progress}%`, ...(reviewMode ? { background: "linear-gradient(90deg,#F59E0B,#22C55E)" } : {}) }} />
           </div>
-          <span style={S.progressText}>{progress}% complete</span>
+          <span style={S.progressText}>{reviewMode ? "Completed ✓" : `${progress}% complete`}</span>
         </div>
         <button style={S.menuBtn} onClick={() => setSidebarOpen(!sidebarOpen)} type="button">
           <BookOpen size={16} /><span>{sidebarOpen ? "Hide" : "Contents"}</span>
@@ -335,39 +317,22 @@ if (isExpired) return (
         {sidebarOpen && (
           <aside style={S.sidebar}>
             <div style={S.sidebarHead}>
-              Course Contents
+              {reviewMode ? "📋 Course Review" : "Course Contents"}
               <span style={{ marginLeft: 8, fontSize: 11, color: "rgba(10,22,40,0.40)", fontWeight: 600 }}>
-                {completed.size}/{content.length}
+                {reviewMode ? `${content.length} steps` : `${completed.size}/${content.length}`}
               </span>
             </div>
             <div style={S.sidebarList}>
               {content.map((item, idx) => {
-                const isDone    = completed.has(idx);
+                const isDone    = reviewMode ? true : completed.has(idx);
                 const isCurrent = idx === currentIdx;
                 const isLocked  = !canNavigateTo(idx);
-                const icon =
-                  item.type === "lesson"              ? <PlayCircle size={14} />
-                  : item.type === "pdf_gate"          ? <FileText size={14} />
-                  : item.type === "checkpoint"        ? <ClipboardList size={14} />
-                  : item.type === "quiz_fundamentals" ? <ClipboardList size={14} />
-                  : <Trophy size={14} />;
-                const iconColor =
-                  item.type === "checkpoint"          ? "rgba(245,158,11,1)"
-                  : item.type === "quiz_fundamentals" ? "rgba(245,158,11,1)"
-                  : item.type === "pdf_gate"          ? "rgba(239,68,68,0.80)"
-                  : item.type === "quiz"              ? "rgba(34,197,94,1)"
-                  : "var(--cp-blue)";
-                const typeLabel =
-                  item.type === "lesson"              ? "Lesson"
-                  : item.type === "pdf_gate"          ? "Study Material"
-                  : item.type === "checkpoint"        ? "Checkpoint"
-                  : item.type === "quiz_fundamentals" ? "Fundamentals Exam"
-                  : "Final Exam";
+                const icon = item.type === "lesson" ? <PlayCircle size={14} /> : item.type === "pdf_gate" ? <FileText size={14} /> : item.type === "checkpoint" ? <ClipboardList size={14} /> : item.type === "quiz_fundamentals" ? <ClipboardList size={14} /> : <Trophy size={14} />;
+                const iconColor = item.type === "checkpoint" ? "rgba(245,158,11,1)" : item.type === "quiz_fundamentals" ? "rgba(245,158,11,1)" : item.type === "pdf_gate" ? "rgba(239,68,68,0.80)" : item.type === "quiz" ? "rgba(34,197,94,1)" : "var(--cp-blue)";
+                const typeLabel = item.type === "lesson" ? "Lesson" : item.type === "pdf_gate" ? "Study Material" : item.type === "checkpoint" ? "Checkpoint" : item.type === "quiz_fundamentals" ? "Fundamentals Exam" : "Final Exam";
                 return (
-                  <button key={item.id}
-                    style={{ ...S.sidebarItem, ...(isCurrent ? S.sidebarItemActive : {}), ...(isLocked ? S.sidebarItemLocked : {}) }}
-                    onClick={() => !isLocked && navigateTo(idx)} type="button" disabled={isLocked}
-                  >
+                  <button key={item.id} style={{ ...S.sidebarItem, ...(isCurrent ? S.sidebarItemActive : {}), ...(isLocked ? S.sidebarItemLocked : {}) }}
+                    onClick={() => !isLocked && navigateTo(idx)} type="button" disabled={isLocked}>
                     <div style={S.sidebarItemLeft}>
                       <div style={{ ...S.sidebarIcon, color: iconColor }}>{icon}</div>
                       <div>
@@ -376,18 +341,20 @@ if (isExpired) return (
                       </div>
                     </div>
                     {isDone   && <CheckCircle2 size={16} style={{ color: "rgba(34,197,94,1)", flexShrink: 0 }} />}
-                    {isLocked && <Lock size={13} style={{ color: "rgba(11,18,32,0.30)", flexShrink: 0 }} />}
+                    {isLocked && !reviewMode && <Lock size={13} style={{ color: "rgba(11,18,32,0.30)", flexShrink: 0 }} />}
                     {!isDone && !isLocked && isCurrent && <ChevronRight size={14} style={{ color: "var(--cp-blue)", flexShrink: 0 }} />}
                   </button>
                 );
               })}
             </div>
-            {completed.size > 0 && completed.size < content.length && (
-              <div style={S.resumeBanner}>
-                <div style={S.resumeBannerText}>
-                  <CheckCircle2 size={13} style={{ color: "rgba(34,197,94,1)", flexShrink: 0 }} /> Progress saved
+            {reviewMode && transcriptEntry?.completed_at && (
+              <div style={{ ...S.resumeBanner, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.22)" }}>
+                <div style={{ ...S.resumeBannerText, color: "rgba(146,84,0,1)" }}>
+                  <Award size={13} style={{ color: "#F59E0B", flexShrink: 0 }} /> Course Completed
                 </div>
-                <div style={S.resumeBannerSub}>{completed.size} of {content.length} steps done</div>
+                <div style={S.resumeBannerSub}>
+                  {new Date(transcriptEntry.completed_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                </div>
               </div>
             )}
           </aside>
@@ -395,24 +362,27 @@ if (isExpired) return (
 
         <main style={S.main}>
           <div style={S.contentWrap}>
-           {current?.type === "lesson" && (
-              <LessonView
-                item={current} onComplete={goNext} onPrev={goPrev} showPrev={currentIdx > 0}
-                getSeatSeconds={getSeatSeconds}
-              />
+            {current?.type === "lesson" && (
+              <LessonView item={current} onComplete={goNext} onPrev={goPrev} showPrev={currentIdx > 0}
+                getSeatSeconds={getSeatSeconds} reviewMode={reviewMode} />
             )}
-            {current?.type === "pdf_gate"          && <PDFGateView item={current} onComplete={goNext} onPrev={goPrev} />}
-            {current?.type === "checkpoint"        && (
+            {current?.type === "pdf_gate" && (
+              <PDFGateView item={current} onComplete={goNext} onPrev={goPrev} reviewMode={reviewMode} />
+            )}
+            {current?.type === "checkpoint" && (
               <CheckpointView item={current} onComplete={goNext} onPrev={goPrev}
-                courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts} />
+                courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts}
+                reviewMode={reviewMode} />
             )}
             {current?.type === "quiz_fundamentals" && (
               <QuizView item={current} onFinish={goNext} onPrev={goPrev}
-                courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts} />
+                courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts}
+                reviewMode={reviewMode} />
             )}
             {current?.type === "quiz" && (
-              <QuizView item={current} onFinish={handleFinish} onPrev={goPrev}
-                courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts} />
+              <QuizView item={current} onFinish={reviewMode ? goNext : handleFinish} onPrev={goPrev}
+                courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts}
+                reviewMode={reviewMode} />
             )}
           </div>
         </main>
@@ -438,9 +408,7 @@ const PDFViewer = ({ url }) => {
           <FileText size={15} style={{ color: "var(--cp-blue)" }} />
           <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(10,22,40,0.75)" }}>Course Material</span>
         </div>
-        <a href={url} target="_blank" rel="noopener noreferrer" style={S.pdfOpenBtn}>
-          <ExternalLink size={13} /> Open Full PDF
-        </a>
+        <a href={url} target="_blank" rel="noopener noreferrer" style={S.pdfOpenBtn}><ExternalLink size={13} /> Open Full PDF</a>
       </div>
       {pdfError ? (
         <div style={S.pdfErrorBox}>
@@ -456,29 +424,33 @@ const PDFViewer = ({ url }) => {
 };
 
 /* ─── PDF Gate View ──────────────────────────────────────────────── */
-const PDFGateView = ({ item, onComplete, onPrev }) => {
-  const [confirmed, setConfirmed] = useState(false);
-  useEffect(() => { setConfirmed(false); }, [item.id]);
+const PDFGateView = ({ item, onComplete, onPrev, reviewMode }) => {
+  const [confirmed, setConfirmed] = useState(reviewMode); // auto-confirmed in review
+  useEffect(() => { setConfirmed(reviewMode); }, [item.id, reviewMode]);
   return (
     <div style={S.lessonWrap}>
-      <div style={S.typePillRed}><FileText size={14} /> Study Material</div>
+      <div style={S.typePillRed}><FileText size={14} /> Study Material {reviewMode && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>(Review)</span>}</div>
       <h1 style={S.lessonTitle}>{item.title}</h1>
-      <div style={S.pdfGateBanner}>
-        <AlertCircle size={16} style={{ flexShrink: 0 }} />
-        <span>Review this study material carefully before proceeding to the Fundamentals Exam. You must confirm you have read it below.</span>
-      </div>
+      {!reviewMode && (
+        <div style={S.pdfGateBanner}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          <span>Review this study material carefully before proceeding to the Fundamentals Exam.</span>
+        </div>
+      )}
       <PDFViewer url={item.pdf_url} />
-      <div style={S.pdfGateConfirmRow}>
-        <input type="checkbox" id="pdf-confirm" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}
-          style={{ width: 18, height: 18, cursor: "pointer", accentColor: "var(--cp-blue)", flexShrink: 0 }} />
-        <label htmlFor="pdf-confirm" style={{ fontSize: 14, fontWeight: 700, color: "rgba(10,22,40,0.80)", cursor: "pointer", lineHeight: 1.4 }}>
-          I have reviewed the study material and I am ready to take the Fundamentals Exam.
-        </label>
-      </div>
+      {!reviewMode && (
+        <div style={S.pdfGateConfirmRow}>
+          <input type="checkbox" id="pdf-confirm" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}
+            style={{ width: 18, height: 18, cursor: "pointer", accentColor: "var(--cp-blue)", flexShrink: 0 }} />
+          <label htmlFor="pdf-confirm" style={{ fontSize: 14, fontWeight: 700, color: "rgba(10,22,40,0.80)", cursor: "pointer", lineHeight: 1.4 }}>
+            I have reviewed the study material and I am ready to take the Fundamentals Exam.
+          </label>
+        </div>
+      )}
       <div style={S.navRow}>
         <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
         <button style={{ ...S.nextBtn, ...(!confirmed ? S.nextBtnDim : {}) }} onClick={confirmed ? onComplete : undefined} disabled={!confirmed} type="button">
-          Proceed to Exam <ArrowRight size={16} />
+          {reviewMode ? <>Next <ArrowRight size={16} /></> : <>Proceed to Exam <ArrowRight size={16} /></>}
         </button>
       </div>
     </div>
@@ -487,44 +459,38 @@ const PDFGateView = ({ item, onComplete, onPrev }) => {
 
 /* ─── Lesson View ────────────────────────────────────────────────── */
 // NMLS: 50 seat minutes per clock hour
-const calcMinSeatSeconds = (creditHours) => Math.round((creditHours || 0) * 50 * 60);
+// ── TESTING: 10 seconds. Restore to: (creditHours) => Math.round((creditHours || 0) * 50 * 60)
+const calcMinSeatSeconds = (creditHours) => 10;
 
-const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds }) => {
-  const minSeatSeconds = calcMinSeatSeconds(item.credit_hours);
-  const [pdfView,       setPdfView]       = useState(!!item.pdf_url);
-  const [seatsLeft,     setSeatsLeft]     = useState(minSeatSeconds);
-  const [seatMet,       setSeatMet]       = useState(minSeatSeconds === 0);
+const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds, reviewMode }) => {
+  const minSeatSeconds = reviewMode ? 0 : calcMinSeatSeconds(item.credit_hours);
+  const [pdfView,   setPdfView]   = useState(!!item.pdf_url);
+  const [seatsLeft, setSeatsLeft] = useState(minSeatSeconds);
+  const [seatMet,   setSeatMet]   = useState(minSeatSeconds === 0);
   const tickRef = useRef(null);
 
   useEffect(() => {
     setPdfView(!!item.pdf_url);
-    const min = calcMinSeatSeconds(item.credit_hours);
-    setSeatsLeft(min);
-    setSeatMet(min === 0);
-
+    const min = reviewMode ? 0 : calcMinSeatSeconds(item.credit_hours);
+    setSeatsLeft(min); setSeatMet(min === 0);
     if (min === 0) return;
-
-    // Poll getSeatSeconds every second to update countdown
     tickRef.current = setInterval(() => {
       const accumulated = getSeatSeconds ? getSeatSeconds() : 0;
       const remaining   = Math.max(0, min - Math.round(accumulated));
       setSeatsLeft(remaining);
       if (remaining === 0) { setSeatMet(true); clearInterval(tickRef.current); }
     }, 1000);
-
     return () => clearInterval(tickRef.current);
-  }, [item.id, item.credit_hours, item.pdf_url]);
+  }, [item.id, item.credit_hours, item.pdf_url, reviewMode]);
 
-  const fmt = (s) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
-  };
+  const fmt = (s) => { const m = Math.floor(s / 60), sec = s % 60; return m > 0 ? `${m}m ${sec}s` : `${sec}s`; };
+
   return (
     <div style={S.lessonWrap}>
       <div style={S.typePill}>
         <PlayCircle size={14} /> Lesson
         {item.credit_hours > 0 && <span style={{ opacity: 0.7 }}>· {item.credit_hours} hr{item.credit_hours !== 1 ? "s" : ""}</span>}
+        {reviewMode && <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.6 }}>(Review)</span>}
       </div>
       <h1 style={S.lessonTitle}>{item.title}</h1>
       {item.pdf_url && item.sections?.length > 0 && (
@@ -547,21 +513,13 @@ const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds }) => {
             <div style={S.lessonText}>
               <h3 style={{ ...S.lessonH3, marginTop: 0 }}>Topics Covered in This Module</h3>
               <ul style={S.lessonUl}>{item.sections.map((s, i) => <li key={i} style={S.lessonLi}>{s}</li>)}</ul>
-              <p style={{ ...S.lessonP, marginBottom: 0, marginTop: 16, padding: "12px 16px", background: "rgba(46,171,254,0.06)", borderRadius: 10, border: "1px solid rgba(46,171,254,0.15)" }}>
-                Study the material above, then proceed to the checkpoint quiz to test your knowledge.
-              </p>
             </div>
           )}
         </>
       )}
       <div style={S.navRow}>
         {showPrev && <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>}
-        <button
-          style={{ ...S.nextBtn, ...(!seatMet ? S.nextBtnDim : {}) }}
-          onClick={seatMet ? onComplete : undefined}
-          disabled={!seatMet}
-          type="button"
-        >
+        <button style={{ ...S.nextBtn, ...(!seatMet ? S.nextBtnDim : {}) }} onClick={seatMet ? onComplete : undefined} disabled={!seatMet} type="button">
           {seatMet
             ? <>Continue <ArrowRight size={16} /></>
             : <><Clock size={14} /> {fmt(seatsLeft)} remaining</>
@@ -572,14 +530,36 @@ const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds }) => {
   );
 };
 
-/* ─── Attempt Warning Banner ─────────────────────────────────────── */
-const AttemptWarning = () => (
+/* ─── Attempt Warning Banners ────────────────────────────────────── */
+const AttemptWarning1st = () => (
   <div style={S.attemptWarning}>
     <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
     <div>
-      <div style={{ fontWeight: 800, marginBottom: 3 }}>2nd Attempt Warning</div>
+      <div style={{ fontWeight: 800, marginBottom: 3 }}>Exam Attempt 1 of 3</div>
+      <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.6 }}>You have 3 attempts total. Read each question carefully before submitting.</div>
+    </div>
+  </div>
+);
+
+const AttemptWarning2nd = () => (
+  <div style={{ ...S.attemptWarning, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.30)", color: "rgba(146,84,0,1)" }}>
+    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+    <div>
+      <div style={{ fontWeight: 800, marginBottom: 3 }}>⚠️ Attempt 2 of 3 — One Retake Left</div>
       <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.6 }}>
-        This is your 2nd attempt. If you fail again, your access will be locked and your instructor must unlock it before you can retake this quiz.
+        You have <strong>1 retake remaining</strong>. If you fail again, your exam will be <strong>locked</strong> and you must contact your instructor.
+      </div>
+    </div>
+  </div>
+);
+
+const AttemptWarning3rd = () => (
+  <div style={{ ...S.attemptWarning, background: "rgba(185,28,28,0.08)", border: "1px solid rgba(185,28,28,0.35)", color: "rgba(185,28,28,1)" }}>
+    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+    <div>
+      <div style={{ fontWeight: 800, marginBottom: 3 }}>🔴 Final Attempt — Attempt 3 of 3</div>
+      <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.6 }}>
+        This is your <strong>last attempt</strong>. Fail = permanently locked, must contact instructor.
       </div>
     </div>
   </div>
@@ -588,39 +568,152 @@ const AttemptWarning = () => (
 /* ─── Instructor Lock Screen ─────────────────────────────────────── */
 const InstructorLockScreen = ({ item, onPrev }) => (
   <div style={S.checkWrap}>
-    <div style={S.typePillRed}><Lock size={14} /> Quiz Locked</div>
+    <div style={S.typePillRed}><Lock size={14} /> Exam Locked</div>
     <h1 style={S.lessonTitle}>{item.title}</h1>
     <div style={S.lockBox}>
       <div style={S.lockIconWrap}><Lock size={36} style={{ color: "rgba(185,28,28,0.7)" }} /></div>
       <div style={S.lockTitle}>Instructor Approval Required</div>
-      <div style={S.lockSub}>
-        You have failed this quiz 2 times. Your access has been locked.
-        Please contact your instructor to unlock this quiz before your next attempt.
-      </div>
+      <div style={S.lockSub}>You have failed this exam 3 times. Please contact your instructor to unlock.</div>
       <div style={S.lockMeta}>Your instructor has been notified and can see your attempts in their dashboard.</div>
     </div>
-    <div style={S.navRow}>
-      <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
-    </div>
+    <div style={S.navRow}><button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button></div>
   </div>
 );
 
+/* ─── Review Answers Panel ───────────────────────────────────────── */
+// Shows the best (highest score) past attempt with all answers highlighted
+const ReviewAnswersPanel = ({ item, courseId }) => {
+  const [attempts, setAttempts] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [selected, setSelected] = useState(0); // which attempt to show
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await API.get(`/quiz-attempts/${courseId}/${item.id}`);
+        const sorted = (res.data?.attempts || []).sort((a, b) => b.score_pct - a.score_pct);
+        setAttempts(sorted);
+      } catch { }
+      finally { setLoading(false); }
+    };
+    fetch();
+  }, [item.id, courseId]);
+
+  if (loading) return <div style={{ textAlign: "center", padding: 24, color: "rgba(10,22,40,0.45)", fontSize: 13 }}>Loading past answers…</div>;
+
+  if (attempts.length === 0) return (
+    <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(2,8,23,0.03)", border: "1px solid rgba(2,8,23,0.08)", fontSize: 13, color: "rgba(10,22,40,0.55)", fontWeight: 700 }}>
+      No recorded attempts found for this quiz.
+    </div>
+  );
+
+  const attempt = attempts[selected];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Attempt selector */}
+      {attempts.length > 1 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {attempts.map((a, i) => (
+            <button key={i} type="button"
+              style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, cursor: "pointer",
+                border: selected === i ? "1px solid rgba(46,171,254,0.50)" : "1px solid rgba(2,8,23,0.10)",
+                background: selected === i ? "rgba(46,171,254,0.10)" : "#fff",
+                color: selected === i ? "#2EABFE" : "rgba(10,22,40,0.60)" }}
+              onClick={() => setSelected(i)}>
+              Attempt {attempts.length - i} · {a.score_pct}%{a.passed ? " ✓" : ""}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Score summary */}
+      <div style={{ padding: "14px 18px", borderRadius: 14, textAlign: "center",
+        background: attempt.passed ? "linear-gradient(135deg,rgba(34,197,94,0.10),rgba(0,180,180,0.10))" : "rgba(239,68,68,0.06)",
+        border: `1px solid ${attempt.passed ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.20)"}` }}>
+        <div style={{ fontSize: 36, fontWeight: 950, color: "var(--cp-dark)", letterSpacing: "-1px" }}>{attempt.score_pct}%</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.60)", marginTop: 4 }}>
+          {attempt.passed ? "✓ Passed" : "✗ Failed"} · {new Date(attempt.submitted_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+        </div>
+      </div>
+
+      {/* Questions — read-only with correct answers shown */}
+      {item.questions.map((q, qi) => {
+        const studentAnswer = attempt.answers ? attempt.answers[q.id] : undefined;
+        const hasAnswer = studentAnswer !== undefined;
+        return (
+          <div key={q.id} style={S.questionCard}>
+            <div style={S.questionNum}>Question {qi + 1} of {item.questions.length}</div>
+            <div style={S.questionText}>{q.text}</div>
+            <div style={S.optionList}>
+              {q.options.map((opt, oi) => {
+                const isCorrect     = oi === q.correct;
+                const isStudentPick = hasAnswer && studentAnswer === oi;
+                const isWrong       = isStudentPick && !isCorrect;
+                return (
+                  <div key={oi} style={{ ...S.option,
+                    ...(isCorrect   ? S.optionCorrect   : {}),
+                    ...(isWrong     ? S.optionWrong     : {}),
+                    cursor: "default" }}>
+                    <span style={S.optionLetter}>{String.fromCharCode(65 + oi)}</span>
+                    <span style={S.optionText}>{opt}</span>
+                    {isCorrect   && <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(34,197,94,1)" }} />}
+                    {isWrong     && <X size={15} style={{ flexShrink: 0, color: "rgba(239,68,68,1)" }} />}
+                    {isStudentPick && !isWrong && !isCorrect && <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(46,171,254,1)" }}>Your answer</span>}
+                  </div>
+                );
+              })}
+            </div>
+            {/* Answer legend */}
+            <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(21,128,61,1)", display: "flex", alignItems: "center", gap: 4 }}>
+                <CheckCircle2 size={12} /> Correct answer
+              </span>
+              {hasAnswer && studentAnswer !== q.correct && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(185,28,28,1)", display: "flex", alignItems: "center", gap: 4 }}>
+                  <X size={12} /> Your answer (incorrect)
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 /* ─── Checkpoint View ────────────────────────────────────────────── */
-const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAttemptLogged }) => {
+const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAttemptLogged, reviewMode }) => {
   const [answers, setAnswers]       = useState({});
   const [submitted, setSubmitted]   = useState(false);
   const [allCorrect, setAllCorrect] = useState(false);
   const startedAt = useRef(Date.now());
 
   useEffect(() => {
-    setAnswers({}); setSubmitted(false); setAllCorrect(false);
-    startedAt.current = Date.now();
-  }, [item.id]);
+    if (!reviewMode) { setAnswers({}); setSubmitted(false); setAllCorrect(false); startedAt.current = Date.now(); }
+  }, [item.id, reviewMode]);
 
   const attemptCount = attemptInfo?.count || 0;
-  const isLocked     = attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
-
+  const isLocked     = !reviewMode && attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
   if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
+
+  // ── Review mode: show read-only past answers ──
+  if (reviewMode) return (
+    <div style={S.checkWrap}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <div style={S.typePillAmber}><ClipboardList size={14} /> Checkpoint</div>
+        <div style={{ ...S.typePill, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)" }}>
+          <Eye size={12} /> Review
+        </div>
+      </div>
+      <h1 style={S.lessonTitle}>{item.title}</h1>
+      <ReviewAnswersPanel item={item} courseId={courseId} />
+      <div style={S.navRow}>
+        <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
+        <button style={S.nextBtn} onClick={onComplete} type="button">Next <ArrowRight size={16} /></button>
+      </div>
+    </div>
+  );
 
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
   const allAnswered  = item.questions.every((q) => answers[q.id] !== undefined);
@@ -632,29 +725,25 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
     setAllCorrect(ok); setSubmitted(true);
     try {
       await API.post("/quiz-attempts", {
-        courseId, quizId: item.id, quizTitle: item.title,
-        quizType: "checkpoint", moduleOrder: item.moduleOrder,
-        scorePct: pct, correct: correctCount, total: item.questions.length,
-        passed: ok, passingScore: 100,
+        courseId, quizId: item.id, quizTitle: item.title, quizType: "checkpoint",
+        moduleOrder: item.moduleOrder, scorePct: pct, correct: correctCount,
+        total: item.questions.length, passed: ok, passingScore: 100,
         timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
       });
       await onAttemptLogged();
-    } catch { /* silent */ }
+    } catch { }
   };
 
-  const handleRetry = () => {
-    setAnswers({}); setSubmitted(false); setAllCorrect(false);
-    startedAt.current = Date.now();
-  };
+  const handleRetry = () => { setAnswers({}); setSubmitted(false); setAllCorrect(false); startedAt.current = Date.now(); };
 
   return (
     <div style={S.checkWrap}>
       <div style={S.typePillAmber}><ClipboardList size={14} /> Checkpoint</div>
       <h1 style={S.lessonTitle}>{item.title}</h1>
       <p style={S.checkSubtitle}>Answer all questions correctly to continue · {item.questions.length} questions</p>
-
-      {attemptCount === 1 && !submitted && <AttemptWarning />}
-
+      {attemptCount === 0 && !submitted && <AttemptWarning1st />}
+      {attemptCount === 1 && !submitted && <AttemptWarning2nd />}
+      {attemptCount === 2 && !submitted && <AttemptWarning3rd />}
       {submitted && (
         <div style={allCorrect ? S.scorePassed : S.scoreFailed}>
           <div style={S.scoreNumber}>{correctCount}/{item.questions.length}</div>
@@ -670,14 +759,11 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
               <div style={S.questionText}>{q.text}</div>
               <div style={S.optionList}>
                 {q.options.map((opt, oi) => {
-                  const isSelected  = selected === oi;
-                  const showCorrect = submitted && oi === q.correct;
-                  const showWrong   = submitted && isSelected && oi !== q.correct;
+                  const isSelected = selected === oi, showCorrect = submitted && oi === q.correct, showWrong = submitted && isSelected && oi !== q.correct;
                   return (
                     <button key={oi} type="button"
                       style={{ ...S.option, ...(isSelected && !submitted ? S.optionSelected : {}), ...(showCorrect ? S.optionCorrect : {}), ...(showWrong ? S.optionWrong : {}) }}
-                      onClick={() => handleSelect(q.id, oi)}
-                    >
+                      onClick={() => handleSelect(q.id, oi)}>
                       <span style={S.optionLetter}>{String.fromCharCode(65 + oi)}</span>
                       <span style={S.optionText}>{opt}</span>
                       {showCorrect && <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(34,197,94,1)" }} />}
@@ -709,7 +795,7 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
 };
 
 /* ─── Quiz View ──────────────────────────────────────────────────── */
-const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogged }) => {
+const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogged, reviewMode }) => {
   const [answers, setAnswers]     = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore]         = useState(0);
@@ -719,23 +805,43 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   const startedAt = useRef(Date.now());
 
   const attemptCount = attemptInfo?.count || 0;
-  const isLocked     = attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
+  const isLocked     = !reviewMode && attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
 
   useEffect(() => {
-    setAnswers({}); setSubmitted(false); setScore(0); setPassed(false);
-    setTimeLeft((item.timeLimitMin || 90) * 60);
-    startedAt.current = Date.now();
-  }, [item.id]);
+    if (!reviewMode) {
+      setAnswers({}); setSubmitted(false); setScore(0); setPassed(false);
+      setTimeLeft((item.timeLimitMin || 90) * 60);
+      startedAt.current = Date.now();
+    }
+  }, [item.id, reviewMode]);
 
   useEffect(() => {
-    if (submitted || isLocked) return;
+    if (submitted || isLocked || reviewMode) return;
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => { if (t <= 1) { clearInterval(timerRef.current); doSubmit(); return 0; } return t - 1; });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [submitted, isLocked]);
+  }, [submitted, isLocked, reviewMode]);
 
   if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
+
+  // ── Review mode: show read-only past answers ──
+  if (reviewMode) return (
+    <div style={S.checkWrap}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <div style={S.typePillGreen}><Trophy size={14} /> Final Exam</div>
+        <div style={{ ...S.typePill, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)" }}>
+          <Eye size={12} /> Review
+        </div>
+      </div>
+      <h1 style={S.lessonTitle}>{item.title}</h1>
+      <ReviewAnswersPanel item={item} courseId={courseId} />
+      <div style={S.navRow}>
+        <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
+        <button style={S.nextBtn} onClick={onFinish} type="button">Next <ArrowRight size={16} /></button>
+      </div>
+    </div>
+  );
 
   const doSubmit = async () => {
     clearInterval(timerRef.current);
@@ -743,27 +849,26 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
     const pct     = Math.round((correct / item.questions.length) * 100);
     const ok      = pct >= (item.passingScore || 70);
     setScore(pct); setPassed(ok); setSubmitted(true);
-
     const quizType = item.id === "final-exam" ? "final_exam" : "quiz_fundamentals";
     try {
       await API.post("/quiz-attempts", {
-        courseId, quizId: item.id, quizTitle: item.title,
-        quizType, moduleOrder: item.moduleOrder,
+        courseId, quizId: item.id, quizTitle: item.title, quizType, moduleOrder: item.moduleOrder,
         scorePct: pct, correct, total: item.questions.length,
         passed: ok, passingScore: item.passingScore || 70,
         timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
+        answers, // ← save answers so review mode can show them
       });
       await onAttemptLogged();
-    } catch { /* silent */ }
+    } catch { }
   };
 
   const fmt          = (s) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
   const handleRetry  = () => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); setTimeLeft((item.timeLimitMin || 90) * 60); startedAt.current = Date.now(); };
-  const allAnswered   = item.questions.every((q) => answers[q.id] !== undefined);
-  const answered      = Object.keys(answers).length;
-  const correctCount  = item.questions.filter((q) => answers[q.id] === q.correct).length;
-  const urgentTime    = timeLeft < 300;
+  const allAnswered    = item.questions.every((q) => answers[q.id] !== undefined);
+  const answered       = Object.keys(answers).length;
+  const correctCount   = item.questions.filter((q) => answers[q.id] === q.correct).length;
+  const urgentTime     = timeLeft < 300;
   const isFundamentals = item.id?.includes("checkpoint-mod-") && !item.id?.includes("final-exam");
 
   return (
@@ -782,19 +887,39 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
       <h1 style={S.lessonTitle}>{item.title}</h1>
       <p style={S.checkSubtitle}>Score {item.passingScore || 70}% or higher to pass · {item.questions.length} questions{!submitted && ` · ${answered}/${item.questions.length} answered`}</p>
 
-      {attemptCount === 1 && !submitted && <AttemptWarning />}
+      {attemptCount === 0 && !submitted && <AttemptWarning1st />}
+      {attemptCount === 1 && !submitted && <AttemptWarning2nd />}
+      {attemptCount === 2 && !submitted && <AttemptWarning3rd />}
 
       {submitted && (
         <div style={passed ? S.scorePassed : S.scoreFailed}>
           <div style={S.scoreNumber}>{score}%</div>
           <div style={S.scoreLabel}>{passed ? `Passed! ${correctCount}/${item.questions.length} correct.` : `Need ${item.passingScore || 70}% — got ${correctCount}/${item.questions.length} correct.`}</div>
+          {!passed && attemptCount >= 2 && (
+            <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 12, background: "rgba(185,28,28,0.08)", border: "1px solid rgba(185,28,28,0.25)", color: "rgba(185,28,28,1)", fontSize: 13, fontWeight: 700 }}>
+              All 3 attempts used. Please contact your instructor to unlock this exam.
+            </div>
+          )}
+          {!passed && attemptCount === 1 && (
+            <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 12, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", color: "rgba(146,84,0,1)", fontSize: 13, fontWeight: 700 }}>
+              1 retake remaining. Fail again = must contact instructor.
+            </div>
+          )}
         </div>
       )}
+
       {!submitted && (
         <div style={{ background: "rgba(2,8,23,0.07)", borderRadius: 999, height: 6, overflow: "hidden" }}>
           <div style={{ height: "100%", borderRadius: 999, background: "var(--cp-blue)", width: `${(answered / item.questions.length) * 100}%`, transition: "width 0.3s" }} />
         </div>
       )}
+      {!submitted && allAnswered && (
+        <div style={S.earlySubmitHint}>
+          <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(21,128,61,1)" }} />
+          All questions answered — you can submit now or continue reviewing your answers.
+        </div>
+      )}
+
       <div style={S.questionList}>
         {item.questions.map((q, qi) => {
           const selected = answers[q.id];
@@ -804,14 +929,11 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
               <div style={S.questionText}>{q.text}</div>
               <div style={S.optionList}>
                 {q.options.map((opt, oi) => {
-                  const isSelected  = selected === oi;
-                  const markCorrect = submitted && oi === q.correct;
-                  const markWrong   = submitted && isSelected && oi !== q.correct;
+                  const isSelected = selected === oi, markCorrect = submitted && oi === q.correct, markWrong = submitted && isSelected && oi !== q.correct;
                   return (
                     <button key={oi} type="button"
                       style={{ ...S.option, ...(isSelected && !submitted ? S.optionSelected : {}), ...(markCorrect ? S.optionCorrect : {}), ...(markWrong ? S.optionWrong : {}) }}
-                      onClick={() => handleSelect(q.id, oi)}
-                    >
+                      onClick={() => handleSelect(q.id, oi)}>
                       <span style={S.optionLetter}>{String.fromCharCode(65 + oi)}</span>
                       <span style={S.optionText}>{opt}</span>
                       {markCorrect && <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(34,197,94,1)" }} />}
@@ -824,10 +946,11 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
           );
         })}
       </div>
+
       <div style={S.navRow}>
         {!submitted && <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>}
         {!submitted
-          ? <button style={{ ...S.nextBtn, ...(!allAnswered ? S.nextBtnDim : {}) }} onClick={doSubmit} disabled={!allAnswered} type="button">Submit Exam</button>
+          ? <button style={{ ...S.nextBtn, ...(!allAnswered ? S.nextBtnDim : {}) }} onClick={allAnswered ? doSubmit : undefined} disabled={!allAnswered} type="button">Submit Exam</button>
           : passed
             ? <button style={isFundamentals ? S.nextBtn : S.finishBtn} onClick={onFinish} type="button">
                 {isFundamentals ? <>Continue to Final Exam <ArrowRight size={16} /></> : <><Trophy size={16} /> Complete Course</>}
@@ -839,11 +962,10 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   );
 };
 
-/* ─── Completion Screen ──────────────────────────────────────────── */
+/* ─── Completion Screen (shown briefly after finishing, then review mode takes over) ── */
 const CompletionScreen = ({ course, transcriptEntry, navigate, courseId }) => {
   const completedAt = transcriptEntry?.completed_at
-    ? new Date(transcriptEntry.completed_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
-    : null;
+    ? new Date(transcriptEntry.completed_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
   const certCourseId = transcriptEntry?.course_id?._id || transcriptEntry?.course_id || courseId;
   return (
     <div style={S.page}><style>{css}</style>
@@ -851,8 +973,8 @@ const CompletionScreen = ({ course, transcriptEntry, navigate, courseId }) => {
         <div style={S.completionCard}>
           <div style={S.completionStars}>{[...Array(5)].map((_, i) => <Star key={i} size={28} style={{ color: "#F59E0B", fill: "#F59E0B" }} />)}</div>
           <div style={S.completionBadge}><Trophy size={40} style={{ color: "#F59E0B" }} /></div>
-          <h1 style={S.completionTitle}>{transcriptEntry ? "Already Completed!" : "Course Complete!"}</h1>
-          <p style={S.completionSub}>{transcriptEntry ? "You have already successfully completed" : "Congratulations! You've successfully completed"}</p>
+          <h1 style={S.completionTitle}>Course Complete!</h1>
+          <p style={S.completionSub}>Congratulations! You've successfully completed</p>
           <div style={S.completionCourseName}>{course?.title}</div>
           <div style={S.completionMeta}>
             <span style={S.completionMetaItem}>✓ {course?.credit_hours} Credit Hours Earned</span>
@@ -892,13 +1014,15 @@ const S = {
   loadCenter:       { minHeight:"100vh",display:"grid",placeItems:"center" },
   errorBanner:      { background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.25)",color:"rgba(185,28,28,1)",padding:"10px 20px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8 },
   inactivityBanner: { background:"rgba(245,158,11,0.10)",border:"1px solid rgba(245,158,11,0.30)",color:"rgba(146,84,0,1)",padding:"10px 20px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8,lineHeight:1.5 },
-  attemptWarning:   { display:"flex",alignItems:"flex-start",gap:12,padding:"14px 18px",borderRadius:14,background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.22)",color:"rgba(185,28,28,1)",fontSize:14 },
+  reviewBanner:     { background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.28)",color:"rgba(146,84,0,1)",padding:"10px 20px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:10,lineHeight:1.5,flexWrap:"wrap" },
+  reviewExitBtn:    { marginLeft:"auto",padding:"6px 14px",borderRadius:999,border:"1px solid rgba(245,158,11,0.35)",background:"rgba(245,158,11,0.12)",color:"rgba(146,84,0,1)",cursor:"pointer",fontWeight:800,fontSize:12,flexShrink:0 },
+  attemptWarning:   { display:"flex",alignItems:"flex-start",gap:12,padding:"14px 18px",borderRadius:14,background:"rgba(46,171,254,0.07)",border:"1px solid rgba(46,171,254,0.22)",color:"rgba(11,60,100,1)",fontSize:14 },
+  earlySubmitHint:  { display:"flex",alignItems:"center",gap:8,padding:"12px 16px",borderRadius:12,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.22)",color:"rgba(21,128,61,1)",fontSize:13,fontWeight:700 },
   lockBox:          { display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",padding:"36px 24px",borderRadius:20,background:"rgba(239,68,68,0.05)",border:"2px dashed rgba(239,68,68,0.25)" },
   lockIconWrap:     { width:72,height:72,borderRadius:"50%",background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.22)",display:"grid",placeItems:"center",marginBottom:16 },
   lockTitle:        { fontSize:20,fontWeight:900,color:"rgba(185,28,28,1)",marginBottom:10 },
   lockSub:          { fontSize:14,fontWeight:600,color:"rgba(10,22,40,0.70)",lineHeight:1.7,maxWidth:460,marginBottom:12 },
   lockMeta:         { fontSize:12,fontWeight:700,color:"rgba(10,22,40,0.45)",fontStyle:"italic" },
-
   topbar:          { height:58,background:"var(--cp-dark)",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",gap:16,flexShrink:0,borderBottom:"1px solid rgba(255,255,255,0.08)" },
   topbarLeft:      { display:"flex",alignItems:"center",gap:14,minWidth:0,flex:1 },
   exitBtn:         { display:"inline-flex",alignItems:"center",gap:7,padding:"7px 14px",borderRadius:999,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.08)",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0 },
@@ -910,7 +1034,6 @@ const S = {
   progressBarFill: { height:"100%",borderRadius:999,background:"linear-gradient(90deg,var(--cp-teal),var(--cp-blue))",transition:"width 0.5s ease" },
   progressText:    { color:"rgba(255,255,255,0.65)",fontSize:12,fontWeight:700,whiteSpace:"nowrap" },
   menuBtn:         { display:"inline-flex",alignItems:"center",gap:7,padding:"7px 14px",borderRadius:999,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.08)",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0 },
-
   body:              { display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 58px)" },
   sidebar:           { width:290,flexShrink:0,background:"#fff",borderRight:"1px solid rgba(2,8,23,0.08)",display:"flex",flexDirection:"column",overflowY:"auto" },
   sidebarHead:       { padding:"16px 18px 12px",fontWeight:900,fontSize:13,color:"rgba(10,22,40,0.55)",letterSpacing:"0.4px",borderBottom:"1px solid rgba(2,8,23,0.07)",display:"flex",alignItems:"center" },
@@ -925,16 +1048,13 @@ const S = {
   resumeBanner:      { margin:"8px 12px 12px",padding:"10px 14px",borderRadius:12,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.22)",flexShrink:0 },
   resumeBannerText:  { display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:800,color:"rgba(21,128,61,1)",marginBottom:3 },
   resumeBannerSub:   { fontSize:11,fontWeight:600,color:"rgba(10,22,40,0.45)",paddingLeft:19 },
-
   main:        { flex:1,overflowY:"auto",padding:"20px 0 32px" },
   contentWrap: { maxWidth:860,margin:"0 auto",padding:"0 24px" },
-
   typePill:      { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(46,171,254,0.10)",border:"1px solid rgba(46,171,254,0.22)",color:"var(--cp-blue)",fontWeight:800,fontSize:12,marginBottom:16 },
   typePillAmber: { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(245,158,11,0.10)",border:"1px solid rgba(245,158,11,0.28)",color:"rgba(180,110,0,1)",fontWeight:800,fontSize:12,marginBottom:16 },
   typePillGreen: { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(34,197,94,0.10)",border:"1px solid rgba(34,197,94,0.28)",color:"rgba(21,128,61,1)",fontWeight:800,fontSize:12,marginBottom:16 },
   typePillRed:   { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.28)",color:"rgba(185,28,28,1)",fontWeight:800,fontSize:12,marginBottom:16 },
   timerBadge:    { display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:999,fontWeight:900,fontSize:14,letterSpacing:"0.5px" },
-
   lessonWrap:        { display:"flex",flexDirection:"column",gap:24 },
   lessonTitle:       { fontSize:26,fontWeight:900,color:"var(--cp-dark)",letterSpacing:"-0.4px",lineHeight:1.2,fontFamily:"'DM Serif Display',serif" },
   pdfGateBanner:     { display:"flex",alignItems:"flex-start",gap:10,padding:"14px 18px",borderRadius:14,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.28)",color:"rgba(146,84,0,1)",fontSize:14,fontWeight:700,lineHeight:1.5 },
@@ -959,7 +1079,6 @@ const S = {
   lessonP:           { color:"rgba(10,22,40,0.80)",fontSize:15,marginBottom:14,fontWeight:450 },
   lessonUl:          { paddingLeft:22,marginBottom:14 },
   lessonLi:          { color:"rgba(10,22,40,0.78)",fontSize:15,marginBottom:8,fontWeight:450 },
-
   checkWrap:    { display:"flex",flexDirection:"column",gap:22 },
   checkSubtitle:{ color:"rgba(10,22,40,0.55)",fontSize:14,fontWeight:600,marginTop:-14 },
   questionList: { display:"flex",flexDirection:"column",gap:16 },
@@ -979,14 +1098,12 @@ const S = {
   scoreFailed:   { borderRadius:18,background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.20)",padding:"24px",textAlign:"center" },
   scoreNumber:   { fontSize:48,fontWeight:950,color:"var(--cp-dark)",letterSpacing:"-2px",fontFamily:"'DM Serif Display',serif" },
   scoreLabel:    { fontSize:15,fontWeight:700,color:"rgba(10,22,40,0.65)",marginTop:6 },
-
   navRow:    { display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:8 },
   prevBtn:   { display:"inline-flex",alignItems:"center",gap:8,padding:"12px 20px",borderRadius:12,border:"1px solid rgba(2,8,23,0.12)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:14,color:"rgba(10,22,40,0.72)" },
   nextBtn:   { marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:8,padding:"12px 24px",borderRadius:12,border:"none",background:"var(--cp-blue)",color:"#fff",cursor:"pointer",fontWeight:900,fontSize:14,boxShadow:"0 6px 20px rgba(46,171,254,0.28)" },
   nextBtnDim:{ opacity:0.5,cursor:"not-allowed",boxShadow:"none" },
   retryBtn:  { marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:8,padding:"12px 24px",borderRadius:12,border:"none",background:"rgba(239,68,68,0.90)",color:"#fff",cursor:"pointer",fontWeight:900,fontSize:14 },
   finishBtn: { marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:8,padding:"12px 24px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#22C55E,#00B4B4)",color:"#fff",cursor:"pointer",fontWeight:900,fontSize:14,boxShadow:"0 6px 20px rgba(34,197,94,0.30)" },
-
   completionWrap:       { minHeight:"100vh",display:"grid",placeItems:"center",padding:24,background:"linear-gradient(135deg,#0a1628 0%,#0d2a4a 100%)" },
   completionCard:       { background:"#fff",borderRadius:28,padding:"48px 40px",maxWidth:520,width:"100%",textAlign:"center",boxShadow:"0 40px 100px rgba(0,0,0,0.35)" },
   completionStars:      { display:"flex",justifyContent:"center",gap:6,marginBottom:20 },

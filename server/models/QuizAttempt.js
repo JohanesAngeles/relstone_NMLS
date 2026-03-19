@@ -15,6 +15,10 @@ const quizAttemptSchema = new mongoose.Schema({
   passed:        { type: Boolean, required: true },
   passing_score: { type: Number, default: 70 },
 
+  // ── NEW: stores student's answers for review mode
+  // key = question id (e.g. "mod1-q0"), value = selected option index (0-3)
+  answers: { type: Map, of: Number, default: null },
+
   submitted_at:       { type: Date, default: Date.now },
   time_spent_seconds: { type: Number, default: null },
 
