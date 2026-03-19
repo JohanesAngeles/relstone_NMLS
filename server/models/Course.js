@@ -16,6 +16,11 @@ const moduleSchema = new mongoose.Schema({
   credit_hours: { type: Number, default: 0 },
   sections:     [{ type: String }],
   pdf_url:      { type: String, default: null },
+  // If pdf_url is shared (course-level or same file), this lets the LMS open
+  // the PDF to the module’s starting page (supported by most PDF viewers).
+  pdf_start_page: { type: Number, default: null },
+  // Used by CoursePortal to optionally force a PDF gate step before quizzes.
+  show_pdf_before_quiz: { type: Boolean, default: false },
   video_url:    { type: String, default: null },
   quiz:         [questionSchema],
 }, { _id: false });
@@ -87,12 +92,11 @@ const courseSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Auto-set expires_at to Dec 31 of current year for CE courses on create
-courseSchema.pre('save', function (next) {
+courseSchema.pre('save', function () {
   if (this.type === 'CE' && !this.expires_at) {
     const now = new Date();
     this.expires_at = new Date(now.getFullYear(), 11, 31, 23, 59, 59); // Dec 31 23:59:59
   }
-  next();
 });
 
 module.exports = mongoose.model('Course', courseSchema);

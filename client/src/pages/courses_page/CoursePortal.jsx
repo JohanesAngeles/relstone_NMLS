@@ -11,6 +11,14 @@ import useSeatTimer from "../../hooks/useSeatTimer";
 import BioSigModal from "../../components/BioSigModal";
 
 /* ─── Build content array from DB course ────────────────────────── */
+const buildPdfUrl = (baseUrl, startPage) => {
+  if (!baseUrl) return null;
+  const page = Number.isFinite(startPage) && startPage > 0 ? startPage : null;
+  if (!page) return baseUrl;
+  const noFrag = String(baseUrl).split("#")[0];
+  return `${noFrag}#page=${page}`;
+};
+
 const buildContent = (course) => {
   const content = [];
   if (!course?.modules?.length) return content;
@@ -19,7 +27,7 @@ const buildContent = (course) => {
   course.modules
     .sort((a, b) => a.order - b.order)
     .forEach((mod) => {
-      const modPdf = mod.pdf_url || coursePdf;
+      const modPdf = buildPdfUrl(mod.pdf_url || coursePdf, mod.pdf_start_page);
       content.push({
         id: `lesson-mod-${mod.order}`, type: "lesson",
         title: mod.title, credit_hours: mod.credit_hours,
