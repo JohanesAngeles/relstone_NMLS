@@ -36,7 +36,7 @@ app.use(express.json());
 // ── API routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth',         authRoutes);
 app.use('/api/courses',      courseRoutes);
-app.use('/api/orders',       orderRoutes);
+app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard',    dashboardRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/instructor',   instructorRoutes);

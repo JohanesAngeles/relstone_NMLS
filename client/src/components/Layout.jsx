@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Home, GraduationCap, Award } from 'lucide-react';
 import logo from '../assets/images/Left Side Logo.png';
+import { HowItWorksModal } from './HowItWorksModal';
 
 /* ─── Logout Confirm Dialog ─────────────────────────────────────── */
 const LogoutConfirm = ({ onConfirm, onCancel }) => (
@@ -27,17 +28,18 @@ const Layout = ({ children, title, subtitle, actions }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [showLogout, setShowLogout] = useState(false);
+  const [showLogout, setShowLogout]         = useState(false);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   const handleLogout = () => { logout(); window.location.href = '/'; };
 
   const navLinks = [
-    { path: '/home',       label: 'Home',       icon: <Home size={15} /> },
-    { path: '/dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={15} /> },
-    { path: '/my-courses', label: 'My Courses', icon: <GraduationCap size={15} /> },
-    { path: '/courses',    label: 'Courses',    icon: <BookOpen size={15} /> },
+    { path: '/home',         label: 'Home',         icon: <Home size={15} /> },
+    { path: '/dashboard',    label: 'Dashboard',    icon: <LayoutDashboard size={15} /> },
+    { path: '/my-courses',   label: 'My Courses',   icon: <GraduationCap size={15} /> },
+    { path: '/courses',      label: 'Courses',      icon: <BookOpen size={15} /> },
     { path: '/certificates', label: 'Certificates', icon: <Award size={15} /> },
-    { path: '/checkout',   label: 'Checkout',   icon: <ShoppingCart size={15} /> },
+    { path: '/checkout',     label: 'Checkout',     icon: <ShoppingCart size={15} /> },
   ];
 
   const isActive = (path) => location.pathname === path;
@@ -46,10 +48,19 @@ const Layout = ({ children, title, subtitle, actions }) => {
     <div style={S.page}>
       <style>{css}</style>
 
+      {/* ── Logout confirm ───────────────────────────────────────── */}
       {showLogout && (
         <LogoutConfirm
           onConfirm={handleLogout}
           onCancel={() => setShowLogout(false)}
+        />
+      )}
+
+      {/* ── How It Works modal (triggered by ? button) ───────────── */}
+      {showHowItWorks && (
+        <HowItWorksModal
+          user={user}
+          onClose={() => setShowHowItWorks(false)}
         />
       )}
 
@@ -72,6 +83,7 @@ const Layout = ({ children, title, subtitle, actions }) => {
                 <button
                   key={link.path}
                   type="button"
+                  className="rs-nav-link"
                   style={{ ...S.navLink, ...(isActive(link.path) ? S.navLinkActive : {}) }}
                   onClick={() => navigate(link.path)}
                 >
@@ -82,9 +94,22 @@ const Layout = ({ children, title, subtitle, actions }) => {
             </nav>
           </div>
 
-          {/* Right — Actions + User */}
+          {/* Right — Actions + ? + User + Logout */}
           <div style={S.navRight}>
             {actions}
+
+            {/* ── ? How It Works button — only shown when logged in ── */}
+            {user && (
+              <button
+                type="button"
+                className="rs-how-btn"
+                style={S.howBtn}
+                onClick={() => setShowHowItWorks(true)}
+                title="How it works"
+              >
+                ?
+              </button>
+            )}
 
             <button
               style={S.userBtn}
@@ -98,7 +123,13 @@ const Layout = ({ children, title, subtitle, actions }) => {
               <span style={S.userName}>{user?.name || 'Student'}</span>
             </button>
 
-            <button style={S.logoutBtn} onClick={() => setShowLogout(true)} type="button" title="Logout">
+            <button
+              className="rs-logout-btn"
+              style={S.logoutBtn}
+              onClick={() => setShowLogout(true)}
+              type="button"
+              title="Logout"
+            >
               <LogOut size={15} />
             </button>
           </div>
@@ -138,6 +169,23 @@ const S = {
   navLink:      { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 11px', borderRadius: 10, border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 700, fontSize: 13, color: 'rgba(9,25,37,0.60)', transition: 'all .15s', fontFamily: 'inherit' },
   navLinkActive:{ background: 'rgba(46,171,254,0.10)', color: '#091925', border: '1px solid rgba(46,171,254,0.20)' },
   navRight:     { display: 'flex', alignItems: 'center', gap: 8 },
+
+  // ── ? How It Works button ──
+  howBtn: {
+    width: 32, height: 32,
+    borderRadius: '50%',
+    background: 'rgba(46,171,254,0.10)',
+    border: '1px solid rgba(46,171,254,0.28)',
+    color: '#2EABFE',
+    fontSize: 15, fontWeight: 900,
+    cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: "'Poppins', Inter, sans-serif",
+    lineHeight: 1,
+    transition: 'all .15s',
+    flexShrink: 0,
+  },
+
   userBtn:      { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 10, border: '1px solid rgba(2,8,23,0.10)', background: '#fff', cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' },
   userAvatar:   { width: 26, height: 26, borderRadius: 8, background: 'rgba(46,171,254,0.10)', border: '1px solid rgba(46,171,254,0.20)', display: 'grid', placeItems: 'center', flexShrink: 0 },
   userName:     { fontWeight: 800, fontSize: 13, color: 'rgba(9,25,37,0.80)' },
@@ -165,6 +213,7 @@ const css = `
 body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #f6f7fb; }
 .rs-nav-link:hover { background: rgba(2,8,23,0.05) !important; color: #091925 !important; }
 .rs-logout-btn:hover { background: rgba(239,68,68,0.06) !important; color: rgba(200,50,50,0.9) !important; border-color: rgba(239,68,68,0.20) !important; }
+.rs-how-btn:hover { background: #2EABFE !important; color: #fff !important; border-color: #2EABFE !important; }
 `;
 
 export default Layout;
