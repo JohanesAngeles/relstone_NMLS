@@ -13,6 +13,13 @@ const orderRoutes       = require('./routes/orders');
 const dashboardRoutes   = require('./routes/dashboard');
 const certificateRoutes = require('./routes/certificates');
 const instructorRoutes  = require('./routes/instructor');
+const rocsRoutes = require('./routes/rocs');
+const enrollmentRoutes = require('./routes/enrollment');
+const quizAttemptRoutes = require('./routes/QuizAttempt');
+const biosigRoutes = require('./routes/biosig');
+
+
+
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 const authMiddleware = require('./middleware/auth');
@@ -40,6 +47,11 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/dashboard',    dashboardRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/instructor',   instructorRoutes);
+app.use('/api/rocs', rocsRoutes);
+app.use('/api/enrollment', enrollmentRoutes);
+app.use('/api/quiz-attempts', quizAttemptRoutes);
+app.use('/api/biosig', biosigRoutes);
+
 
 // ── Protected test route ──────────────────────────────────────────────────────
 app.get('/api/protected', authMiddleware, (req, res) => {

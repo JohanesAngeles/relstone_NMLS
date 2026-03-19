@@ -1,11 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, PlayCircle,
   BookOpen, ClipboardList, Trophy, Lock, ChevronRight,
-  AlertCircle, Star, X, FileText, ExternalLink, Award,
+  AlertCircle, Star, X, FileText, ExternalLink, Award, Clock,
 } from "lucide-react";
 import API from "../../api/axios";
+import RocsModal from "../../components/RocsModal";
+import useSeatTimer from "../../hooks/useSeatTimer";
+import BioSigModal from "../../components/BioSigModal";
 
 /* ─── Build content array from DB course ────────────────────────── */
 const buildContent = (course) => {
@@ -20,10 +23,11 @@ const buildContent = (course) => {
       content.push({
         id: `lesson-mod-${mod.order}`, type: "lesson",
         title: mod.title, credit_hours: mod.credit_hours,
+        moduleOrder: mod.order,
         pdf_url: modPdf, video_url: mod.video_url || null, sections: mod.sections || [],
       });
       if (mod.show_pdf_before_quiz && modPdf) {
-        content.push({ id: `pdf-gate-mod-${mod.order}`, type: "pdf_gate", title: `Study Material: ${mod.title}`, pdf_url: modPdf });
+        content.push({ id: `pdf-gate-mod-${mod.order}`, type: "pdf_gate", title: `Study Material: ${mod.title}`, pdf_url: modPdf, moduleOrder: mod.order });
       }
       if (mod.quiz?.length) {
         const isFundamentals = mod.show_pdf_before_quiz && mod.quiz.length > 10;
@@ -31,6 +35,7 @@ const buildContent = (course) => {
           id: `checkpoint-mod-${mod.order}`,
           type: isFundamentals ? "quiz_fundamentals" : "checkpoint",
           title: isFundamentals ? `${mod.title} — Fundamentals Exam` : `Checkpoint: ${mod.title}`,
+          moduleOrder: mod.order,
           questions: mod.quiz.map((q, i) => ({ id: `mod${mod.order}-q${i}`, text: q.question, options: q.options, correct: q.correct_index })),
           passingScore: 70, timeLimitMin: 120,
         });
@@ -43,6 +48,7 @@ const buildContent = (course) => {
       title: course.final_exam.title || "Final Exam",
       passingScore: course.final_exam.passing_score || 70,
       timeLimitMin: course.final_exam.time_limit_minutes || 90,
+      moduleOrder: 999,
       questions: course.final_exam.questions.map((q, i) => ({ id: `fq${i}`, text: q.question, options: q.options, correct: q.correct_index })),
     });
   }
@@ -60,32 +66,80 @@ const CoursePortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [finished, setFinished]       = useState(false);
   const [error, setError]             = useState(null);
-  // ── transcript data for this course (if already completed) ──
   const [transcriptEntry, setTranscriptEntry] = useState(null);
 
   const [completed, setCompleted]   = useState(() => new Set());
-  const [currentIdx, setCurrentIdx] = useState(() => 0);
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  // ── ROCS state ────────────────────────────────────────────────────
+  const [rocsChecked, setRocsChecked] = useState(false);
+  const [rocsAgreed, setRocsAgreed]   = useState(false);
+  const [showRocs, setShowRocs]       = useState(false);
+
+  // ── BioSig state ──────────────────────────────────────────────────
+  const [bioSigVerified, setBioSigVerified] = useState(false);
+  const [showBioSig,     setShowBioSig]     = useState(false);
+
+  // ── Inactivity warning ────────────────────────────────────────────
+  const [inactivityWarning, setInactivityWarning] = useState(false);
+
+  // ── Quiz attempts map: quizId → { count, passed, locked, unlocked_by_instructor }
+  const [quizAttempts, setQuizAttempts] = useState({});
+
+  // ── CE expiry ─────────────────────────────────────────────────────
+  const [isExpired,      setIsExpired]      = useState(false);
+  const [expiresWarning, setExpiresWarning] = useState(null); 
 
   const saveProgressRef = useRef({ t: null });
-  const saveProgress = ({ nextCompletedSet, nextIdx, totalSteps }) => {
+
+  const saveProgress = useCallback(({ nextCompletedSet, nextIdx, totalSteps }) => {
     const completed_idxs = [...nextCompletedSet].sort((a, b) => a - b);
     if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
     saveProgressRef.current.t = setTimeout(() => {
       API.put(`/dashboard/progress/${id}`, {
-        completed_idxs,
-        current_idx: nextIdx,
-        total_steps: totalSteps,
+        completed_idxs, current_idx: nextIdx, total_steps: totalSteps,
+      }).catch(() => {});
+      API.put(`/enrollment/${id}/progress`, {
+        completed_idxs, current_idx: nextIdx, total_steps: totalSteps,
       }).catch(() => {});
     }, 250);
-  };
+  }, [id]);
 
+  const handleInactivityLogout = useCallback(() => {
+    setInactivityWarning(true);
+    setCompleted((prev) => {
+      const next = new Set(prev);
+      next.delete(currentIdx);
+      return next;
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTimeout(() => setInactivityWarning(false), 8000);
+  }, [currentIdx]);
+
+  const currentModuleOrder = content[currentIdx]?.moduleOrder ?? 0;
+  const { flush: flushSeatTime, getSeatSeconds } = useSeatTimer({
+    courseId:           id,
+    moduleOrder:        currentModuleOrder,
+    enabled:            rocsAgreed && !finished,
+    onInactivityLogout: handleInactivityLogout,
+  });
+
+  // ── Refresh quiz attempts ─────────────────────────────────────────
+  const refreshAttempts = useCallback(async () => {
+    try {
+      const res = await API.get(`/quiz-attempts/${id}`);
+      setQuizAttempts(res.data?.attempts || {});
+    } catch { /* silent */ }
+  }, [id]);
+
+  // ── Load on mount ─────────────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
       try {
-        // Load course + transcript in parallel
-        const [courseRes, transcriptRes] = await Promise.all([
+        const [courseRes, transcriptRes, rocsRes] = await Promise.all([
           API.get(`/courses/${id}`),
           API.get("/dashboard/transcript").catch(() => ({ data: { transcript: [] } })),
+          API.get(`/rocs/check/${id}`).catch(() => ({ data: { agreed: false } })),
         ]);
 
         const data = courseRes.data?.data || courseRes.data;
@@ -93,35 +147,47 @@ const CoursePortal = () => {
         const built = buildContent(data);
         setContent(built);
 
-        // ── Check if student already completed this course ──
+                // CE expiry check
+        if (data.type === 'CE' && data.expires_at) {
+          const now      = new Date();
+          const expiry   = new Date(data.expires_at);
+          const daysLeft = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+          if (now > expiry) {
+            setIsExpired(true);
+          } else if (daysLeft <= 30) {
+            setExpiresWarning(daysLeft);
+          }
+        }
+
+        const agreed = rocsRes.data?.agreed || false;
+        setRocsAgreed(agreed);
+        setRocsChecked(true);
+        if (!agreed) setShowRocs(true);
+
+        setBioSigVerified(false);
+        setShowBioSig(true);
+
         const transcript = transcriptRes.data?.transcript || [];
         const entry = transcript.find(
           (t) => String(t.course_id?._id || t.course_id) === String(id)
         );
-        if (entry) {
-          setTranscriptEntry(entry);
-          setFinished(true); // show completion screen immediately
-          return;
-        }
+        if (entry) { setTranscriptEntry(entry); setFinished(true); return; }
 
-        // Load progress from DB
         const progRes = await API.get(`/dashboard/progress/${id}`).catch(() => ({ data: null }));
         const prog = progRes.data || {};
         const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
         const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
-
         const safeIdx = Math.max(0, Math.min(idx, built.length > 0 ? built.length - 1 : 0));
         const nextCompleted = new Set(
           completed_idxs.filter((n) => Number.isFinite(n) && n >= 0 && n < built.length)
         );
-
         setCompleted(nextCompleted);
         setCurrentIdx(safeIdx);
-
-        // Ensure total step count stays accurate for MyCourses
         if ((prog.total_steps || 0) !== built.length) {
           saveProgress({ nextCompletedSet: nextCompleted, nextIdx: safeIdx, totalSteps: built.length });
         }
+
+        await refreshAttempts();
       } catch (err) {
         console.error("Failed to load course:", err);
         setError("Could not load course content.");
@@ -130,7 +196,7 @@ const CoursePortal = () => {
       }
     };
     load();
-  }, [id]);
+  }, [id, saveProgress, refreshAttempts]);
 
   const current  = content[currentIdx] || null;
   const progress = content.length ? Math.round((completed.size / content.length) * 100) : 0;
@@ -144,29 +210,33 @@ const CoursePortal = () => {
   };
 
   const navigateTo = (idx) => {
+    flushSeatTime();
     setCurrentIdx(idx);
     saveProgress({ nextCompletedSet: completed, nextIdx: idx, totalSteps: content.length });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const goNext = () => {
-    markComplete(currentIdx);
-    if (currentIdx < content.length - 1) navigateTo(currentIdx + 1);
-  };
-
+  const goNext = () => { markComplete(currentIdx); if (currentIdx < content.length - 1) navigateTo(currentIdx + 1); };
   const goPrev = () => { if (currentIdx > 0) navigateTo(currentIdx - 1); };
   const canNavigateTo = (idx) => idx === 0 || completed.has(idx - 1);
 
   const handleFinish = async () => {
     markComplete(currentIdx);
-    // ── Save completion to backend so certificate appears in My Certificates ──
+    flushSeatTime();
     try {
-      await API.post("/dashboard/complete", { courseId: id });
-    } catch (err) {
-      console.warn("Could not save completion to server:", err.message);
-    }
+      await Promise.all([
+        API.post("/dashboard/complete", { courseId: id }),
+        API.post(`/enrollment/${id}/complete`),
+      ]);
+    } catch (err) { console.warn("Could not save completion:", err.message); }
     setFinished(true);
   };
+
+  const handleRocsAgreed = () => { setRocsAgreed(true); setShowRocs(false); };
+  const handleRocsCancel = () => { navigate(`/courses/${id}`); };
+
+  const handleBioSigVerified = () => { setBioSigVerified(true); setShowBioSig(false); if (!rocsAgreed) setShowRocs(true); };
+  const handleBioSigCancel   = () => { navigate(`/courses/${id}`); };
 
   if (loading) return (
     <div style={S.page}><style>{css}</style>
@@ -179,18 +249,57 @@ const CoursePortal = () => {
     </div>
   );
 
-  if (finished) return (
-    <CompletionScreen
-      course={course}
-      transcriptEntry={transcriptEntry}
-      navigate={navigate}
-      courseId={id}
-    />
-  );
+  if (finished) return <CompletionScreen course={course} transcriptEntry={transcriptEntry} navigate={navigate} courseId={id} />;
+
+  if (finished) return <CompletionScreen course={course} transcriptEntry={transcriptEntry} navigate={navigate} courseId={id} />;
+
+if (isExpired) return (
+  <div style={S.page}><style>{css}</style>
+    <div style={S.loadCenter}>
+      <div style={{ textAlign: "center", maxWidth: 480, padding: "0 24px" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+        <div style={{ fontSize: 22, fontWeight: 900, color: "#0a1628", marginBottom: 10 }}>Course Access Expired</div>
+        <div style={{ fontSize: 15, color: "rgba(10,22,40,0.60)", fontWeight: 600, lineHeight: 1.7, marginBottom: 24 }}>
+          This CE course expired on {new Date(course?.expires_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.
+          Per NMLS requirements, CE courses must be completed by December 31 of the calendar year.
+          Please contact your provider to enroll in a new course for the current year.
+        </div>
+        <button style={{ padding: "12px 24px", borderRadius: 12, border: "none", background: "#2EABFE", color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer" }}
+          onClick={() => navigate("/my-courses")} type="button">
+          Back to My Courses
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
   return (
     <div style={S.page}>
       <style>{css}</style>
+
+      {showBioSig && !bioSigVerified && (
+        <BioSigModal courseId={id} courseName={course?.title || ""} onVerified={handleBioSigVerified} onCancel={handleBioSigCancel} />
+      )}
+
+      {showRocs && rocsChecked && !rocsAgreed && bioSigVerified && (
+        <RocsModal courseId={id} courseName={course?.title || ""} onAgreed={handleRocsAgreed} onCancel={handleRocsCancel} />
+      )}
+
+      {inactivityWarning && (
+        <div style={S.inactivityBanner}>
+          <AlertCircle size={15} style={{ flexShrink: 0 }} />
+          You were logged out due to inactivity. Your progress was saved, but time for this unit was not counted. Please continue from where you left off.
+        </div>
+      )}
+
+      {expiresWarning !== null && (
+        <div style={S.inactivityBanner}>
+          <AlertCircle size={15} style={{ flexShrink: 0 }} />
+          This CE course expires on December 31. You have {expiresWarning} day{expiresWarning !== 1 ? "s" : ""} left to complete it. Per NMLS requirements, CE courses must be completed by December 31.
+        </div>
+      )}
+
+
       {error && <div style={S.errorBanner}><AlertCircle size={14} /> {error}</div>}
 
       <header style={S.topbar}>
@@ -278,11 +387,25 @@ const CoursePortal = () => {
 
         <main style={S.main}>
           <div style={S.contentWrap}>
-            {current?.type === "lesson"           && <LessonView item={current} onComplete={goNext} onPrev={goPrev} showPrev={currentIdx > 0} />}
-            {current?.type === "pdf_gate"         && <PDFGateView item={current} onComplete={goNext} onPrev={goPrev} />}
-            {current?.type === "checkpoint"       && <CheckpointView item={current} onComplete={goNext} onPrev={goPrev} />}
-            {current?.type === "quiz_fundamentals"&& <QuizView item={current} onFinish={goNext} onPrev={goPrev} />}
-            {current?.type === "quiz"             && <QuizView item={current} onFinish={handleFinish} onPrev={goPrev} />}
+           {current?.type === "lesson" && (
+              <LessonView
+                item={current} onComplete={goNext} onPrev={goPrev} showPrev={currentIdx > 0}
+                getSeatSeconds={getSeatSeconds}
+              />
+            )}
+            {current?.type === "pdf_gate"          && <PDFGateView item={current} onComplete={goNext} onPrev={goPrev} />}
+            {current?.type === "checkpoint"        && (
+              <CheckpointView item={current} onComplete={goNext} onPrev={goPrev}
+                courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts} />
+            )}
+            {current?.type === "quiz_fundamentals" && (
+              <QuizView item={current} onFinish={goNext} onPrev={goPrev}
+                courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts} />
+            )}
+            {current?.type === "quiz" && (
+              <QuizView item={current} onFinish={handleFinish} onPrev={goPrev}
+                courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts} />
+            )}
           </div>
         </main>
       </div>
@@ -355,14 +478,40 @@ const PDFGateView = ({ item, onComplete, onPrev }) => {
 };
 
 /* ─── Lesson View ────────────────────────────────────────────────── */
-const LessonView = ({ item, onComplete, onPrev, showPrev }) => {
-  const [read, setRead]       = useState(false);
-  const [pdfView, setPdfView] = useState(!!item.pdf_url);
+// NMLS: 50 seat minutes per clock hour
+const calcMinSeatSeconds = (creditHours) => Math.round((creditHours || 0) * 50 * 60);
+
+const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds }) => {
+  const minSeatSeconds = calcMinSeatSeconds(item.credit_hours);
+  const [pdfView,       setPdfView]       = useState(!!item.pdf_url);
+  const [seatsLeft,     setSeatsLeft]     = useState(minSeatSeconds);
+  const [seatMet,       setSeatMet]       = useState(minSeatSeconds === 0);
+  const tickRef = useRef(null);
+
   useEffect(() => {
-    setRead(false); setPdfView(!!item.pdf_url);
-    const timer = setTimeout(() => setRead(true), 3000);
-    return () => clearTimeout(timer);
-  }, [item.id, item.pdf_url]);
+    setPdfView(!!item.pdf_url);
+    const min = calcMinSeatSeconds(item.credit_hours);
+    setSeatsLeft(min);
+    setSeatMet(min === 0);
+
+    if (min === 0) return;
+
+    // Poll getSeatSeconds every second to update countdown
+    tickRef.current = setInterval(() => {
+      const accumulated = getSeatSeconds ? getSeatSeconds() : 0;
+      const remaining   = Math.max(0, min - Math.round(accumulated));
+      setSeatsLeft(remaining);
+      if (remaining === 0) { setSeatMet(true); clearInterval(tickRef.current); }
+    }, 1000);
+
+    return () => clearInterval(tickRef.current);
+  }, [item.id, item.credit_hours, item.pdf_url]);
+
+  const fmt = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+  };
   return (
     <div style={S.lessonWrap}>
       <div style={S.typePill}>
@@ -391,7 +540,7 @@ const LessonView = ({ item, onComplete, onPrev, showPrev }) => {
               <h3 style={{ ...S.lessonH3, marginTop: 0 }}>Topics Covered in This Module</h3>
               <ul style={S.lessonUl}>{item.sections.map((s, i) => <li key={i} style={S.lessonLi}>{s}</li>)}</ul>
               <p style={{ ...S.lessonP, marginBottom: 0, marginTop: 16, padding: "12px 16px", background: "rgba(46,171,254,0.06)", borderRadius: 10, border: "1px solid rgba(46,171,254,0.15)" }}>
-                📖 Study the material above, then proceed to the checkpoint quiz to test your knowledge.
+                Study the material above, then proceed to the checkpoint quiz to test your knowledge.
               </p>
             </div>
           )}
@@ -399,33 +548,109 @@ const LessonView = ({ item, onComplete, onPrev, showPrev }) => {
       )}
       <div style={S.navRow}>
         {showPrev && <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>}
-        <button style={{ ...S.nextBtn, ...(read ? {} : S.nextBtnDim) }} onClick={onComplete} type="button">
-          {read ? <>Continue <ArrowRight size={16} /></> : "Reading…"}
+        <button
+          style={{ ...S.nextBtn, ...(!seatMet ? S.nextBtnDim : {}) }}
+          onClick={seatMet ? onComplete : undefined}
+          disabled={!seatMet}
+          type="button"
+        >
+          {seatMet
+            ? <>Continue <ArrowRight size={16} /></>
+            : <><Clock size={14} /> {fmt(seatsLeft)} remaining</>
+          }
         </button>
       </div>
     </div>
   );
 };
 
+/* ─── Attempt Warning Banner ─────────────────────────────────────── */
+const AttemptWarning = () => (
+  <div style={S.attemptWarning}>
+    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+    <div>
+      <div style={{ fontWeight: 800, marginBottom: 3 }}>2nd Attempt Warning</div>
+      <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.6 }}>
+        This is your 2nd attempt. If you fail again, your access will be locked and your instructor must unlock it before you can retake this quiz.
+      </div>
+    </div>
+  </div>
+);
+
+/* ─── Instructor Lock Screen ─────────────────────────────────────── */
+const InstructorLockScreen = ({ item, onPrev }) => (
+  <div style={S.checkWrap}>
+    <div style={S.typePillRed}><Lock size={14} /> Quiz Locked</div>
+    <h1 style={S.lessonTitle}>{item.title}</h1>
+    <div style={S.lockBox}>
+      <div style={S.lockIconWrap}><Lock size={36} style={{ color: "rgba(185,28,28,0.7)" }} /></div>
+      <div style={S.lockTitle}>Instructor Approval Required</div>
+      <div style={S.lockSub}>
+        You have failed this quiz 2 times. Your access has been locked.
+        Please contact your instructor to unlock this quiz before your next attempt.
+      </div>
+      <div style={S.lockMeta}>Your instructor has been notified and can see your attempts in their dashboard.</div>
+    </div>
+    <div style={S.navRow}>
+      <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
+    </div>
+  </div>
+);
+
 /* ─── Checkpoint View ────────────────────────────────────────────── */
-const CheckpointView = ({ item, onComplete, onPrev }) => {
+const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAttemptLogged }) => {
   const [answers, setAnswers]       = useState({});
   const [submitted, setSubmitted]   = useState(false);
   const [allCorrect, setAllCorrect] = useState(false);
+  const startedAt = useRef(Date.now());
+
+  useEffect(() => {
+    setAnswers({}); setSubmitted(false); setAllCorrect(false);
+    startedAt.current = Date.now();
+  }, [item.id]);
+
+  const attemptCount = attemptInfo?.count || 0;
+  const isLocked     = attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
+
+  if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
+
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
-  const handleSubmit = () => { const ok = item.questions.every((q) => answers[q.id] === q.correct); setAllCorrect(ok); setSubmitted(true); };
-  const handleRetry  = () => { setAnswers({}); setSubmitted(false); setAllCorrect(false); };
   const allAnswered  = item.questions.every((q) => answers[q.id] !== undefined);
   const correctCount = item.questions.filter((q) => answers[q.id] === q.correct).length;
+
+  const handleSubmit = async () => {
+    const ok  = item.questions.every((q) => answers[q.id] === q.correct);
+    const pct = Math.round((correctCount / item.questions.length) * 100);
+    setAllCorrect(ok); setSubmitted(true);
+    try {
+      await API.post("/quiz-attempts", {
+        courseId, quizId: item.id, quizTitle: item.title,
+        quizType: "checkpoint", moduleOrder: item.moduleOrder,
+        scorePct: pct, correct: correctCount, total: item.questions.length,
+        passed: ok, passingScore: 100,
+        timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
+      });
+      await onAttemptLogged();
+    } catch { /* silent */ }
+  };
+
+  const handleRetry = () => {
+    setAnswers({}); setSubmitted(false); setAllCorrect(false);
+    startedAt.current = Date.now();
+  };
+
   return (
     <div style={S.checkWrap}>
       <div style={S.typePillAmber}><ClipboardList size={14} /> Checkpoint</div>
       <h1 style={S.lessonTitle}>{item.title}</h1>
       <p style={S.checkSubtitle}>Answer all questions correctly to continue · {item.questions.length} questions</p>
+
+      {attemptCount === 1 && !submitted && <AttemptWarning />}
+
       {submitted && (
         <div style={allCorrect ? S.scorePassed : S.scoreFailed}>
           <div style={S.scoreNumber}>{correctCount}/{item.questions.length}</div>
-          <div style={S.scoreLabel}>{allCorrect ? "✅ All correct! You may continue." : `${item.questions.length - correctCount} incorrect — review and try again.`}</div>
+          <div style={S.scoreLabel}>{allCorrect ? "All correct! You may continue." : `${item.questions.length - correctCount} incorrect — review and try again.`}</div>
         </div>
       )}
       <div style={S.questionList}>
@@ -476,33 +701,57 @@ const CheckpointView = ({ item, onComplete, onPrev }) => {
 };
 
 /* ─── Quiz View ──────────────────────────────────────────────────── */
-const QuizView = ({ item, onFinish, onPrev }) => {
+const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogged }) => {
   const [answers, setAnswers]     = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore]         = useState(0);
   const [passed, setPassed]       = useState(false);
   const [timeLeft, setTimeLeft]   = useState((item.timeLimitMin || 90) * 60);
-  const timerRef = useRef(null);
+  const timerRef  = useRef(null);
+  const startedAt = useRef(Date.now());
 
-  useEffect(() => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); setTimeLeft((item.timeLimitMin || 90) * 60); }, [item.id]);
+  const attemptCount = attemptInfo?.count || 0;
+  const isLocked     = attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
+
   useEffect(() => {
-    if (submitted) return;
+    setAnswers({}); setSubmitted(false); setScore(0); setPassed(false);
+    setTimeLeft((item.timeLimitMin || 90) * 60);
+    startedAt.current = Date.now();
+  }, [item.id]);
+
+  useEffect(() => {
+    if (submitted || isLocked) return;
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => { if (t <= 1) { clearInterval(timerRef.current); doSubmit(); return 0; } return t - 1; });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [submitted]);
+  }, [submitted, isLocked]);
 
-  const doSubmit = () => {
+  if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
+
+  const doSubmit = async () => {
     clearInterval(timerRef.current);
     const correct = item.questions.filter((q) => answers[q.id] === q.correct).length;
     const pct     = Math.round((correct / item.questions.length) * 100);
-    setScore(pct); setPassed(pct >= (item.passingScore || 70)); setSubmitted(true);
+    const ok      = pct >= (item.passingScore || 70);
+    setScore(pct); setPassed(ok); setSubmitted(true);
+
+    const quizType = item.id === "final-exam" ? "final_exam" : "quiz_fundamentals";
+    try {
+      await API.post("/quiz-attempts", {
+        courseId, quizId: item.id, quizTitle: item.title,
+        quizType, moduleOrder: item.moduleOrder,
+        scorePct: pct, correct, total: item.questions.length,
+        passed: ok, passingScore: item.passingScore || 70,
+        timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
+      });
+      await onAttemptLogged();
+    } catch { /* silent */ }
   };
 
   const fmt          = (s) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
-  const handleRetry  = () => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); setTimeLeft((item.timeLimitMin || 90) * 60); };
+  const handleRetry  = () => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); setTimeLeft((item.timeLimitMin || 90) * 60); startedAt.current = Date.now(); };
   const allAnswered   = item.questions.every((q) => answers[q.id] !== undefined);
   const answered      = Object.keys(answers).length;
   const correctCount  = item.questions.filter((q) => answers[q.id] === q.correct).length;
@@ -518,21 +767,24 @@ const QuizView = ({ item, onFinish, onPrev }) => {
         </div>
         {!submitted && (
           <div style={{ ...S.timerBadge, background: urgentTime ? "rgba(239,68,68,0.10)" : "rgba(46,171,254,0.10)", border: `1px solid ${urgentTime ? "rgba(239,68,68,0.30)" : "rgba(46,171,254,0.25)"}`, color: urgentTime ? "rgba(185,28,28,1)" : "var(--cp-blue)" }}>
-            ⏱ {fmt(timeLeft)}
+            {fmt(timeLeft)}
           </div>
         )}
       </div>
       <h1 style={S.lessonTitle}>{item.title}</h1>
       <p style={S.checkSubtitle}>Score {item.passingScore || 70}% or higher to pass · {item.questions.length} questions{!submitted && ` · ${answered}/${item.questions.length} answered`}</p>
+
+      {attemptCount === 1 && !submitted && <AttemptWarning />}
+
       {submitted && (
         <div style={passed ? S.scorePassed : S.scoreFailed}>
           <div style={S.scoreNumber}>{score}%</div>
-          <div style={S.scoreLabel}>{passed ? `🎉 Passed! ${correctCount}/${item.questions.length} correct.` : `Need ${item.passingScore || 70}% — got ${correctCount}/${item.questions.length} correct.`}</div>
+          <div style={S.scoreLabel}>{passed ? `Passed! ${correctCount}/${item.questions.length} correct.` : `Need ${item.passingScore || 70}% — got ${correctCount}/${item.questions.length} correct.`}</div>
         </div>
       )}
       {!submitted && (
         <div style={{ background: "rgba(2,8,23,0.07)", borderRadius: 999, height: 6, overflow: "hidden" }}>
-          <div style={{ height: "100%", borderRadius: 999, background: "linear-gradient(90deg,var(--cp-teal),var(--cp-blue))", width: `${(answered / item.questions.length) * 100}%`, transition: "width 0.3s ease" }} />
+          <div style={{ height: "100%", borderRadius: 999, background: "var(--cp-blue)", width: `${(answered / item.questions.length) * 100}%`, transition: "width 0.3s" }} />
         </div>
       )}
       <div style={S.questionList}>
@@ -580,57 +832,34 @@ const QuizView = ({ item, onFinish, onPrev }) => {
 };
 
 /* ─── Completion Screen ──────────────────────────────────────────── */
-// Shows for both freshly completed and already-completed courses.
-// transcriptEntry is set when course was already completed on load.
 const CompletionScreen = ({ course, transcriptEntry, navigate, courseId }) => {
   const completedAt = transcriptEntry?.completed_at
     ? new Date(transcriptEntry.completed_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
     : null;
-
   const certCourseId = transcriptEntry?.course_id?._id || transcriptEntry?.course_id || courseId;
-
   return (
     <div style={S.page}><style>{css}</style>
       <div style={S.completionWrap}>
         <div style={S.completionCard}>
-          <div style={S.completionStars}>
-            {[...Array(5)].map((_, i) => <Star key={i} size={28} style={{ color: "#F59E0B", fill: "#F59E0B" }} />)}
-          </div>
+          <div style={S.completionStars}>{[...Array(5)].map((_, i) => <Star key={i} size={28} style={{ color: "#F59E0B", fill: "#F59E0B" }} />)}</div>
           <div style={S.completionBadge}><Trophy size={40} style={{ color: "#F59E0B" }} /></div>
-          <h1 style={S.completionTitle}>
-            {transcriptEntry ? "Already Completed!" : "Course Complete!"}
-          </h1>
-          <p style={S.completionSub}>
-            {transcriptEntry
-              ? "You have already successfully completed"
-              : "Congratulations! You've successfully completed"}
-          </p>
+          <h1 style={S.completionTitle}>{transcriptEntry ? "Already Completed!" : "Course Complete!"}</h1>
+          <p style={S.completionSub}>{transcriptEntry ? "You have already successfully completed" : "Congratulations! You've successfully completed"}</p>
           <div style={S.completionCourseName}>{course?.title}</div>
-
           <div style={S.completionMeta}>
             <span style={S.completionMetaItem}>✓ {course?.credit_hours} Credit Hours Earned</span>
             {completedAt && <span style={S.completionMetaItem}>✓ Completed on {completedAt}</span>}
             <span style={S.completionMetaItem}>✓ Certificate Unlocked</span>
             <span style={S.completionMetaItem}>✓ NMLS Requirements Met</span>
           </div>
-
           <div style={S.completionActions}>
-            {/* ── View Certificate button ── */}
             {certCourseId && (
-              <button
-                style={S.completionCertBtn}
-                onClick={() => navigate(`/certificate/${certCourseId}`)}
-                type="button"
-              >
+              <button style={S.completionCertBtn} onClick={() => navigate(`/certificate/${certCourseId}`)} type="button">
                 <Award size={18} /> View Certificate
               </button>
             )}
-            <button style={S.completionPrimary} onClick={() => navigate("/dashboard")} type="button">
-              Go to Dashboard
-            </button>
-            <button style={S.completionSecondary} onClick={() => navigate("/my-courses")} type="button">
-              My Courses
-            </button>
+            <button style={S.completionPrimary} onClick={() => navigate("/dashboard")} type="button">Go to Dashboard</button>
+            <button style={S.completionSecondary} onClick={() => navigate("/my-courses")} type="button">My Courses</button>
           </div>
         </div>
       </div>
@@ -646,13 +875,21 @@ const css = `
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--cp-bg);color:#0a1628;}
 .cp-spin{width:38px;height:38px;border-radius:50%;border:3px solid rgba(2,8,23,0.10);border-top-color:var(--cp-blue);animation:cpspin 0.9s linear infinite;}
 @keyframes cpspin{to{transform:rotate(360deg);}}
+@keyframes biosig-spin{to{transform:rotate(360deg);}}
 `;
 
 /* ─── Styles ─────────────────────────────────────────────────────── */
 const S = {
-  page:        { minHeight:"100vh",background:"var(--cp-bg)",display:"flex",flexDirection:"column" },
-  loadCenter:  { minHeight:"100vh",display:"grid",placeItems:"center" },
-  errorBanner: { background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.25)",color:"rgba(185,28,28,1)",padding:"10px 20px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8 },
+  page:             { minHeight:"100vh",background:"var(--cp-bg)",display:"flex",flexDirection:"column" },
+  loadCenter:       { minHeight:"100vh",display:"grid",placeItems:"center" },
+  errorBanner:      { background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.25)",color:"rgba(185,28,28,1)",padding:"10px 20px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8 },
+  inactivityBanner: { background:"rgba(245,158,11,0.10)",border:"1px solid rgba(245,158,11,0.30)",color:"rgba(146,84,0,1)",padding:"10px 20px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8,lineHeight:1.5 },
+  attemptWarning:   { display:"flex",alignItems:"flex-start",gap:12,padding:"14px 18px",borderRadius:14,background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.22)",color:"rgba(185,28,28,1)",fontSize:14 },
+  lockBox:          { display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",padding:"36px 24px",borderRadius:20,background:"rgba(239,68,68,0.05)",border:"2px dashed rgba(239,68,68,0.25)" },
+  lockIconWrap:     { width:72,height:72,borderRadius:"50%",background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.22)",display:"grid",placeItems:"center",marginBottom:16 },
+  lockTitle:        { fontSize:20,fontWeight:900,color:"rgba(185,28,28,1)",marginBottom:10 },
+  lockSub:          { fontSize:14,fontWeight:600,color:"rgba(10,22,40,0.70)",lineHeight:1.7,maxWidth:460,marginBottom:12 },
+  lockMeta:         { fontSize:12,fontWeight:700,color:"rgba(10,22,40,0.45)",fontStyle:"italic" },
 
   topbar:          { height:58,background:"var(--cp-dark)",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",gap:16,flexShrink:0,borderBottom:"1px solid rgba(255,255,255,0.08)" },
   topbarLeft:      { display:"flex",alignItems:"center",gap:14,minWidth:0,flex:1 },
@@ -666,8 +903,8 @@ const S = {
   progressText:    { color:"rgba(255,255,255,0.65)",fontSize:12,fontWeight:700,whiteSpace:"nowrap" },
   menuBtn:         { display:"inline-flex",alignItems:"center",gap:7,padding:"7px 14px",borderRadius:999,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.08)",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0 },
 
-  body:    { display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 58px)" },
-  sidebar: { width:290,flexShrink:0,background:"#fff",borderRight:"1px solid rgba(2,8,23,0.08)",display:"flex",flexDirection:"column",overflowY:"auto" },
+  body:              { display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 58px)" },
+  sidebar:           { width:290,flexShrink:0,background:"#fff",borderRight:"1px solid rgba(2,8,23,0.08)",display:"flex",flexDirection:"column",overflowY:"auto" },
   sidebarHead:       { padding:"16px 18px 12px",fontWeight:900,fontSize:13,color:"rgba(10,22,40,0.55)",letterSpacing:"0.4px",borderBottom:"1px solid rgba(2,8,23,0.07)",display:"flex",alignItems:"center" },
   sidebarList:       { display:"flex",flexDirection:"column",padding:"8px 0",flex:1 },
   sidebarItem:       { display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"11px 16px",border:"none",background:"transparent",cursor:"pointer",textAlign:"left",transition:"background 0.15s" },
@@ -690,30 +927,30 @@ const S = {
   typePillRed:   { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.28)",color:"rgba(185,28,28,1)",fontWeight:800,fontSize:12,marginBottom:16 },
   timerBadge:    { display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:999,fontWeight:900,fontSize:14,letterSpacing:"0.5px" },
 
-  lessonWrap:  { display:"flex",flexDirection:"column",gap:24 },
-  lessonTitle: { fontSize:26,fontWeight:900,color:"var(--cp-dark)",letterSpacing:"-0.4px",lineHeight:1.2,fontFamily:"'DM Serif Display',serif" },
+  lessonWrap:        { display:"flex",flexDirection:"column",gap:24 },
+  lessonTitle:       { fontSize:26,fontWeight:900,color:"var(--cp-dark)",letterSpacing:"-0.4px",lineHeight:1.2,fontFamily:"'DM Serif Display',serif" },
   pdfGateBanner:     { display:"flex",alignItems:"flex-start",gap:10,padding:"14px 18px",borderRadius:14,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.28)",color:"rgba(146,84,0,1)",fontSize:14,fontWeight:700,lineHeight:1.5 },
   pdfGateConfirmRow: { display:"flex",alignItems:"center",gap:12,padding:"16px 18px",borderRadius:14,background:"#fff",border:"1px solid rgba(2,8,23,0.09)",boxShadow:"0 2px 8px rgba(2,8,23,0.05)" },
-  pdfWrap:      { borderRadius:18,overflow:"hidden",border:"1px solid rgba(2,8,23,0.10)",boxShadow:"0 8px 32px rgba(2,8,23,0.08)",width:"100%" },
-  pdfToolbar:   { display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"#fff",borderBottom:"1px solid rgba(2,8,23,0.08)" },
-  pdfOpenBtn:   { display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,background:"rgba(46,171,254,0.10)",border:"1px solid rgba(46,171,254,0.22)",color:"var(--cp-blue)",fontWeight:700,fontSize:12,textDecoration:"none" },
-  pdfIframe:    { width:"100%",height:"calc(100vh - 160px)",minHeight:800,border:"none",display:"block",background:"#f8f8f8" },
-  pdfPlaceholder:{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:300,background:"#fff",borderRadius:18,border:"2px dashed rgba(2,8,23,0.12)" },
-  pdfErrorBox:  { display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:200,background:"#fff" },
-  pdfFallbackBtn:{ display:"inline-flex",alignItems:"center",gap:6,padding:"10px 20px",borderRadius:10,background:"var(--cp-blue)",color:"#fff",fontWeight:700,fontSize:14,textDecoration:"none" },
-  viewToggle:     { display:"flex",gap:8,padding:"4px",background:"rgba(2,8,23,0.05)",borderRadius:12,width:"fit-content" },
-  toggleBtn:      { display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:10,border:"none",background:"transparent",cursor:"pointer",fontWeight:700,fontSize:13,color:"rgba(10,22,40,0.55)" },
-  toggleBtnActive:{ background:"#fff",color:"var(--cp-dark)",boxShadow:"0 2px 8px rgba(2,8,23,0.10)" },
-  videoBox:     { borderRadius:18,overflow:"hidden",background:"linear-gradient(135deg,#0a1628 0%,#0d2a4a 50%,#091f3a 100%)",border:"1px solid rgba(46,171,254,0.15)",aspectRatio:"16/9",display:"flex",alignItems:"center",justifyContent:"center" },
-  videoInner:   { textAlign:"center" },
-  videoIconWrap:{ width:72,height:72,borderRadius:"50%",background:"rgba(46,171,254,0.20)",border:"2px solid rgba(46,171,254,0.35)",display:"grid",placeItems:"center",margin:"0 auto 14px",cursor:"pointer" },
-  videoLabel:   { color:"#fff",fontWeight:800,fontSize:16,marginBottom:6 },
-  videoSub:     { color:"rgba(255,255,255,0.45)",fontWeight:600,fontSize:13 },
-  lessonText:   { background:"#fff",borderRadius:18,border:"1px solid rgba(2,8,23,0.08)",padding:"28px 32px",lineHeight:1.8 },
-  lessonH3:     { fontWeight:800,fontSize:16,color:"var(--cp-dark)",margin:"20px 0 10px",fontFamily:"'DM Serif Display',serif" },
-  lessonP:      { color:"rgba(10,22,40,0.80)",fontSize:15,marginBottom:14,fontWeight:450 },
-  lessonUl:     { paddingLeft:22,marginBottom:14 },
-  lessonLi:     { color:"rgba(10,22,40,0.78)",fontSize:15,marginBottom:8,fontWeight:450 },
+  pdfWrap:           { borderRadius:18,overflow:"hidden",border:"1px solid rgba(2,8,23,0.10)",boxShadow:"0 8px 32px rgba(2,8,23,0.08)",width:"100%" },
+  pdfToolbar:        { display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"#fff",borderBottom:"1px solid rgba(2,8,23,0.08)" },
+  pdfOpenBtn:        { display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,background:"rgba(46,171,254,0.10)",border:"1px solid rgba(46,171,254,0.22)",color:"var(--cp-blue)",fontWeight:700,fontSize:12,textDecoration:"none" },
+  pdfIframe:         { width:"100%",height:"calc(100vh - 160px)",minHeight:800,border:"none",display:"block",background:"#f8f8f8" },
+  pdfPlaceholder:    { display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:300,background:"#fff",borderRadius:18,border:"2px dashed rgba(2,8,23,0.12)" },
+  pdfErrorBox:       { display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:200,background:"#fff" },
+  pdfFallbackBtn:    { display:"inline-flex",alignItems:"center",gap:6,padding:"10px 20px",borderRadius:10,background:"var(--cp-blue)",color:"#fff",fontWeight:700,fontSize:14,textDecoration:"none" },
+  viewToggle:        { display:"flex",gap:8,padding:"4px",background:"rgba(2,8,23,0.05)",borderRadius:12,width:"fit-content" },
+  toggleBtn:         { display:"inline-flex",alignItems:"center",gap:6,padding:"8px 16px",borderRadius:10,border:"none",background:"transparent",cursor:"pointer",fontWeight:700,fontSize:13,color:"rgba(10,22,40,0.55)" },
+  toggleBtnActive:   { background:"#fff",color:"var(--cp-dark)",boxShadow:"0 2px 8px rgba(2,8,23,0.10)" },
+  videoBox:          { borderRadius:18,overflow:"hidden",background:"linear-gradient(135deg,#0a1628 0%,#0d2a4a 50%,#091f3a 100%)",border:"1px solid rgba(46,171,254,0.15)",aspectRatio:"16/9",display:"flex",alignItems:"center",justifyContent:"center" },
+  videoInner:        { textAlign:"center" },
+  videoIconWrap:     { width:72,height:72,borderRadius:"50%",background:"rgba(46,171,254,0.20)",border:"2px solid rgba(46,171,254,0.35)",display:"grid",placeItems:"center",margin:"0 auto 14px",cursor:"pointer" },
+  videoLabel:        { color:"#fff",fontWeight:800,fontSize:16,marginBottom:6 },
+  videoSub:          { color:"rgba(255,255,255,0.45)",fontWeight:600,fontSize:13 },
+  lessonText:        { background:"#fff",borderRadius:18,border:"1px solid rgba(2,8,23,0.08)",padding:"28px 32px",lineHeight:1.8 },
+  lessonH3:          { fontWeight:800,fontSize:16,color:"var(--cp-dark)",margin:"20px 0 10px",fontFamily:"'DM Serif Display',serif" },
+  lessonP:           { color:"rgba(10,22,40,0.80)",fontSize:15,marginBottom:14,fontWeight:450 },
+  lessonUl:          { paddingLeft:22,marginBottom:14 },
+  lessonLi:          { color:"rgba(10,22,40,0.78)",fontSize:15,marginBottom:8,fontWeight:450 },
 
   checkWrap:    { display:"flex",flexDirection:"column",gap:22 },
   checkSubtitle:{ color:"rgba(10,22,40,0.55)",fontSize:14,fontWeight:600,marginTop:-14 },
@@ -730,10 +967,10 @@ const S = {
   optionText:    { flex:1,fontSize:14,fontWeight:600,color:"rgba(10,22,40,0.85)" },
   resultSuccess: { display:"flex",alignItems:"center",gap:10,padding:"14px 18px",borderRadius:14,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.25)",color:"rgba(21,128,61,1)",fontWeight:800,fontSize:14 },
   resultFail:    { display:"flex",alignItems:"center",gap:10,padding:"14px 18px",borderRadius:14,background:"rgba(239,68,68,0.07)",border:"1px solid rgba(239,68,68,0.22)",color:"rgba(185,28,28,1)",fontWeight:800,fontSize:14 },
-  scorePassed: { borderRadius:18,background:"linear-gradient(135deg,rgba(34,197,94,0.10),rgba(0,180,180,0.10))",border:"1px solid rgba(34,197,94,0.25)",padding:"24px",textAlign:"center" },
-  scoreFailed: { borderRadius:18,background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.20)",padding:"24px",textAlign:"center" },
-  scoreNumber: { fontSize:48,fontWeight:950,color:"var(--cp-dark)",letterSpacing:"-2px",fontFamily:"'DM Serif Display',serif" },
-  scoreLabel:  { fontSize:15,fontWeight:700,color:"rgba(10,22,40,0.65)",marginTop:6 },
+  scorePassed:   { borderRadius:18,background:"linear-gradient(135deg,rgba(34,197,94,0.10),rgba(0,180,180,0.10))",border:"1px solid rgba(34,197,94,0.25)",padding:"24px",textAlign:"center" },
+  scoreFailed:   { borderRadius:18,background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.20)",padding:"24px",textAlign:"center" },
+  scoreNumber:   { fontSize:48,fontWeight:950,color:"var(--cp-dark)",letterSpacing:"-2px",fontFamily:"'DM Serif Display',serif" },
+  scoreLabel:    { fontSize:15,fontWeight:700,color:"rgba(10,22,40,0.65)",marginTop:6 },
 
   navRow:    { display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:8 },
   prevBtn:   { display:"inline-flex",alignItems:"center",gap:8,padding:"12px 20px",borderRadius:12,border:"1px solid rgba(2,8,23,0.12)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:14,color:"rgba(10,22,40,0.72)" },
@@ -742,7 +979,6 @@ const S = {
   retryBtn:  { marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:8,padding:"12px 24px",borderRadius:12,border:"none",background:"rgba(239,68,68,0.90)",color:"#fff",cursor:"pointer",fontWeight:900,fontSize:14 },
   finishBtn: { marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:8,padding:"12px 24px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#22C55E,#00B4B4)",color:"#fff",cursor:"pointer",fontWeight:900,fontSize:14,boxShadow:"0 6px 20px rgba(34,197,94,0.30)" },
 
-  // Completion screen
   completionWrap:       { minHeight:"100vh",display:"grid",placeItems:"center",padding:24,background:"linear-gradient(135deg,#0a1628 0%,#0d2a4a 100%)" },
   completionCard:       { background:"#fff",borderRadius:28,padding:"48px 40px",maxWidth:520,width:"100%",textAlign:"center",boxShadow:"0 40px 100px rgba(0,0,0,0.35)" },
   completionStars:      { display:"flex",justifyContent:"center",gap:6,marginBottom:20 },
@@ -753,7 +989,6 @@ const S = {
   completionMeta:       { display:"flex",flexDirection:"column",gap:8,marginBottom:28 },
   completionMetaItem:   { fontSize:14,fontWeight:700,color:"rgba(21,128,61,1)" },
   completionActions:    { display:"grid",gap:10 },
-  // ── View Certificate — gold/amber styled ──
   completionCertBtn:    { width:"100%",padding:"14px",borderRadius:14,border:"1px solid rgba(245,158,11,0.35)",background:"linear-gradient(135deg,rgba(245,158,11,0.12),rgba(245,158,11,0.06))",color:"rgba(146,84,0,1)",cursor:"pointer",fontWeight:950,fontSize:15,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:10,boxShadow:"0 4px 16px rgba(245,158,11,0.18)" },
   completionPrimary:    { width:"100%",padding:"14px",borderRadius:14,border:"none",background:"var(--cp-blue)",color:"#fff",cursor:"pointer",fontWeight:950,fontSize:15,boxShadow:"0 8px 24px rgba(46,171,254,0.28)" },
   completionSecondary:  { width:"100%",padding:"14px",borderRadius:14,border:"1px solid rgba(2,8,23,0.12)",background:"#fff",cursor:"pointer",fontWeight:900,fontSize:15,color:"rgba(10,22,40,0.72)" },

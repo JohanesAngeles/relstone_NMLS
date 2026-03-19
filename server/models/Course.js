@@ -79,6 +79,20 @@ const courseSchema = new mongoose.Schema({
   textbook_price: { type: Number,  default: 0 },
   is_active:      { type: Boolean, default: true },
 
+  // ── CE expiry (NMLS: CE courses must be completed by Dec 31) ──────
+  // Auto-set to Dec 31 of current year for CE courses.
+  // PE courses leave this null.
+  expires_at: { type: Date, default: null },
+
 }, { timestamps: true });
+
+// Auto-set expires_at to Dec 31 of current year for CE courses on create
+courseSchema.pre('save', function (next) {
+  if (this.type === 'CE' && !this.expires_at) {
+    const now = new Date();
+    this.expires_at = new Date(now.getFullYear(), 11, 31, 23, 59, 59); // Dec 31 23:59:59
+  }
+  next();
+});
 
 module.exports = mongoose.model('Course', courseSchema);
