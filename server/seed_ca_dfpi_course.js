@@ -27,7 +27,7 @@ dotenv.config();
 const Course = require('./models/Course');
 
 // ── PDF URLs ──────────────────────────────────────────────────────────
-const CA_TEXTBOOK_PDF = 'https://www.dropbox.com/scl/fo/enrih9t4dnji9j47b2mge/AJlfq4abtljhjBkysTe8kDQ/FLORIDA/8-Hour%20FL%20SAFE%20Comprehensive%20-%20Annual%20MLO%20Fundamentals.pdf?rlkey=jdwbravxwpfj6idgxzhxr3ynj&st=jad72fw1&raw=1';
+const CA_TEXTBOOK_PDF = 'https://www.dropbox.com/scl/fi/aqfzku0u6aubysm1qt9ik/8-HOUR-CA-DFPI-SAFE-COMPREHENSIVE-ANNUAL-MLO-FUNDAMENTAL.pdf?rlkey=i3bsqzaemqzq0t282gstjauxh&st=di5zb6lo&raw=1';
 const CA_FINAL_PDF    = 'https://www.dropbox.com/scl/fi/2lqm5jbkk4ei6ig12tba9/FINAL-CALIFORNIA-DFPI-1.pdf?rlkey=0ph2l6b8rezmmc6kpcgkup3ei&st=u6o5eelg&raw=1';
 
 // ── 70-Question Retry Bank ────────────────────────────────────────────
