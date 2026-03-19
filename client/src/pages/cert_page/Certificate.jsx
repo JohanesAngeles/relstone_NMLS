@@ -5,6 +5,9 @@ import { Award, User, Hash, BookOpen, Clock, Calendar, ArrowLeft, Download, Aler
 import API from '../../api/axios';
 import Layout from '../../components/Layout';
 
+const ATTESTATION_TEXT =
+  "By accepting this certificate, I hereby acknowledge receipt of my course completion and authorize the education provider to report my education hours to NMLS. I am the named person on this certificate and have completed this course. I further attest I completed the course in accordance with the Rules of Conduct.";
+
 const Certificate = () => {
   const { courseId } = useParams();
   const navigate     = useNavigate();
@@ -201,6 +204,12 @@ const Certificate = () => {
               </p>
             </div>
 
+            {/* Attestation (required) */}
+            <div style={S.attestationWrap}>
+              <div style={S.attestationLabel}>Attestation</div>
+              <div style={S.attestationText}>{ATTESTATION_TEXT}</div>
+            </div>
+
             {/* Bottom bar */}
             <div style={S.bottomBar}>
               <span>Certificate ID: {cert.cert_id}</span>
@@ -327,6 +336,11 @@ const S = {
   footerNote:    { fontSize: '0.72rem', color: 'rgba(9,25,37,0.40)', maxWidth: 500, margin: '0 auto', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' },
 
   bottomBar:   { background: 'linear-gradient(90deg,#091925,#0d2a4a)', color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: 700, display: 'flex', justifyContent: 'center', gap: 12, padding: '10px 20px', letterSpacing: '.04em', fontFamily: 'Inter, sans-serif' },
+
+  // Attestation (10–12pt minimum required by policy)
+  attestationWrap: { padding: '18px 32px 10px', fontFamily: 'Inter, sans-serif' },
+  attestationLabel:{ fontSize: 11, fontWeight: 900, color: 'rgba(9,25,37,0.55)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 },
+  attestationText: { fontSize: 12, lineHeight: 1.55, fontWeight: 600, color: 'rgba(9,25,37,0.80)' },
 };
 
 export default Certificate;
