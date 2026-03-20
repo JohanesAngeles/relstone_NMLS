@@ -140,4 +140,77 @@ router.post('/complete/:courseId', authMiddleware, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// GET /api/dashboard/ce-tracker
+// ─────────────────────────────────────────────────────────────────────
+router.get('/ce-tracker', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .select('-password')
+      .populate('completions.course_id', 'title type credit_hours nmls_course_id')
+      .lean();
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Get only CE completions from the current renewal cycle
+    const ceCompletions = (user.completions || []).filter(
+      (c) => String(c.course_id?.type || '').toUpperCase() === 'CE'
+    );
+
+    // Calculate total CE hours completed in this cycle
+    const ceCompleted = ceCompletions.reduce(
+      (sum, c) => sum + Number(c.course_id?.credit_hours || 0),
+      0
+    );
+
+    // State-based CE requirements (default to 30, can be customized per state)
+    const stateRequirements = {
+      'CA': 36,
+      'NY': 24,
+      'TX': 30,
+      'FL': 24,
+      'IL': 24,
+      'PA': 24,
+      'OH': 24,
+      'GA': 24,
+      'NC': 24,
+      'MI': 24,
+      'NJ': 24,
+      'VA': 24,
+      'WA': 24,
+      'AZ': 24,
+      'MA': 24,
+      'CO': 30,
+    };
+
+    const ceRequired = stateRequirements[user.state] || 30;
+    const ceRemaining = Math.max(0, ceRequired - ceCompleted);
+
+    // Build completed courses list
+    const completedCourses = ceCompletions.map((c) => ({
+      title:           c.course_id?.title          || 'Unknown',
+      nmls_course_id:  c.course_id?.nmls_course_id || '—',
+      credit_hours:    c.course_id?.credit_hours   || 0,
+      completed_at:    c.completed_at,
+      certificate_url: c.certificate_url           || null,
+    }));
+
+    // Determine renewal status
+    const renewalStatus = ceRemaining === 0 ? 'completed' : 'in-progress';
+
+    res.json({
+      state:              user.state,
+      ce_required:        ceRequired,
+      ce_completed:       ceCompleted,
+      ce_remaining:       ceRemaining,
+      renewal_deadline:   user.ce_renewal_deadline,
+      renewal_status:     renewalStatus,
+      completed_courses:  completedCourses,
+    });
+  } catch (err) {
+    console.error('[ce-tracker]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;

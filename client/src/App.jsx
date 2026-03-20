@@ -7,6 +7,7 @@ import AuthModal from './pages/auth_page/AuthModal';
 import Dashboard from './pages/dashboard/Dashboard';
 import InstructorDashboard from './pages/dashboard/InstructorDashboard';
 import ViewStudents from './pages/dashboard/ViewStudents';
+import CETracker from './pages/dashboard/CETracker';
 import Certificate from './pages/cert_page/Certificate';
 import Courses from './pages/courses_page/Courses';
 import Checkout from './pages/checkout_page/checkout';
@@ -67,6 +68,13 @@ function App() {
           <Route path="/dashboard" element={
             <PrivateRoute>
               <Dashboard />
+            </PrivateRoute>
+          } />
+
+          {/* CE Tracker */}
+          <Route path="/ce-tracker" element={
+            <PrivateRoute>
+              <CETracker />
             </PrivateRoute>
           } />
 
