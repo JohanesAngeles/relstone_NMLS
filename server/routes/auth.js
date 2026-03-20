@@ -83,6 +83,26 @@ const sendResetEmail = async (email, name, otp) => {
   });
 };
 
+const sendWelcomeEmail = async (email, name) => {
+  await getTransporter().sendMail({
+    from: `"Relstone NMLS" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: 'Welcome to Relstone NMLS',
+    html: `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#fff;border-radius:16px;border:1px solid #e5e7eb;">
+        <div style="text-align:center;margin-bottom:28px;">
+          <div style="display:inline-block;background:rgba(46,171,254,0.08);border:1px solid rgba(46,171,254,0.2);border-radius:12px;padding:12px 18px;">
+            <span style="font-size:18px;font-weight:800;color:#091925;">Welcome to Relstone NMLS</span>
+          </div>
+        </div>
+        <h2 style="color:#091925;font-size:22px;font-weight:800;margin-bottom:8px;">Hi ${name},</h2>
+        <p style="color:#64748b;font-size:15px;">Thanks for joining Relstone NMLS. Your learning dashboard is ready. Start your first course now.</p>
+        <p style="color:#94a3b8;font-size:12px;">If you have questions, reply to this email and we’ll help right away.</p>
+      </div>
+    `,
+  });
+};
+
 // ─────────────────────────────────────────────────────────────────
 // ── PUBLIC ROUTES ─────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────
@@ -102,6 +122,7 @@ router.post('/register', async (req, res) => {
     const otp            = generateOTP();
     const otpExpires     = new Date(Date.now() + 10 * 60 * 1000);
 
+    let createdUser;
     if (existingUser && !existingUser.isVerified) {
       existingUser.name       = name;
       existingUser.password   = hashedPassword;
@@ -110,14 +131,26 @@ router.post('/register', async (req, res) => {
       existingUser.role       = role    || 'student';
       existingUser.otp        = otp;
       existingUser.otpExpires = otpExpires;
-      await existingUser.save();
+      createdUser = await existingUser.save();
     } else {
-      await User.create({
+      createdUser = await User.create({
         name, email, password: hashedPassword,
         nmls_id: nmls_id || null, state: state || null,
         role: role || 'student',
         isVerified: false, otp, otpExpires,
       });
+    }
+
+    if (createdUser) {
+      createdUser.notifications = createdUser.notifications || [];
+      createdUser.notifications.unshift({
+        type: 'system',
+        title: 'Welcome to Relstone',
+        body: 'You are now registered. Verify your account and start your first course.',
+        read: false,
+      });
+      await createdUser.save();
+      try { await sendWelcomeEmail(email, name); } catch (err) { console.warn('[register] welcome email failed', err.message); }
     }
 
     await sendOTPEmail(email, name, otp);

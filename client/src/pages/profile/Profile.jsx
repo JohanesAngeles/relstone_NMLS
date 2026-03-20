@@ -297,6 +297,7 @@ const ChangePassword = ({ showToast }) => {
 
 /* ── Section: Notifications ──────────────────────────────────────── */
 const Notifications = ({ showToast }) => {
+  const { user } = useAuth();
   const [prefs, setPrefs] = useState({
     email_course_updates:    true,
     email_promotions:        false,
@@ -315,6 +316,21 @@ const Notifications = ({ showToast }) => {
     { key:"completions",    label:"Completion Alerts",    sub:"Certificate and progress updates" },
     { key:"promotions",     label:"Promotions & Offers",  sub:"Discounts and new course announcements" },
   ];
+
+  useEffect(() => {
+    if (user?.notification_prefs) {
+      setPrefs({
+        email_course_updates:  user.notification_prefs.email_course_updates ?? true,
+        email_promotions:      user.notification_prefs.email_promotions ?? false,
+        email_reminders:       user.notification_prefs.email_reminders ?? true,
+        email_completions:     user.notification_prefs.email_completions ?? true,
+        sms_course_updates:    user.notification_prefs.sms_course_updates ?? false,
+        sms_reminders:         user.notification_prefs.sms_reminders ?? true,
+        sms_promotions:        user.notification_prefs.sms_promotions ?? false,
+        sms_completions:       user.notification_prefs.sms_completions ?? false,
+      });
+    }
+  }, [user]);
 
   const toggle = (key) => setPrefs(p => ({ ...p, [key]: !p[key] }));
 

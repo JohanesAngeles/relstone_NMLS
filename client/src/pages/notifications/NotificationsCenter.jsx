@@ -34,13 +34,43 @@ const NotificationsCenter = () => {
     markAllAsRead,
     markAsRead,
     markAsUnread,
+    triggerNotification,
   } = useNotifications();
   const [activeFilter, setActiveFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [readFilter, setReadFilter] = useState("all");
+
+  const triggerEvent = async (eventType) => {
+    const map = {
+      welcome: { type: 'system', title: 'Welcome to Relstone', body: 'Thanks for joining — your learning path is ready.', sendEmail: true },
+      purchase: { type: 'system', title: 'Purchase confirm', body: 'Your course purchase was successful. Start learning now.', sendEmail: true },
+      completion: { type: 'milestones', title: 'Course completed', body: 'Congratulations! You completed a course and earned a badge.', sendEmail: true },
+      certificate: { type: 'system', title: 'Certificate ready', body: 'Your certificate is ready for download in the certificates page.', sendEmail: true },
+      renewal: { type: 'ce', title: 'Renewal reminder', body: 'Your CE renewal deadline is approaching. Schedule your courses.', sendEmail: true },
+    };
+    const payload = map[eventType];
+    if (!payload) return;
+    await triggerNotification(payload);
+  };
 
   const filteredItems = useMemo(() => {
-    if (activeFilter === "all") return notifications;
-    return notifications.filter((n) => n.type === activeFilter);
-  }, [notifications, activeFilter]);
+    let list = notifications;
+    if (activeFilter !== "all") {
+      list = list.filter((n) => n.type === activeFilter);
+    }
+    if (readFilter === "read") {
+      list = list.filter((n) => n.read);
+    } else if (readFilter === "unread") {
+      list = list.filter((n) => !n.read);
+    }
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      list = list.filter((n) =>
+        `${n.title} ${n.body}`.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [notifications, activeFilter, readFilter, searchTerm]);
 
   return (
     <Layout>
@@ -52,18 +82,57 @@ const NotificationsCenter = () => {
               You have {unreadCount} unread messages
             </div>
           </div>
+          <div style={styles.headerActions}>
+            <button
+              style={styles.markAllBtn}
+              onClick={() => {
+                console.log(
+                  '📋 [NotificationsCenter] "Mark all as read" clicked',
+                );
+                markAllAsRead();
+              }}
+              type="button"
+            >
+              Mark all as read
+            </button>
+          </div>
+        </div>
+
+        <div style={styles.searchRow}>
+          <input
+            style={styles.searchInput}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search notifications..."
+          />
+          <select style={styles.filterSelect} value={readFilter} onChange={(e) => setReadFilter(e.target.value)}>
+            <option value="all">All</option>
+            <option value="unread">Unread</option>
+            <option value="read">Read</option>
+          </select>
           <button
-            style={styles.markAllBtn}
-            onClick={() => {
-              console.log(
-                '📋 [NotificationsCenter] "Mark all as read" clicked',
-              );
-              markAllAsRead();
-            }}
+            style={styles.triggerBtn}
             type="button"
+            onClick={() => {
+              triggerNotification({
+                type: 'milestones',
+                title: 'Milestone reached',
+                body: 'You completed 75% of your course and unlocked a badge.',
+                sendEmail: true,
+              });
+            }}
           >
-            Mark all as read
+            Send quick test
           </button>
+        </div>
+
+        <div style={styles.eventRow}>
+          <span style={styles.eventLabel}>Trigger event</span>
+          <button style={styles.eventBtn} onClick={() => triggerEvent('welcome')} type="button">Welcome</button>
+          <button style={styles.eventBtn} onClick={() => triggerEvent('purchase')} type="button">Purchase</button>
+          <button style={styles.eventBtn} onClick={() => triggerEvent('completion')} type="button">Completion</button>
+          <button style={styles.eventBtn} onClick={() => triggerEvent('certificate')} type="button">Certificate</button>
+          <button style={styles.eventBtn} onClick={() => triggerEvent('renewal')} type="button">Renewal</button>
         </div>
 
         <div style={styles.tabs}>
@@ -193,6 +262,13 @@ const styles = {
     cursor: "pointer",
     boxShadow: "0 3px 8px rgba(37,99,235,0.15)",
   },
+  searchRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" },
+  searchInput: { flex: 1, border: "1px solid #dbeafe", borderRadius: 10, padding: "8px 10px", fontSize: 13, minWidth: 200 },
+  filterSelect: { border: "1px solid #dbeafe", borderRadius: 10, padding: "8px 10px", fontSize: 13, background: "#fff", color: "#0f172a" },
+  triggerBtn: { border: "1px solid #dbeafe", borderRadius: 10, background: "#fff", color: "#1d4ed8", fontWeight: 700, cursor: "pointer", padding: "8px 12px" },
+  eventRow: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 },
+  eventLabel: { fontWeight: 700, color: "#475569", fontSize: 12 },
+  eventBtn: { border: "1px solid #cbd5e1", borderRadius: 8, background: "#fff", color: "#0f172a", fontWeight: 700, cursor: "pointer", fontSize: 11, padding: "6px 9px" },
   tabs: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   tab: {
     border: "1px solid #d1d5db",

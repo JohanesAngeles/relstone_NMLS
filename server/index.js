@@ -1,7 +1,6 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
-<<<<<<< HEAD
 const express    = require('express');
 const mongoose   = require('mongoose');
 const cors       = require('cors');
@@ -14,21 +13,10 @@ const orderRoutes       = require('./routes/orders');
 const dashboardRoutes   = require('./routes/dashboard');
 const certificateRoutes = require('./routes/certificates');
 const instructorRoutes  = require('./routes/instructor');
+const notificationRoutes = require('./routes/notifications');
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 const authMiddleware = require('./middleware/auth');
-=======
-dotenv.config();
-
-const authRoutes = require('./routes/auth');
-const authMiddleware = require('./middleware/auth');
-const courseRoutes = require('./routes/courses');
-const orderRoutes = require('./routes/orders');
-const dashboardRoutes = require('./routes/dashboard');
-const certificateRoutes = require('./routes/certificates');
-const instructorRoutes = require('./routes/instructor');
-const notificationRoutes = require('./routes/notifications');
->>>>>>> 9d9b1b6 (Backup: my current progress before pulling updates)
 
 const app = express();
 
@@ -52,12 +40,13 @@ app.use('/api/courses',      courseRoutes);
 app.use('/api/orders',       orderRoutes);
 app.use('/api/dashboard',    dashboardRoutes);
 app.use('/api/certificates', certificateRoutes);
-<<<<<<< HEAD
 app.use('/api/instructor',   instructorRoutes);
-=======
-app.use('/api/instructor', instructorRoutes);
 app.use('/api/notifications', notificationRoutes);
->>>>>>> 9d9b1b6 (Backup: my current progress before pulling updates)
+
+// Debug route to test
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'API is working', time: new Date() });
+});
 
 // ── Protected test route ──────────────────────────────────────────────────────
 app.get('/api/protected', authMiddleware, (req, res) => {
@@ -75,6 +64,12 @@ if (process.env.NODE_ENV === 'production') {
     res.json({ message: 'NMLS API is running!' });
   });
 }
+
+// Debug: Log all registered routes
+app.use((req, res, next) => {
+  console.log(`[app] ${req.method} ${req.path}`);
+  next();
+});
 
 // ── Start server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8000;
