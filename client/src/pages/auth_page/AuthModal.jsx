@@ -1,304 +1,518 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../api/axios';
+import RelstoneBlackLogo from '../../assets/images/RelstoneBlack.png';
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
   'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
   'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
   'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
-  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'
+  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
 ];
 
-// ─── Shared icons ─────────────────────────────────────────────────
-const IconEmail   = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>;
-const IconLock    = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
-const IconArrow   = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>;
-const IconEyeOn   = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>;
-const IconEyeOff  = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3l18 18"/><path d="M10.6 10.6A3 3 0 0 0 12 15a3 3 0 0 0 2.4-4.6"/><path d="M9.88 5.1A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a18.2 18.2 0 0 1-3.2 4.2"/><path d="M6.1 6.1C3.2 8.2 2 12 2 12s3.5 7 10 7c1 0 2-.2 2.9-.5"/></svg>;
-const IconCheck   = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>;
+// ── Icons ─────────────────────────────────────────────────────────────────────
+const IconEyeOn = () => (
+  <svg width="23" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+const IconEyeOff = () => (
+  <svg width="23" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M3 3l18 18"/>
+    <path d="M10.6 10.6A3 3 0 0 0 12 15a3 3 0 0 0 2.4-4.6"/>
+    <path d="M9.88 5.1A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a18.2 18.2 0 0 1-3.2 4.2"/>
+    <path d="M6.1 6.1C3.2 8.2 2 12 2 12s3.5 7 10 7c1 0 2-.2 2.9-.5"/>
+  </svg>
+);
+const IconArrow = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <path d="M5 12h14M12 5l7 7-7 7"/>
+  </svg>
+);
+const IconChevron = () => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="6 9 12 15 18 9"/>
+  </svg>
+);
+const CloseIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+  </svg>
+);
+// Figma: mingcute:send-fill — 15×15
+const IconSend = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+  </svg>
+);
+// Figma: material-symbols:check-rounded — 17×13
+const IconCheck = () => (
+  <svg width="17" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+// Figma: material-symbols:lock — 11×15
+const IconLock = () => (
+  <svg width="11" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+  </svg>
+);
 
-const Logo = () => (
-  <div className="am-logo">
-    <div className="am-logo-mark">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-        <path d="M2 17l10 5 10-5" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-        <path d="M2 12l10 5 10-5" stroke="#60C3FF" strokeWidth="2" strokeLinejoin="round"/>
-      </svg>
-    </div>
-    <span className="am-logo-name">Relstone <span className="am-logo-accent">NMLS</span></span>
+// ── Step Progress Dots ────────────────────────────────────────────────────────
+// Figma: Line 32/33/34 — each 35px wide, 5px thick
+// active = #2EABFE, inactive = rgba(127,168,196,0.5)
+const StepDots = ({ active = 0 }) => (
+  <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+    {[0, 1, 2].map(i => (
+      <div key={i} style={{
+        width: 35, height: 5, borderRadius: 999,
+        background: i <= active ? '#2EABFE' : 'rgba(127,168,196,0.5)',
+        transition: 'background .3s',
+      }} />
+    ))}
   </div>
 );
 
+// ── Logo ──────────────────────────────────────────────────────────────────────
+const ModalLogo = ({ logoSrc }) => (
+  <div style={S.logo}>
+    <img src={logoSrc} alt="Relstone" style={S.logoImg} />
+    <div style={S.logoDivider} />
+    <div style={S.logoRight}>
+      <div style={S.logoNmls}>NMLS</div>
+      <div style={S.logoPortal}>Student Portal</div>
+    </div>
+  </div>
+);
+
+// ── Error Banner ──────────────────────────────────────────────────────────────
 const ErrorBanner = ({ msg }) => !msg ? null : (
-  <div className="am-error" role="alert">
+  <div style={S.error}>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
     </svg>
     {msg}
   </div>
 );
 
-// ─── FORGOT PASSWORD FLOW ─────────────────────────────────────────
-// step: 'email' → 'otp' → 'reset' → 'done'
-const ForgotPassword = ({ onBack, onClose }) => {
-  const [step,     setStep]     = useState('email');
-  const [email,    setEmail]    = useState('');
-  const [otp,      setOtp]      = useState('');
+// ── Input Field ───────────────────────────────────────────────────────────────
+const Field = ({ placeholder, type = 'text', value, onChange, name, autoComplete, required, style: extra }) => (
+  <input
+    style={{ ...S.input, ...extra }}
+    type={type} placeholder={placeholder} value={value}
+    onChange={onChange} name={name} autoComplete={autoComplete} required={required}
+  />
+);
+
+// ── Password Field ────────────────────────────────────────────────────────────
+const PasswordField = ({ placeholder, value, onChange, name }) => {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={S.pwWrap}>
+      <input
+        style={{ ...S.input, paddingRight: 48 }}
+        type={show ? 'text' : 'password'}
+        placeholder={placeholder} value={value}
+        onChange={onChange} name={name} required
+      />
+      <button type="button" onClick={() => setShow(v => !v)} style={S.eyeBtn}>
+        {show ? <IconEyeOn /> : <IconEyeOff />}
+      </button>
+    </div>
+  );
+};
+
+// ── 6-Box OTP Input ───────────────────────────────────────────────────────────
+// Figma: 6 × Rectangle — each 67×70, rgba(127,168,196,0.1), 0.5px #7FA8C4, radius 5
+// Active box gets #2EABFE border + focus glow
+const OTPBoxes = ({ value, onChange }) => {
+  const [focused, setFocused] = useState(false);
+  const digits = (value + '      ').slice(0, 6).split('');
+
+  // Auto-focus on mount so user can type immediately without clicking
+  useEffect(() => {
+    const t = setTimeout(() => {
+      document.getElementById('otp-hidden-input')?.focus();
+    }, 120);
+    return () => clearTimeout(t);
+  }, []);
+
+  const handleChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+    onChange(val);
+  };
+
+  // clicking any box focuses the hidden input
+  const focusInput = () => {
+    document.getElementById('otp-hidden-input')?.focus();
+  };
+
+  return (
+    <div
+      style={{ position: 'relative', userSelect: 'none', cursor: 'text' }}
+      onClick={focusInput}
+    >
+      {/* Hidden real input — sits off-screen so caret doesn't show */}
+      <input
+        id="otp-hidden-input"
+        type="text"
+        inputMode="numeric"
+        maxLength={6}
+        value={value}
+        onChange={handleChange}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        autoComplete="one-time-code"
+        style={{
+          position: 'absolute',
+          top: 0, left: 0,
+          width: 1, height: 1,
+          opacity: 0,
+          pointerEvents: 'none',
+          border: 'none', outline: 'none',
+          fontSize: 16, // non-zero so mobile keyboard opens
+        }}
+      />
+
+      {/* Visual 6 boxes — Figma: 67×70 each */}
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between' }}>
+        {digits.map((d, i) => {
+          const filled   = d.trim() !== '';
+          const isCursor = focused && i === value.length && value.length < 6;
+          const isActive = filled || isCursor;
+          return (
+            <div key={i} style={{
+              width: 67, height: 70,
+              background: 'rgba(127,168,196,0.1)',
+              border: `0.5px solid ${isActive ? '#2EABFE' : '#7FA8C4'}`,
+              borderRadius: 5,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 32, fontWeight: 800,
+              color: '#091925',
+              fontFamily: "'Poppins', sans-serif",
+              transition: 'border-color .15s, box-shadow .15s',
+              boxShadow: isActive ? '0 0 0 3px rgba(46,171,254,0.14)' : 'none',
+            }}>
+              {filled ? d : isCursor ? (
+                <div style={{
+                  width: 2, height: 32,
+                  background: '#2EABFE',
+                  animation: 'blink 1s step-end infinite',
+                }} />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ── Cooldown formatter ────────────────────────────────────────────────────────
+const fmtCooldown = (s) =>
+  `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+// ── Forgot Password — all 3 steps ────────────────────────────────────────────
+const ForgotPassword = ({ onBack, logoSrc }) => {
+  const [step, setStep]         = useState('email'); // 'email' | 'otp' | 'reset' | 'done'
+  const [email, setEmail]       = useState('');
+  const [otp, setOtp]           = useState('');
   const [password, setPassword] = useState('');
-  const [confirm,  setConfirm]  = useState('');
-  const [showPw,   setShowPw]   = useState(false);
-  const [showCp,   setShowCp]   = useState(false);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
+  const [confirm, setConfirm]   = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
   const [cooldown, setCooldown] = useState(0);
 
+  const stepIdx = step === 'email' ? 0 : step === 'otp' ? 1 : 2;
+
   const startCooldown = () => {
-    setCooldown(60);
+    setCooldown(30);
     const t = setInterval(() => {
       setCooldown(c => { if (c <= 1) { clearInterval(t); return 0; } return c - 1; });
     }, 1000);
   };
 
-  // Step 1 — send OTP to email
-  const handleSendOTP = async (e) => {
-    e.preventDefault();
-    setLoading(true); setError('');
-    try {
-      await API.post('/auth/forgot-password', { email });
-      setStep('otp');
-      startCooldown();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to send reset code.');
-    } finally { setLoading(false); }
+  const sendOTP = async (e) => {
+    e.preventDefault(); setLoading(true); setError('');
+    try { await API.post('/auth/forgot-password', { email }); setStep('otp'); startCooldown(); }
+    catch (err) { setError(err.response?.data?.message || 'Failed to send reset code.'); }
+    finally { setLoading(false); }
   };
 
-  // Step 2 — verify OTP
-  const handleVerifyOTP = async (e) => {
-    e.preventDefault();
-    setLoading(true); setError('');
-    try {
-      await API.post('/auth/verify-reset-otp', { email, otp });
-      setStep('reset');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Invalid or expired code.');
-    } finally { setLoading(false); }
+  const verifyOTP = async (e) => {
+    e.preventDefault(); setLoading(true); setError('');
+    try { await API.post('/auth/verify-reset-otp', { email, otp }); setStep('reset'); }
+    catch (err) { setError(err.response?.data?.message || 'Invalid or expired code.'); }
+    finally { setLoading(false); }
   };
 
-  // Step 3 — set new password
-  const handleReset = async (e) => {
+  const resetPw = async (e) => {
     e.preventDefault();
     if (password !== confirm) { setError('Passwords do not match.'); return; }
     if (password.length < 8)  { setError('Password must be at least 8 characters.'); return; }
     setLoading(true); setError('');
-    try {
-      await API.post('/auth/reset-password', { email, otp, newPassword: password });
-      setStep('done');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to reset password.');
-    } finally { setLoading(false); }
+    try { await API.post('/auth/reset-password', { email, otp, newPassword: password }); setStep('done'); }
+    catch (err) { setError(err.response?.data?.message || 'Failed to reset password.'); }
+    finally { setLoading(false); }
   };
 
-  const handleResend = async () => {
-    try {
-      await API.post('/auth/forgot-password', { email });
-      startCooldown();
-      setError('');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to resend code.');
-    }
-  };
-
-  // ── Step: email ──
-  if (step === 'email') return (
-    <>
-      <Logo />
-      <div className="am-fp-icon" style={{ background:'rgba(46,171,254,0.08)', border:'1px solid rgba(46,171,254,0.2)' }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8">
-          <circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>
-        </svg>
-      </div>
-      <div className="am-panel-head" style={{ textAlign:'center' }}>
-        <h2 className="am-title">Forgot Password?</h2>
-        <p className="am-subtitle">Enter your email and we'll send you a reset code</p>
-      </div>
-      <ErrorBanner msg={error} />
-      <form onSubmit={handleSendOTP} className="am-form">
-        <div className="am-field">
-          <label className="am-label">Email Address</label>
-          <div className="am-input-wrap">
-            <span className="am-input-icon"><IconEmail /></span>
-            <input className="am-input" type="email" placeholder="name@email.com"
-              value={email} onChange={e => setEmail(e.target.value)} required />
-          </div>
+  // ── Done ──
+  if (step === 'done') return (
+    <div style={S.panel}>
+      <ModalLogo logoSrc={logoSrc} />
+      <StepDots active={3} />
+      <div style={{ textAlign: 'center', padding: '12px 0 20px' }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <button className="am-submit" type="submit" disabled={loading}>
-          {loading ? 'Sending…' : 'Send Reset Code'} {!loading && <IconArrow />}
-        </button>
-      </form>
-      <p className="am-switch" style={{ marginTop:16 }}>
-        <button className="am-switch-btn" type="button" onClick={onBack}>← Back to Sign In</button>
-      </p>
-    </>
-  );
-
-  // ── Step: otp ──
-  if (step === 'otp') return (
-    <>
-      <Logo />
-      <div className="am-fp-icon" style={{ background:'rgba(46,171,254,0.08)', border:'1px solid rgba(46,171,254,0.2)' }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-        </svg>
+        <h2 style={{ ...S.fpTitle, color: '#22C55E' }}>PASSWORD RESET!</h2>
+        <p style={S.fpSub}>Your password has been updated successfully. You can now sign in with your new password.</p>
       </div>
-      <div className="am-panel-head" style={{ textAlign:'center' }}>
-        <h2 className="am-title">Enter Reset Code</h2>
-        <p className="am-subtitle">We sent a 6-digit code to<br /><strong style={{ color:'#091925' }}>{email}</strong></p>
-      </div>
-      <ErrorBanner msg={error} />
-      <form onSubmit={handleVerifyOTP} className="am-form">
-        <div className="am-field">
-          <label className="am-label">6-Digit Code</label>
-          <input className="am-input am-otp-input" type="text" inputMode="numeric"
-            maxLength={6} placeholder="000000"
-            value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} required />
-        </div>
-        <button className="am-submit" type="submit" disabled={loading || otp.length < 6}>
-          {loading ? 'Verifying…' : 'Verify Code'} {!loading && <IconArrow />}
-        </button>
-      </form>
-      <p className="am-switch" style={{ marginTop:16 }}>
-        Didn't receive it?{' '}
-        {cooldown > 0
-          ? <span style={{ color:'#94a3b8', fontWeight:600 }}>Resend in {cooldown}s</span>
-          : <button className="am-switch-btn" type="button" onClick={handleResend}>Resend code</button>
-        }
-      </p>
-      <p className="am-switch" style={{ marginTop:8 }}>
-        <button className="am-switch-btn" type="button" onClick={() => { setStep('email'); setOtp(''); setError(''); }}>← Back</button>
-      </p>
-    </>
-  );
-
-  // ── Step: reset ──
-  if (step === 'reset') return (
-    <>
-      <Logo />
-      <div className="am-fp-icon" style={{ background:'rgba(34,197,94,0.08)', border:'1px solid rgba(34,197,94,0.2)' }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="1.8">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-      </div>
-      <div className="am-panel-head" style={{ textAlign:'center' }}>
-        <h2 className="am-title">Set New Password</h2>
-        <p className="am-subtitle">Choose a strong password for your account</p>
-      </div>
-      <ErrorBanner msg={error} />
-      <form onSubmit={handleReset} className="am-form">
-        <div className="am-field">
-          <label className="am-label">New Password</label>
-          <div className="am-input-wrap">
-            <span className="am-input-icon"><IconLock /></span>
-            <input className="am-input" type={showPw ? 'text' : 'password'}
-              placeholder="At least 8 characters"
-              value={password} onChange={e => setPassword(e.target.value)} required />
-            <button type="button" className="am-eye" onClick={() => setShowPw(v => !v)}>
-              {showPw ? <IconEyeOn /> : <IconEyeOff />}
-            </button>
-          </div>
-          {/* Password strength bar */}
-          {password.length > 0 && (
-            <div style={{ marginTop:6 }}>
-              <div style={{ height:4, borderRadius:999, background:'#e2e8f0', overflow:'hidden' }}>
-                <div style={{
-                  height:'100%', borderRadius:999, transition:'width .3s, background .3s',
-                  width: password.length < 6 ? '25%' : password.length < 10 ? '60%' : '100%',
-                  background: password.length < 6 ? '#ef4444' : password.length < 10 ? '#f59e0b' : '#22c55e',
-                }} />
-              </div>
-              <div style={{ fontSize:11, marginTop:4, color: password.length < 6 ? '#ef4444' : password.length < 10 ? '#d97706' : '#16a34a', fontWeight:600 }}>
-                {password.length < 6 ? 'Weak' : password.length < 10 ? 'Good' : 'Strong'}
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="am-field">
-          <label className="am-label">Confirm Password</label>
-          <div className="am-input-wrap">
-            <span className="am-input-icon"><IconLock /></span>
-            <input className="am-input" type={showCp ? 'text' : 'password'}
-              placeholder="Repeat your password"
-              value={confirm} onChange={e => setConfirm(e.target.value)} required />
-            <button type="button" className="am-eye" onClick={() => setShowCp(v => !v)}>
-              {showCp ? <IconEyeOn /> : <IconEyeOff />}
-            </button>
-          </div>
-          {confirm.length > 0 && password !== confirm && (
-            <div style={{ fontSize:11, color:'#ef4444', fontWeight:600, marginTop:4 }}>Passwords don't match</div>
-          )}
-        </div>
-        <button className="am-submit" type="submit" disabled={loading || password !== confirm || password.length < 8}>
-          {loading ? 'Saving…' : 'Reset Password'} {!loading && <IconArrow />}
-        </button>
-      </form>
-    </>
-  );
-
-  // ── Step: done ──
-  return (
-    <>
-      <Logo />
-      <div className="am-fp-icon" style={{ background:'rgba(34,197,94,0.10)', border:'1px solid rgba(34,197,94,0.25)' }}>
-        <IconCheck />
-      </div>
-      <div className="am-panel-head" style={{ textAlign:'center' }}>
-        <h2 className="am-title">Password Reset!</h2>
-        <p className="am-subtitle">Your password has been updated successfully.<br />You can now sign in with your new password.</p>
-      </div>
-      <button className="am-submit" type="button" onClick={onBack} style={{ marginTop:8 }}>
+      <button style={S.submitBtn} type="button" onClick={onBack}>
         Go to Sign In <IconArrow />
       </button>
-    </>
+    </div>
+  );
+
+  return (
+    <div style={S.panel}>
+      <ModalLogo logoSrc={logoSrc} />
+      <StepDots active={stepIdx} />
+
+      {/* ══ STEP 1: FORGOT PASSWORD — EMAIL ══ */}
+      {step === 'email' && (
+        <>
+          {/* Figma: "Forgot Password?" — Poppins 700 42px #2EABFE uppercase */}
+          <h2 style={{ ...S.fpTitle, color: '#2EABFE' }}>FORGOT PASSWORD?</h2>
+
+          {/* Figma: Poppins 400 16px #7FA8C4 — line-height 18px */}
+          <p style={S.fpSub}>
+            No worries — enter your email address and we'll send you a 6-digit reset code right away.
+          </p>
+
+          <ErrorBanner msg={error} />
+
+          <form onSubmit={sendOTP} style={S.form}>
+            {/* Figma: Rectangle 114 — 475×50, rgba(127,168,196,0.1), 0.5px #7FA8C4, radius 5 */}
+            {/* Placeholder: "Email Address" Poppins 500 16px #7FA8C4 opacity 0.5 */}
+            <Field
+              placeholder="Email Address"
+              type="email" value={email}
+              onChange={e => setEmail(e.target.value)} required
+            />
+
+            {/* Figma: Rectangle 1991 — 475×50, #2EABFE, 0.5px border, radius 5 */}
+            {/* Label: "SEND RESET CODE" Poppins 700 18px #091925 + mingcute:send-fill 15×15 */}
+            <button style={{ ...S.submitBtn, fontSize: 18 }} type="submit" disabled={loading}>
+              <IconSend />
+              {loading ? 'Sending…' : 'Send Reset Code'}
+            </button>
+          </form>
+
+          {/* Figma: "< Back to Sign In" — JetBrains Mono 800 13px #7FA8C4 */}
+          <button style={S.backLink} type="button" onClick={onBack}>
+            {'< Back to Sign In'}
+          </button>
+        </>
+      )}
+
+      {/* ══ STEP 2: CHECK YOUR EMAIL — OTP ══ */}
+      {step === 'otp' && (
+        <>
+          {/* Figma: "CHECK YOUR EMAIL" — Poppins 700 42px #091925 uppercase */}
+          <h2 style={{ ...S.fpTitle, color: '#091925' }}>CHECK YOUR EMAIL</h2>
+
+          {/* Figma: Poppins 400 16px #7FA8C4 line-height 18px */}
+          <p style={S.fpSub}>
+            We sent a 6-digit code to{' '}
+            <strong style={{ color: '#091925' }}>{email}</strong>.
+            {' '}Enter it below — the code expires in 10 minutes.
+          </p>
+
+          <ErrorBanner msg={error} />
+
+          <form onSubmit={verifyOTP} style={S.form}>
+            {/* Figma: 6 separate boxes — 67×70 each */}
+            <OTPBoxes value={otp} onChange={setOtp} />
+
+            {/* Figma: "Didn't get the code? Resend (00:30)" — JetBrains Mono 500 13px #7FA8C4 center */}
+            <div style={S.resendRow}>
+              <span>Didn't get the code?</span>
+              {cooldown > 0
+                ? <span style={{ fontWeight: 700 }}>&nbsp;Resend ({fmtCooldown(cooldown)})</span>
+                : <button type="button" style={S.resendBtn} onClick={async () => {
+                    try { await API.post('/auth/forgot-password', { email }); startCooldown(); } catch(e){}
+                  }}>&nbsp;Resend</button>
+              }
+            </div>
+
+            {/* Figma: Rectangle 1991 — "VERIFY CODE" Poppins 700 18px #091925 + check icon 17×13 */}
+            <button style={{ ...S.submitBtn, fontSize: 18 }} type="submit" disabled={loading || otp.length < 6}>
+              <IconCheck />
+              {loading ? 'Verifying…' : 'Verify Code'}
+            </button>
+          </form>
+
+          {/* Figma: "< Use a different email" — JetBrains Mono 800 13px #7FA8C4 */}
+          <button style={S.backLink} type="button" onClick={() => { setStep('email'); setOtp(''); setError(''); }}>
+            {'< Use a different email'}
+          </button>
+        </>
+      )}
+
+      {/* ══ STEP 3: SET NEW PASSWORD ══ */}
+      {step === 'reset' && (
+        <>
+          {/* Figma: "Set New Password" — Poppins 700 42px #091925 uppercase */}
+          <h2 style={{ ...S.fpTitle, color: '#091925' }}>SET NEW PASSWORD</h2>
+
+          {/* Figma: Poppins 400 16px #7FA8C4 line-height 18px */}
+          <p style={S.fpSub}>
+            Choose a strong password for your RELSTONE NMLS account. Must be at least 8 characters.
+          </p>
+
+          <ErrorBanner msg={error} />
+
+          <form onSubmit={resetPw} style={S.form}>
+            {/* Figma: Rectangle 114 — new password, Poppins 500 16px #091925 */}
+            <PasswordField
+              placeholder="New Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+            />
+
+            {/* Password strength indicator */}
+            {password.length > 0 && (
+              <div style={{ marginTop: -4 }}>
+                <div style={{ height: 4, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', borderRadius: 999,
+                    transition: 'width .3s, background .3s',
+                    width: password.length < 6 ? '25%' : password.length < 10 ? '60%' : '100%',
+                    background: password.length < 6 ? '#ef4444' : password.length < 10 ? '#f59e0b' : '#22c55e',
+                  }} />
+                </div>
+                <div style={{ fontSize: 11, marginTop: 4, fontWeight: 600, color: password.length < 6 ? '#ef4444' : password.length < 10 ? '#d97706' : '#16a34a' }}>
+                  {password.length < 6 ? 'Weak' : password.length < 10 ? 'Good' : 'Strong'}
+                </div>
+              </div>
+            )}
+
+            {/* Figma: Rectangle 2075 — repeat password */}
+            {/* Placeholder: "Repeat New Password" Poppins 500 16px #7FA8C4 opacity 0.5 */}
+            <PasswordField
+              placeholder="Repeat New Password"
+              value={confirm}
+              onChange={e => setConfirm(e.target.value)}
+            />
+            {confirm.length > 0 && password !== confirm && (
+              <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, marginTop: -6 }}>
+                Passwords don't match
+              </div>
+            )}
+
+            {/* Figma: Rectangle 2073 — 475×50 #2EABFE */}
+            {/* Label: "RESET MY PASSWORD" Poppins 700 18px #091925 + material-symbols:lock 11×15 */}
+            <button
+              style={{ ...S.submitBtn, fontSize: 18 }}
+              type="submit"
+              disabled={loading || password !== confirm || password.length < 8}
+            >
+              <IconLock />
+              {loading ? 'Saving…' : 'Reset My Password'}
+            </button>
+          </form>
+
+          {/* Figma: "< Back" — JetBrains Mono 800 13px #7FA8C4 */}
+          <button style={S.backLink} type="button" onClick={() => { setStep('otp'); setError(''); }}>
+            {'< Back'}
+          </button>
+        </>
+      )}
+    </div>
   );
 };
 
-// ─── Main AuthModal ───────────────────────────────────────────────
-const AuthModal = ({ mode = 'login', onClose }) => {
-  const { login } = useAuth();
-  const navigate = useNavigate();
+// ── Post-registration OTP Screen ──────────────────────────────────────────────
+const OTPScreen = ({ email, onVerify, onResend, onBack, loading, error, cooldown, logoSrc }) => {
+  const [otp, setOtp] = useState('');
+  return (
+    <div style={S.panel}>
+      <ModalLogo logoSrc={logoSrc} />
+      <StepDots active={1} />
 
-  const [activeTab, setActiveTab] = useState(mode);
-  const [showPw,    setShowPw]    = useState(false);
-  const [error,     setError]     = useState('');
-  const [loading,   setLoading]   = useState(false);
+      <h2 style={{ ...S.fpTitle, color: '#091925' }}>CHECK YOUR EMAIL</h2>
+      <p style={S.fpSub}>
+        We sent a 6-digit code to{' '}
+        <strong style={{ color: '#091925' }}>{email}</strong>.
+        {' '}Enter it below — the code expires in 10 minutes.
+      </p>
+
+      <ErrorBanner msg={error} />
+
+      <form onSubmit={e => { e.preventDefault(); onVerify(otp); }} style={S.form}>
+        <OTPBoxes value={otp} onChange={setOtp} />
+
+        <div style={S.resendRow}>
+          <span>Didn't get the code?</span>
+          {cooldown > 0
+            ? <span style={{ fontWeight: 700 }}>&nbsp;Resend ({fmtCooldown(cooldown)})</span>
+            : <button type="button" style={S.resendBtn} onClick={onResend}>&nbsp;Resend</button>
+          }
+        </div>
+
+        <button style={{ ...S.submitBtn, fontSize: 18 }} type="submit" disabled={loading || otp.length < 6}>
+          <IconCheck />
+          {loading ? 'Verifying…' : 'Verify Code'}
+        </button>
+      </form>
+
+      <button style={S.backLink} type="button" onClick={onBack}>
+        {'< Use a different email'}
+      </button>
+    </div>
+  );
+};
+
+// ── Main AuthModal ────────────────────────────────────────────────────────────
+const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => {
+  const { login }   = useAuth();
+  const navigate    = useNavigate();
+
+  const [tab, setTab]               = useState(mode);
+  const [error, setError]           = useState('');
+  const [loading, setLoading]       = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
+  const [otpStep, setOtpStep]       = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [cooldown, setCooldown]     = useState(0);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [loginForm, setLoginForm]   = useState({ email: '', password: '' });
+  const [regForm, setRegForm]       = useState({ firstName: '', lastName: '', email: '', phone: '', state: '', password: '', confirm: '' });
 
-  const [otpStep,        setOtpStep]        = useState(false);
-  const [pendingEmail,   setPendingEmail]   = useState('');
-  const [otpValue,       setOtpValue]       = useState('');
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const setL = e => setLoginForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const setR = e => setRegForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
-  const [rememberMe,   setRememberMe]   = useState(false);
-  const [loginForm,    setLoginForm]    = useState({ email: '', password: '' });
-  const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '', nmls_id: '', state: '', role: 'student' });
-
-  const handleLoginChange    = (e) => setLoginForm({    ...loginForm,    [e.target.name]: e.target.value });
-  const handleRegisterChange = (e) => setRegisterForm({ ...registerForm, [e.target.name]: e.target.value });
+  const startCooldown = () => {
+    setCooldown(30);
+    const t = setInterval(() => setCooldown(c => { if (c <= 1) { clearInterval(t); return 0; } return c - 1; }), 1000);
+  };
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true); setError('');
+    e.preventDefault(); setLoading(true); setError('');
     try {
-      const res = await API.post('/auth/login', loginForm);
+      const res = await API.post('/auth/login', { email: loginForm.email, password: loginForm.password });
       login(res.data.user, res.data.token, rememberMe);
-      onClose();
-      navigate('/home');
+      onClose(); navigate('/home');
     } catch (err) {
       if (err.response?.data?.needsVerification) {
-        setPendingEmail(err.response.data.email);
-        setOtpStep(true); setError('');
+        setPendingEmail(err.response.data.email); setOtpStep(true); setError('');
       } else {
         setError(err.response?.data?.message || 'Login failed. Please try again.');
       }
@@ -307,289 +521,149 @@ const AuthModal = ({ mode = 'login', onClose }) => {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    if (regForm.password !== regForm.confirm) { setError('Passwords do not match.'); return; }
+    if (!agreeTerms) { setError('Please agree to the Terms of Service.'); return; }
     setLoading(true); setError('');
     try {
-      const res = await API.post('/auth/register', registerForm);
-      setPendingEmail(res.data.email);
-      setOtpStep(true);
-      startResendCooldown();
+      const res = await API.post('/auth/register', {
+        name: `${regForm.firstName} ${regForm.lastName}`.trim(),
+        email: regForm.email, phone: regForm.phone,
+        state: regForm.state, password: regForm.password, role: 'student',
+      });
+      setPendingEmail(res.data.email); setOtpStep(true); startCooldown();
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally { setLoading(false); }
   };
 
-  const handleVerifyOTP = async (e) => {
-    e.preventDefault();
+  const handleVerifyOTP = async (otp) => {
     setLoading(true); setError('');
     try {
-      const res = await API.post('/auth/verify-otp', { email: pendingEmail, otp: otpValue });
-      login(res.data.user, res.data.token);
-      onClose();
-      navigate('/home');
+      const res = await API.post('/auth/verify-otp', { email: pendingEmail, otp });
+      login(res.data.user, res.data.token); onClose(); navigate('/home');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
     } finally { setLoading(false); }
   };
 
   const handleResend = async () => {
-    try {
-      await API.post('/auth/resend-otp', { email: pendingEmail });
-      startResendCooldown(); setError('');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to resend OTP.');
-    }
+    try { await API.post('/auth/resend-otp', { email: pendingEmail }); startCooldown(); setError(''); }
+    catch (err) { setError(err.response?.data?.message || 'Failed to resend OTP.'); }
   };
 
-  const startResendCooldown = () => {
-    setResendCooldown(60);
-    const t = setInterval(() => {
-      setResendCooldown(c => { if (c <= 1) { clearInterval(t); return 0; } return c - 1; });
-    }, 1000);
-  };
+  const switchTab = (t) => { setTab(t); setError(''); setOtpStep(false); };
 
-  const switchTab = (tab) => { setActiveTab(tab); setError(''); setShowPw(false); setOtpStep(false); };
-
-  // ── Forgot Password mode ──
   if (forgotMode) return (
     <>
-      <style>{css}</style>
-      <div className="am-backdrop" onClick={onClose} />
-      <div className="am-modal" role="dialog" aria-modal="true">
-        <button className="am-close" onClick={onClose} aria-label="Close">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-        <ForgotPassword onBack={() => { setForgotMode(false); setActiveTab('login'); }} onClose={onClose} />
+      <style>{CSS}</style>
+      <div style={S.backdrop} onClick={onClose} />
+      <div style={S.modal}>
+        <button style={S.closeBtn} onClick={onClose} type="button"><CloseIcon /></button>
+        <ForgotPassword onBack={() => { setForgotMode(false); setTab('login'); }} logoSrc={logoSrc} />
       </div>
     </>
   );
 
-  // ── OTP verification screen ──
   if (otpStep) return (
     <>
-      <style>{css}</style>
-      <div className="am-backdrop" onClick={onClose} />
-      <div className="am-modal" role="dialog" aria-modal="true">
-        <button className="am-close" onClick={onClose} aria-label="Close">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-        <div className="am-logo">
-          <div className="am-logo-mark">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-              <path d="M2 17l10 5 10-5" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-              <path d="M2 12l10 5 10-5" stroke="#60C3FF" strokeWidth="2" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <span className="am-logo-name">Relstone <span className="am-logo-accent">NMLS</span></span>
-        </div>
-        <div className="am-fp-icon" style={{ background:'rgba(46,171,254,0.08)', border:'1px solid rgba(46,171,254,0.2)' }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-          </svg>
-        </div>
-        <div className="am-panel-head" style={{ textAlign:'center' }}>
-          <h2 className="am-title">Check your email</h2>
-          <p className="am-subtitle">We sent a 6-digit code to<br /><strong style={{ color:'#091925' }}>{pendingEmail}</strong></p>
-        </div>
-        <ErrorBanner msg={error} />
-        <form onSubmit={handleVerifyOTP} className="am-form">
-          <div className="am-field">
-            <label className="am-label">Verification Code</label>
-            <input className="am-input am-otp-input" type="text" inputMode="numeric"
-              maxLength={6} placeholder="000000"
-              value={otpValue} onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))} required />
-          </div>
-          <button className="am-submit" type="submit" disabled={loading || otpValue.length < 6}>
-            {loading ? 'Verifying…' : 'Verify & Continue'} {!loading && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>}
-          </button>
-        </form>
-        <p className="am-switch" style={{ marginTop:16 }}>
-          Didn't receive it?{' '}
-          {resendCooldown > 0
-            ? <span style={{ color:'#94a3b8', fontWeight:600 }}>Resend in {resendCooldown}s</span>
-            : <button className="am-switch-btn" type="button" onClick={handleResend}>Resend code</button>
-          }
-        </p>
-        <p className="am-switch" style={{ marginTop:8 }}>
-          <button className="am-switch-btn" type="button" onClick={() => { setOtpStep(false); setOtpValue(''); setError(''); }}>← Back</button>
-        </p>
+      <style>{CSS}</style>
+      <div style={S.backdrop} onClick={onClose} />
+      <div style={S.modal}>
+        <button style={S.closeBtn} onClick={onClose} type="button"><CloseIcon /></button>
+        <OTPScreen
+          email={pendingEmail} onVerify={handleVerifyOTP} onResend={handleResend}
+          onBack={() => { setOtpStep(false); setError(''); }}
+          loading={loading} error={error} cooldown={cooldown} logoSrc={logoSrc}
+        />
       </div>
     </>
   );
 
-  // ── Main modal ──
   return (
     <>
-      <style>{css}</style>
-      <div className="am-backdrop" onClick={onClose} />
-      <div className="am-modal" role="dialog" aria-modal="true">
-        <button className="am-close" onClick={onClose} aria-label="Close">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
+      <style>{CSS}</style>
+      <div style={S.backdrop} onClick={onClose} />
+      <div style={S.modal}>
+        <button style={S.closeBtn} onClick={onClose} type="button"><CloseIcon /></button>
 
-        <div className="am-logo">
-          <div className="am-logo-mark">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-              <path d="M2 17l10 5 10-5" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-              <path d="M2 12l10 5 10-5" stroke="#60C3FF" strokeWidth="2" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <span className="am-logo-name">Relstone <span className="am-logo-accent">NMLS</span></span>
-        </div>
-
-        <div className="am-tabs">
-          <button className={`am-tab ${activeTab==='login'    ? 'am-tab--active':''}`} onClick={() => switchTab('login')}>Sign In</button>
-          <button className={`am-tab ${activeTab==='register' ? 'am-tab--active':''}`} onClick={() => switchTab('register')}>Create Account</button>
-        </div>
-
-        <ErrorBanner msg={error} />
-
-        {/* ── LOGIN ── */}
-        {activeTab === 'login' && (
-          <div className="am-panel">
-            <div className="am-panel-head">
-              <h2 className="am-title">Welcome back</h2>
-              <p className="am-subtitle">Sign in to your account</p>
-            </div>
-            <form onSubmit={handleLogin} className="am-form">
-              <div className="am-field">
-                <label className="am-label">Email Address</label>
-                <div className="am-input-wrap">
-                  <span className="am-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
-                  <input className="am-input" type="email" name="email" placeholder="name@email.com"
-                    value={loginForm.email} onChange={handleLoginChange} autoComplete="email" required />
-                </div>
+        {/* ══════════ LOGIN ══════════ */}
+        {tab === 'login' && (
+          <div style={S.panel}>
+            <ModalLogo logoSrc={logoSrc} />
+            <h2 style={S.loginTitle}>
+              <span style={{ color: '#2EABFE' }}>WELCOME </span>
+              <span style={{ color: '#091925' }}>BACK</span>
+            </h2>
+            <p style={S.loginSub}>Sign In To Access Your Courses, Certificates, And More.</p>
+            <ErrorBanner msg={error} />
+            <form onSubmit={handleLogin} style={{ ...S.form, marginTop: 20 }}>
+              <Field placeholder="Email Address" type="email" name="email" value={loginForm.email} onChange={setL} autoComplete="email" required />
+              <PasswordField placeholder="Password" value={loginForm.password} onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))} name="password" />
+              <div style={S.rememberRow}>
+                <label style={S.rememberLabel}>
+                  <div onClick={() => setRememberMe(v => !v)} style={{ ...S.checkbox, ...(rememberMe ? S.checkboxOn : {}) }}>
+                    {rememberMe && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>}
+                  </div>
+                  <span style={S.rememberText}>Remember Me</span>
+                </label>
+                <button type="button" style={S.forgotBtn} onClick={() => setForgotMode(true)}>Forgot Password?</button>
               </div>
-              <div className="am-field">
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                  <label className="am-label">Password</label>
-                  <button type="button" className="am-switch-btn" style={{ fontSize:12 }} onClick={() => setForgotMode(true)}>
-                    Forgot password?
-                  </button>
-                </div>
-                <div className="am-input-wrap">
-                  <span className="am-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-                  <input className="am-input" type={showPw ? 'text' : 'password'} name="password"
-                    placeholder="Enter your password" value={loginForm.password}
-                    onChange={handleLoginChange} autoComplete="current-password" required />
-                  <button type="button" className="am-eye" onClick={() => setShowPw(v => !v)}>
-                    {showPw ? <IconEyeOn /> : <IconEyeOff />}
-                  </button>
-                </div>
-              </div>
-              <label style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer', userSelect:'none', margin:'2px 0 4px' }}>
-                <div
-                  onClick={() => setRememberMe(v => !v)}
-                  style={{
-                    width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                    border: rememberMe ? 'none' : '1.5px solid #cbd5e1',
-                    background: rememberMe ? '#2EABFE' : '#fff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'all .15s',
-                  }}
-                >
-                  {rememberMe && <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>}
-                </div>
-                <span style={{ fontSize:13, color:'rgba(9,25,37,0.65)', fontWeight:500 }}>Remember me</span>
-              </label>
-              <button className="am-submit" type="submit" disabled={loading}>
-                {loading ? 'Signing in…' : 'Sign In'} {!loading && <IconArrow />}
+              <button style={S.submitBtn} type="submit" disabled={loading}>
+                {loading ? 'SIGNING IN…' : 'SIGN IN TO STUDENT PORTAL'} <IconArrow />
               </button>
             </form>
-            <p className="am-switch">
+            <p style={S.switchText}>
               Don't have an account?{' '}
-              <button className="am-switch-btn" onClick={() => switchTab('register')}>Create one here</button>
+              <button style={S.linkBtn} type="button" onClick={() => switchTab('register')}>Create one free →</button>
             </p>
           </div>
         )}
 
-        {/* ── REGISTER ── */}
-        {activeTab === 'register' && (
-          <div className="am-panel">
-            <div className="am-panel-head">
-              <h2 className="am-title">Create Account</h2>
-              <p className="am-subtitle">Start your NMLS education journey</p>
-            </div>
-            <form onSubmit={handleRegister} className="am-form">
-              <div className="am-field">
-                <label className="am-label">Full Name</label>
-                <div className="am-input-wrap">
-                  <span className="am-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-                  <input className="am-input" type="text" name="name" placeholder="Your full name"
-                    value={registerForm.name} onChange={handleRegisterChange} required />
-                </div>
+        {/* ══════════ REGISTER ══════════ */}
+        {tab === 'register' && (
+          <div style={S.panel}>
+            <ModalLogo logoSrc={logoSrc} />
+            <h2 style={S.registerTitle}>CREATE <span style={{ color: '#2EABFE' }}>YOUR ACCOUNT</span></h2>
+            <p style={S.loginSub}>Free Instant Access — No Credit Card Required.</p>
+            <ErrorBanner msg={error} />
+            <form onSubmit={handleRegister} style={S.form}>
+              <div style={S.twoCol}>
+                <Field placeholder="First Name" name="firstName" value={regForm.firstName} onChange={setR} required />
+                <Field placeholder="Last Name"  name="lastName"  value={regForm.lastName}  onChange={setR} required />
               </div>
-              <div className="am-field">
-                <label className="am-label">Email Address</label>
-                <div className="am-input-wrap">
-                  <span className="am-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
-                  <input className="am-input" type="email" name="email" placeholder="name@email.com"
-                    value={registerForm.email} onChange={handleRegisterChange} autoComplete="email" required />
-                </div>
+              <Field placeholder="Email Address" type="email" name="email" value={regForm.email} onChange={setR} autoComplete="email" required />
+              <Field placeholder="Phone Number (Optional)" type="tel" name="phone" value={regForm.phone} onChange={setR} />
+              <div style={S.selectWrap}>
+                <select style={S.select} name="state" value={regForm.state} onChange={setR}>
+                  <option value="">Select Your State</option>
+                  {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <span style={S.selectChevron}><IconChevron /></span>
               </div>
-              <div className="am-field">
-                <label className="am-label">Password</label>
-                <div className="am-input-wrap">
-                  <span className="am-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-                  <input className="am-input" type={showPw ? 'text' : 'password'} name="password"
-                    placeholder="Create a password" value={registerForm.password}
-                    onChange={handleRegisterChange} autoComplete="new-password" required />
-                  <button type="button" className="am-eye" onClick={() => setShowPw(v => !v)}>
-                    {showPw ? <IconEyeOn /> : <IconEyeOff />}
-                  </button>
+              <PasswordField placeholder="Create a Password" value={regForm.password} onChange={e => setRegForm(f => ({ ...f, password: e.target.value }))} name="password" />
+              <PasswordField placeholder="Confirm Password" value={regForm.confirm} onChange={e => setRegForm(f => ({ ...f, confirm: e.target.value }))} name="confirm" />
+              {regForm.confirm.length > 0 && regForm.password !== regForm.confirm && (
+                <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, marginTop: -6 }}>Passwords don't match</div>
+              )}
+              <label style={{ ...S.rememberLabel, alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                <div onClick={() => setAgreeTerms(v => !v)} style={{ ...S.checkbox, marginTop: 2, ...(agreeTerms ? S.checkboxOn : {}) }}>
+                  {agreeTerms && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5"><polyline points="20 6 9 17 4 12"/></svg>}
                 </div>
-              </div>
-              <div className="am-field">
-                <label className="am-label">I am a</label>
-                <div className="am-role-toggle">
-                  <button type="button" className={`am-role-btn ${registerForm.role==='student' ? 'am-role-btn--active':''}`}
-                    onClick={() => setRegisterForm({ ...registerForm, role:'student' })}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
-                    Student
-                  </button>
-                  <button type="button" className={`am-role-btn ${registerForm.role==='instructor' ? 'am-role-btn--active':''}`}
-                    onClick={() => setRegisterForm({ ...registerForm, role:'instructor' })}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    Instructor
-                  </button>
-                </div>
-              </div>
-              <div className="am-two-col">
-                <div className="am-field">
-                  <label className="am-label">NMLS ID <span className="am-optional">(optional)</span></label>
-                  <div className="am-input-wrap">
-                    <span className="am-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
-                    <input className="am-input" type="text" name="nmls_id" placeholder="NMLS ID"
-                      value={registerForm.nmls_id} onChange={handleRegisterChange} />
-                  </div>
-                </div>
-                <div className="am-field">
-                  <label className="am-label">State</label>
-                  <div className="am-input-wrap">
-                    <span className="am-input-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
-                    <select className="am-input am-select" name="state" value={registerForm.state} onChange={handleRegisterChange}>
-                      <option value="">Select state</option>
-                      {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <button className="am-submit" type="submit" disabled={loading}>
-                {loading ? 'Sending OTP…' : 'Continue'} {!loading && <IconArrow />}
+                <span style={{ fontSize: 14, color: '#5B7384', lineHeight: 1.5, fontFamily: "'Poppins', sans-serif", fontWeight: 500 }}>
+                  I agree to the{' '}
+                  <a href="#" style={S.termsLink}>Terms of Service</a>{' '}and{' '}
+                  <a href="#" style={S.termsLink}>Privacy Policy</a>
+                </span>
+              </label>
+              <button style={{ ...S.submitBtn, fontSize: 18 }} type="submit" disabled={loading}>
+                {loading ? 'CREATING ACCOUNT…' : 'Create a Free Account'} <IconArrow />
               </button>
             </form>
-            <p className="am-switch">
+            <p style={S.disclaimer}>By creating an account, you agree to RELSTONE's Terms of Service and Privacy Policy.</p>
+            <p style={{ ...S.switchText, marginTop: 10 }}>
               Already have an account?{' '}
-              <button className="am-switch-btn" onClick={() => switchTab('login')}>Sign in here</button>
+              <button style={S.linkBtn} type="button" onClick={() => switchTab('login')}>Sign in →</button>
             </p>
-            <p className="am-disclaimer">By creating an account you agree to Relstone's Terms of Service and Privacy Policy.</p>
           </div>
         )}
       </div>
@@ -597,60 +671,211 @@ const AuthModal = ({ mode = 'login', onClose }) => {
   );
 };
 
-const css = `
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
-:root {
-  --am-midnight:#091925; --am-electric:#2EABFE; --am-sky:#60C3FF;
-  --am-slate:#7FA8C4; --am-ice:#F0F6FA; --am-border:rgba(9,25,37,0.1);
-  --am-muted:#64748b; --am-font:'Poppins',sans-serif; --am-title:'Homepage Baukasten',sans-serif;
+// ── Styles ────────────────────────────────────────────────────────────────────
+const S = {
+  backdrop: { position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(9,25,37,0.60)', backdropFilter: 'blur(6px)' },
+
+  // Figma: Rectangle 377 — 565px wide, white, radius 10
+  modal: {
+    position: 'fixed', zIndex: 201, top: '50%', left: '50%',
+    transform: 'translate(-50%,-50%)',
+    width: '100%', maxWidth: 565,
+    background: '#FFFFFF', borderRadius: 10,
+    padding: '36px 40px 32px',
+    boxShadow: '0 32px 80px rgba(9,25,37,0.22), 0 0 0 1px rgba(9,25,37,0.06)',
+    maxHeight: '94vh', overflowY: 'auto',
+    fontFamily: "'Poppins', system-ui, sans-serif",
+    boxSizing: 'border-box',
+  },
+
+  // Figma: Rectangle 378 — 35×35, rgba(91,115,132,0.1), 0.5px #5B7384, radius 5
+  closeBtn: {
+    position: 'absolute', top: 16, right: 16,
+    width: 35, height: 35,
+    background: 'rgba(91,115,132,0.10)',
+    border: '0.5px solid #5B7384',
+    borderRadius: 5, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#5B7384', padding: 0,
+  },
+
+  panel: { display: 'flex', flexDirection: 'column' },
+
+  // Logo — Figma Mask group 246×35
+  logo:        { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 },
+  logoImg:     { height: 32, objectFit: 'contain', display: 'block' },
+  // Figma: Line 4 — 0.5px #2EABFE vertical
+  logoDivider: { width: 0.5, height: 35, background: '#2EABFE', flexShrink: 0 },
+  logoRight:   { display: 'flex', flexDirection: 'column', gap: 1 },
+  // Figma: NMLS — Poppins 900 20px #091925 capitalize
+  logoNmls:    { fontSize: 20, fontWeight: 900, color: '#091925', fontFamily: "'Poppins', sans-serif", lineHeight: 1.2, textTransform: 'capitalize' },
+  // Figma: Student Portal — JetBrains Mono 400 14px #091925
+  logoPortal:  { fontSize: 14, color: '#091925', fontWeight: 400, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.2 },
+
+  // Forgot / OTP / Reset heading — Poppins 700 42px uppercase (color set inline per screen)
+  fpTitle: {
+    fontFamily: "'Poppins', sans-serif",
+    fontSize: 38, fontWeight: 700,
+    lineHeight: 1.1, marginBottom: 10, letterSpacing: -0.5,
+    textTransform: 'uppercase',
+  },
+  // Figma: subtitle — Poppins 400 16px #7FA8C4 line-height 18px
+  fpSub: {
+    fontSize: 16, color: '#7FA8C4',
+    fontFamily: "'Poppins', sans-serif",
+    fontWeight: 400, lineHeight: '18px', marginBottom: 18,
+  },
+
+  // Login / register headings
+  loginTitle: {
+    fontFamily: "'Poppins', sans-serif",
+    fontSize: 38, fontWeight: 700,
+    lineHeight: 1, marginBottom: 10, letterSpacing: -0.5,
+    textTransform: 'uppercase',
+  },
+  loginSub: {
+    fontSize: 16, color: '#7FA8C4', marginBottom: 6,
+    lineHeight: 1.5, fontFamily: "'Poppins', sans-serif",
+    fontWeight: 400, textTransform: 'capitalize',
+  },
+  registerTitle: {
+    fontFamily: "'Poppins', sans-serif",
+    fontSize: 36, fontWeight: 700, color: '#091925',
+    lineHeight: 1.1, marginBottom: 8, letterSpacing: -0.5,
+    textTransform: 'uppercase',
+  },
+
+  form:   { display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 },
+  twoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+
+  // Figma: inputs — 475×50, rgba(127,168,196,0.1), 0.5px #7FA8C4, radius 5, Poppins 500 16px
+  input: {
+    width: '100%', height: 50, padding: '0 16px',
+    fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500,
+    color: '#091925', background: 'rgba(127,168,196,0.1)',
+    border: '0.5px solid #7FA8C4', borderRadius: 5, outline: 'none',
+    transition: 'border-color .15s, box-shadow .15s', boxSizing: 'border-box',
+  },
+
+  pwWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
+  // Figma: mdi:eye — 23×24, opacity 0.5
+  eyeBtn: {
+    position: 'absolute', right: 12, width: 32, height: 32,
+    background: 'none', border: 'none', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#5B7384', opacity: 0.5, borderRadius: 6, padding: 0,
+    transition: 'opacity .15s',
+  },
+
+  selectWrap:    { position: 'relative', display: 'flex', alignItems: 'center' },
+  select: {
+    width: '100%', height: 50, padding: '0 40px 0 16px',
+    fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500,
+    color: '#5B7384', background: 'rgba(127,168,196,0.1)',
+    border: '0.5px solid #7FA8C4', borderRadius: 5,
+    outline: 'none', appearance: 'none', cursor: 'pointer',
+    boxSizing: 'border-box', opacity: 0.75,
+  },
+  selectChevron: {
+    position: 'absolute', right: 14,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#7FA8C4', opacity: 0.5, pointerEvents: 'none',
+  },
+
+  rememberRow:   { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  rememberLabel: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' },
+  rememberText:  { fontSize: 14, color: '#5B7384', fontWeight: 500, fontFamily: "'Poppins', sans-serif" },
+
+  // Figma: Rectangle 1989 — 20×20, rgba(127,168,196,0.1), 0.5px #7FA8C4, radius 5
+  checkbox:   { width: 20, height: 20, borderRadius: 5, flexShrink: 0, border: '0.5px solid #7FA8C4', background: 'rgba(127,168,196,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s', cursor: 'pointer' },
+  checkboxOn: { background: '#2EABFE', border: 'none' },
+
+  forgotBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#2EABFE', fontFamily: "'Poppins', sans-serif", padding: 0 },
+
+  // Figma: Rectangle 1991 — 475×50, #2EABFE, 0.5px #2EABFE border, radius 5
+  submitBtn: {
+    height: 50, width: '100%',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+    fontSize: 16, fontWeight: 700, letterSpacing: 0.3,
+    color: '#091925', background: '#2EABFE',
+    border: '0.5px solid #2EABFE', borderRadius: 5,
+    cursor: 'pointer', marginTop: 4, transition: 'all .2s',
+    fontFamily: "'Poppins', sans-serif", textTransform: 'capitalize', padding: 0,
+  },
+
+  termsLink: { color: '#2EABFE', textDecoration: 'none', fontWeight: 600 },
+
+  // Figma: "Didn't get the code? Resend (00:30)" — JetBrains Mono 500 13px #7FA8C4 center
+  resendRow: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 13, color: '#7FA8C4',
+    fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '17px',
+  },
+  resendBtn: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: 13, fontWeight: 700, color: '#2EABFE',
+    fontFamily: "'JetBrains Mono', monospace", padding: 0,
+  },
+
+  // Figma: "< Back to Sign In" / "< Use a different email" / "< Back"
+  // JetBrains Mono 800 13px #7FA8C4
+  backLink: {
+    marginTop: 18, background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: 13, fontWeight: 800, color: '#7FA8C4',
+    fontFamily: "'JetBrains Mono', monospace", padding: 0,
+    textAlign: 'left', display: 'inline-flex', alignItems: 'center',
+    transition: 'color .15s',
+  },
+
+  // Figma: "Already have an account? Sign in →" — JetBrains Mono 500 13px #7FA8C4
+  switchText: {
+    marginTop: 18, textAlign: 'center',
+    fontSize: 13, color: '#7FA8C4',
+    fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
+  },
+  linkBtn: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: 13, fontWeight: 700, color: '#2EABFE',
+    fontFamily: "'JetBrains Mono', monospace", padding: 0,
+  },
+
+  // Figma: "By creating an account..." — JetBrains Mono 500 13px #7FA8C4
+  disclaimer: {
+    marginTop: 14, textAlign: 'center',
+    fontSize: 13, color: '#7FA8C4',
+    fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '15px',
+  },
+
+  error: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '11px 14px', marginBottom: 14,
+    background: '#fef2f2', border: '1px solid #fecaca',
+    borderRadius: 5, color: '#b91c1c', fontSize: 13,
+  },
+};
+
+// ── Global CSS ────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+input:focus, select:focus {
+  border-color: #2EABFE !important;
+  box-shadow: 0 0 0 3px rgba(46,171,254,0.12) !important;
+  outline: none !important;
 }
-.am-backdrop { position:fixed; inset:0; z-index:200; background:rgba(9,25,37,0.65); backdrop-filter:blur(6px); animation:am-fade-in .2s ease; }
-@keyframes am-fade-in { from{opacity:0} to{opacity:1} }
-.am-modal { position:fixed; z-index:201; top:50%; left:50%; transform:translate(-50%,-50%); width:100%; max-width:480px; background:#fff; border-radius:22px; padding:36px 36px 28px; box-shadow:0 32px 80px rgba(9,25,37,0.22),0 0 0 1px rgba(9,25,37,0.06); animation:am-slide-up .28s cubic-bezier(.34,1.3,.64,1); max-height:92vh; overflow-y:auto; font-family:var(--am-font); }
-@keyframes am-slide-up { from{opacity:0;transform:translate(-50%,-46%)} to{opacity:1;transform:translate(-50%,-50%)} }
-.am-close { position:absolute; top:18px; right:18px; width:34px; height:34px; background:var(--am-ice); border:none; border-radius:9px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--am-muted); transition:all .18s; }
-.am-close:hover { background:#e8ecf0; color:var(--am-midnight); }
-.am-logo { display:flex; align-items:center; gap:10px; margin-bottom:24px; }
-.am-logo-mark { width:34px; height:34px; background:rgba(46,171,254,0.08); border:1px solid rgba(46,171,254,0.2); border-radius:9px; display:flex; align-items:center; justify-content:center; }
-.am-logo-name { font-family:var(--am-title); font-size:16px; font-weight:700; color:var(--am-midnight); }
-.am-logo-accent { color:var(--am-electric); }
-.am-fp-icon { width:64px; height:64px; margin:0 auto 18px; border-radius:18px; display:flex; align-items:center; justify-content:center; }
-.am-otp-input { text-align:center; font-size:28px !important; font-weight:800 !important; letter-spacing:12px; padding:0 12px !important; }
-.am-tabs { display:flex; background:var(--am-ice); border-radius:12px; padding:4px; margin-bottom:22px; }
-.am-tab { flex:1; padding:9px; font-family:var(--am-font); font-size:14px; font-weight:600; color:var(--am-muted); background:none; border:none; border-radius:9px; cursor:pointer; transition:all .18s; }
-.am-tab--active { background:#fff; color:var(--am-midnight); box-shadow:0 2px 8px rgba(9,25,37,0.1); }
-.am-error { display:flex; align-items:center; gap:8px; padding:11px 14px; background:#fef2f2; border:1px solid #fecaca; border-radius:10px; color:#b91c1c; font-size:13px; margin-bottom:16px; }
-.am-panel-head { margin-bottom:20px; }
-.am-title { font-family:var(--am-title); font-size:24px; font-weight:800; color:var(--am-midnight); margin-bottom:4px; }
-.am-subtitle { font-size:13.5px; color:var(--am-muted); }
-.am-form { display:grid; gap:14px; }
-.am-field { display:grid; gap:6px; }
-.am-label { font-size:12px; font-weight:600; color:rgba(9,25,37,0.7); }
-.am-optional { font-weight:400; color:var(--am-slate); }
-.am-input-wrap { position:relative; display:flex; align-items:center; }
-.am-input-icon { position:absolute; left:13px; display:flex; align-items:center; color:rgba(9,25,37,0.4); pointer-events:none; }
-.am-input { width:100%; height:46px; padding:0 44px 0 40px; font-family:var(--am-font); font-size:14px; color:var(--am-midnight); background:var(--am-ice); border:1.5px solid transparent; border-radius:12px; outline:none; transition:border-color .18s,box-shadow .18s,background .18s; appearance:none; }
-.am-input::placeholder { color:rgba(9,25,37,0.32); }
-.am-input:focus { background:#fff; border-color:var(--am-electric); box-shadow:0 0 0 4px rgba(46,171,254,0.12); }
-.am-select { cursor:pointer; }
-.am-eye { position:absolute; right:10px; width:30px; height:30px; background:none; border:none; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; color:rgba(9,25,37,0.4); transition:all .15s; }
-.am-eye:hover { background:rgba(9,25,37,0.06); color:var(--am-midnight); }
-.am-two-col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.am-role-toggle { display:flex; gap:8px; }
-.am-role-btn { flex:1; height:44px; display:flex; align-items:center; justify-content:center; gap:7px; font-family:var(--am-font); font-size:13.5px; font-weight:600; color:var(--am-muted); background:var(--am-ice); border:1.5px solid transparent; border-radius:12px; cursor:pointer; transition:all .18s; }
-.am-role-btn:hover { border-color:rgba(46,171,254,0.3); color:var(--am-midnight); }
-.am-role-btn--active { background:rgba(46,171,254,0.08); border-color:var(--am-electric); color:var(--am-electric); }
-.am-submit { height:48px; width:100%; display:flex; align-items:center; justify-content:center; gap:8px; font-family:var(--am-font); font-size:15px; font-weight:700; color:#fff; background:var(--am-midnight); border:none; border-radius:12px; cursor:pointer; margin-top:4px; transition:all .2s; box-shadow:0 4px 16px rgba(9,25,37,0.18); }
-.am-submit:hover:not(:disabled) { background:var(--am-electric); box-shadow:0 8px 24px rgba(46,171,254,0.3); transform:translateY(-1px); }
-.am-submit:disabled { opacity:.65; cursor:not-allowed; transform:none; box-shadow:none; }
-.am-switch { margin-top:18px; text-align:center; font-size:13.5px; color:var(--am-muted); }
-.am-switch-btn { background:none; border:none; cursor:pointer; font-family:var(--am-font); font-size:13.5px; font-weight:700; color:var(--am-electric); padding:0; }
-.am-switch-btn:hover { text-decoration:underline; }
-.am-disclaimer { margin-top:14px; text-align:center; font-size:11px; color:rgba(9,25,37,0.4); line-height:1.6; }
-.am-modal::-webkit-scrollbar { width:6px; }
-.am-modal::-webkit-scrollbar-track { background:transparent; }
-.am-modal::-webkit-scrollbar-thumb { background:rgba(9,25,37,0.12); border-radius:3px; }
-@media (max-width:520px) { .am-modal { padding:28px 22px 22px; border-radius:18px; max-width:calc(100% - 24px); } .am-two-col { grid-template-columns:1fr; } }
+input::placeholder { color: #7FA8C4 !important; opacity: 0.5; }
+select option { color: #091925; background: #fff; opacity: 1; }
+
+button[style*="background: #2EABFE"]:hover:not(:disabled),
+button[style*='background: #2EABFE']:hover:not(:disabled) {
+  opacity: 0.88 !important; transform: translateY(-1px) !important;
+}
+button[style*="background: #2EABFE"]:disabled,
+button[style*='background: #2EABFE']:disabled {
+  opacity: 0.55 !important; cursor: not-allowed !important;
+}
 `;
 
 export default AuthModal;

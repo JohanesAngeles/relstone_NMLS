@@ -110,38 +110,54 @@ const Dashboard = () => {
 
         {/* ── My Courses ── */}
         {availableCourses.length > 0 && (
-          <section style={S.myCoursesSection}>
-            <div style={S.myCoursesHead}>
-              <div>
-                <div style={S.myCoursesTitle}>📚 My Courses</div>
-                <div style={S.myCoursesSub}>Courses you've paid for — click Start Learning to begin</div>
+  <section style={S.myCoursesSection}>
+    <div style={S.myCoursesHead}>
+      <div>
+        <div style={S.myCoursesTitle}>📚 My Courses</div>
+        <div style={S.myCoursesSub}>Courses you've paid for — click Start Learning to begin</div>
+      </div>
+      {/* ── View Full My Courses button ── */}
+      <button
+        style={S.viewAllBtn}
+        onClick={() => navigate("/my-courses")}
+        type="button"
+      >
+        View All My Courses <ChevronRight size={15} />
+      </button>
+    </div>
+    <div style={S.courseGrid}>
+      {availableCourses.slice(0, 3).map((course) => (  // ← slice to show max 3 on dashboard
+        <div key={course.course_id} style={S.courseCard}>
+          <div style={S.courseCardTop}>
+            <div style={S.courseCardIcon}><BookOpen size={20} /></div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={S.courseCardTitle}>{course.title}</div>
+              <div style={S.courseCardMeta}>
+                <span style={badgeStyle(course.type)}>{String(course.type||"").toUpperCase()}</span>
+                <span style={S.courseCardHrs}><Clock size={12} /> {course.credit_hours} hrs</span>
               </div>
             </div>
-            <div style={S.courseGrid}>
-              {availableCourses.map((course) => (
-                <div key={course.course_id} style={S.courseCard}>
-                  <div style={S.courseCardTop}>
-                    <div style={S.courseCardIcon}><BookOpen size={20} /></div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={S.courseCardTitle}>{course.title}</div>
-                      <div style={S.courseCardMeta}>
-                        <span style={badgeStyle(course.type)}>{String(course.type||"").toUpperCase()}</span>
-                        <span style={S.courseCardHrs}><Clock size={12} /> {course.credit_hours} hrs</span>
-                      </div>
-                    </div>
-                  </div>
-                  {course.already_completed ? (
-                    <div style={S.completedBadge}><CheckCircle size={15} /> Completed</div>
-                  ) : (
-                    <button style={S.startLearningBtn} onClick={() => navigate(`/courses/${course.course_id}/learn`)} type="button">
-                      <PlayCircle size={16} /> Start Learning
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+          </div>
+          {course.already_completed ? (
+            <div style={S.completedBadge}><CheckCircle size={15} /> Completed</div>
+          ) : (
+            <button style={S.startLearningBtn} onClick={() => navigate(`/courses/${course.course_id}/learn`)} type="button">
+              <PlayCircle size={16} /> Start Learning
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+    {/* ── Show "View All" footer link if more than 3 courses ── */}
+    {availableCourses.length > 3 && (
+      <div style={S.viewAllFooter}>
+        <button style={S.viewAllFooterBtn} onClick={() => navigate("/my-courses")} type="button">
+          View all {availableCourses.length} courses <ChevronRight size={14} />
+        </button>
+      </div>
+    )}
+  </section>
+)}
 
         {/* ── Tabs card ── */}
         <section style={S.card}>
@@ -244,58 +260,100 @@ const Dashboard = () => {
             )}
 
             {/* Orders */}
-            {activeTab === "orders" && (
-              <div>
-                <div style={S.sectionHead}>
-                  <div><div style={S.sectionTitle}>Orders</div><div style={S.sectionSub}>Your purchases and payment status</div></div>
-                </div>
-                {orders.length === 0 ? (
-                  <EmptyState icon={<Clock size={18} />} title="No orders yet" subtitle="When you purchase courses, your orders will show here." actionLabel="Browse courses" onAction={() => navigate("/courses")} />
-                ) : (
-                  <div style={{ display:"grid", gap:12 }}>
-                    {orders.map((order, i) => {
-                      const isPaid = String(order?.status||"").toLowerCase() === "paid";
-                      return (
-                        <div key={i} style={S.orderCard}>
-                          <div style={S.orderTop}>
-                            <div style={S.orderLeft}>
-                              <div style={S.orderTitle}><FileText size={16} /><span>Order #{String(order?._id||"").slice(-6).toUpperCase()}</span></div>
-                              <div style={S.orderMeta}><Clock size={14} />{order?.createdAt ? new Date(order.createdAt).toLocaleDateString() : "-"}</div>
-                            </div>
-                            <span style={orderStatusStyle(order?.status)}>{order?.status}</span>
-                          </div>
-                          <div style={S.orderItems}>
-                            {(order?.items||[]).map((item, j) => (
-                              <div key={j} style={{ ...S.orderItem, ...(isPaid ? {} : S.orderItemLocked) }}>
-                                <div style={S.orderItemIcon}><BookOpen size={15} /></div>
-                                <div style={S.orderItemInfo}>
-                                  <div style={S.orderItemTitle}>{item?.course_id?.title || "Course"}</div>
-                                  <div style={S.orderItemMeta}>
-                                    {item?.course_id?.type && <span style={badgeStyle(item.course_id.type)}>{String(item.course_id.type).toUpperCase()}</span>}
-                                    {item?.course_id?.credit_hours && <span style={S.orderMetaChip}><Clock size={11} /> {item.course_id.credit_hours} hrs</span>}
-                                    {item?.include_textbook && <span style={S.pill}>+ Textbook</span>}
-                                  </div>
-                                </div>
-                                {isPaid && item?.course_id?._id ? (
-                                  <button style={S.startBtn} onClick={() => navigate(`/courses/${item.course_id._id}/learn`)} type="button">
-                                    <PlayCircle size={13} /> Start Learning
-                                  </button>
-                                ) : (
-                                  <div style={S.lockedBadge}><Lock size={13} /> Pending Payment</div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                          <div style={S.orderBottom}>
-                            <div style={S.total}>Total: <strong>${Number(order?.total_amount||0).toFixed(2)}</strong></div>
-                          </div>
-                        </div>
-                      );
-                    })}
+           {activeTab === "orders" && (
+  <div>
+    <div style={S.sectionHead}>
+      <div>
+        <div style={S.sectionTitle}>Orders</div>
+        <div style={S.sectionSub}>Your purchases, receipts, and payment methods</div>
+      </div>
+    </div>
+
+    {orders.length === 0 ? (
+      <EmptyState
+        icon={<Clock size={18} />}
+        title="No orders yet"
+        subtitle="When you purchase courses, your orders will show here."
+        actionLabel="Browse courses"
+        onAction={() => navigate("/courses")}
+      />
+    ) : (
+      <div>
+        {/* Preview — last 3 orders only */}
+        <div style={{ display:"grid", gap:12, marginBottom:16 }}>
+          {orders.slice(0, 3).map((order, i) => {
+            const isPaid = String(order?.status||"").toLowerCase() === "paid";
+            return (
+              <div key={i} style={S.orderCard}>
+                <div style={S.orderTop}>
+                  <div style={S.orderLeft}>
+                    <div style={S.orderTitle}>
+                      <FileText size={16} />
+                      <span>Order #{String(order?._id||"").slice(-6).toUpperCase()}</span>
+                    </div>
+                    <div style={S.orderMeta}>
+                      <Clock size={14} />
+                      {order?.createdAt ? new Date(order.createdAt).toLocaleDateString() : "-"}
+                    </div>
                   </div>
-                )}
+                  <span style={orderStatusStyle(order?.status)}>{order?.status}</span>
+                </div>
+                <div style={S.orderItems}>
+                  {(order?.items||[]).map((item, j) => (
+                    <div key={j} style={{ ...S.orderItem, ...(isPaid ? {} : S.orderItemLocked) }}>
+                      <div style={S.orderItemIcon}><BookOpen size={15} /></div>
+                      <div style={S.orderItemInfo}>
+                        <div style={S.orderItemTitle}>{item?.course_id?.title || "Course"}</div>
+                        <div style={S.orderItemMeta}>
+                          {item?.course_id?.type && <span style={badgeStyle(item.course_id.type)}>{String(item.course_id.type).toUpperCase()}</span>}
+                          {item?.course_id?.credit_hours && <span style={S.orderMetaChip}><Clock size={11} /> {item.course_id.credit_hours} hrs</span>}
+                          {item?.include_textbook && <span style={S.pill}>+ Textbook</span>}
+                        </div>
+                      </div>
+                      {isPaid && item?.course_id?._id ? (
+                        <button style={S.startBtn} onClick={() => navigate(`/courses/${item.course_id._id}/learn`)} type="button">
+                          <PlayCircle size={13} /> Start Learning
+                        </button>
+                      ) : (
+                        <div style={S.lockedBadge}><Lock size={13} /> Pending Payment</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div style={S.orderBottom}>
+                  <div style={S.total}>Total: <strong>${Number(order?.total_amount||0).toFixed(2)}</strong></div>
+                </div>
               </div>
-            )}
+            );
+          })}
+        </div>
+
+        {/* View All Orders & Billing CTA */}
+        <div style={{ borderTop:"1px solid rgba(2,8,23,0.07)", paddingTop:16, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+          <div style={{ fontSize:13, fontWeight:700, color:"rgba(11,18,32,0.55)" }}>
+            {orders.length > 3 ? `Showing 3 of ${orders.length} orders` : `${orders.length} order${orders.length !== 1 ? "s" : ""} total`}
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/orders")}
+            style={{
+              display:"inline-flex", alignItems:"center", gap:8,
+              padding:"11px 20px", borderRadius:12,
+              border:"1px solid rgba(46,171,254,0.30)",
+              background:"rgba(46,171,254,0.07)",
+              color:"#2EABFE", cursor:"pointer",
+              fontWeight:800, fontSize:13,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background="#2EABFE"; e.currentTarget.style.color="#fff"; }}
+            onMouseLeave={e => { e.currentTarget.style.background="rgba(46,171,254,0.07)"; e.currentTarget.style.color="#2EABFE"; }}
+          >
+            View All Orders &amp; Billing <ChevronRight size={15} />
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+)}
           </div>
         </section>
       </div>
@@ -476,6 +534,9 @@ const S = {
   emptyIcon:      { width:44, height:44, borderRadius:16, background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.18)", display:"grid", placeItems:"center", color:"#091925", margin:"0 auto" },
   emptyTitle:     { marginTop:10, fontWeight:950, color:"rgba(11,18,32,0.86)" },
   emptySub:       { marginTop:6, color:"rgba(11,18,32,0.55)", fontWeight:700, fontSize:12, lineHeight:1.6 },
+  viewAllBtn:       { display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:12, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", cursor:"pointer", fontWeight:800, fontSize:13, color:"rgba(9,25,37,0.72)", flexShrink:0 },
+viewAllFooter:    { marginTop:14, paddingTop:12, borderTop:"1px solid rgba(2,8,23,0.07)", display:"flex", justifyContent:"center" },
+viewAllFooterBtn: { display:"inline-flex", alignItems:"center", gap:6, padding:"8px 16px", borderRadius:999, border:"1px solid rgba(46,171,254,0.22)", background:"rgba(46,171,254,0.06)", cursor:"pointer", fontWeight:800, fontSize:13, color:"#2EABFE" },
 };
 
 export default Dashboard;

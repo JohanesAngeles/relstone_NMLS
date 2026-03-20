@@ -5,6 +5,22 @@ const jwt        = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const User       = require('../models/User');
 
+// ── Auth middleware ───────────────────────────────────────────────
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'No token provided' });
+  }
+  try {
+    const token   = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+
 // ── Nodemailer transporter ────────────────────────────────────────
 const getTransporter = () => nodemailer.createTransport({
   service: 'gmail',
@@ -42,7 +58,6 @@ const sendOTPEmail = async (email, name, otp) => {
   });
 };
 
-// ── NEW: Password reset email ─────────────────────────────────────
 const sendResetEmail = async (email, name, otp) => {
   await getTransporter().sendMail({
     from: `"Relstone NMLS" <${process.env.EMAIL_USER}>`,
@@ -67,6 +82,10 @@ const sendResetEmail = async (email, name, otp) => {
     `,
   });
 };
+
+// ─────────────────────────────────────────────────────────────────
+// ── PUBLIC ROUTES ─────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
 
 // ── POST /api/auth/register ───────────────────────────────────────
 router.post('/register', async (req, res) => {
@@ -125,8 +144,23 @@ router.post('/verify-otp', async (req, res) => {
     user.otpExpires = null;
     await user.save();
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, nmls_id: user.nmls_id, state: user.state, role: user.role } });
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id:      user._id,
+        name:    user.name,
+        email:   user.email,
+        nmls_id: user.nmls_id,
+        state:   user.state,
+        role:    user.role,
+      },
+    });
 
   } catch (err) {
     console.error('Verify OTP error:', err);
@@ -164,14 +198,33 @@ router.post('/login', async (req, res) => {
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
 
     if (!user.isVerified) {
-      return res.status(403).json({ message: 'Email not verified.', needsVerification: true, email });
+      return res.status(403).json({
+        message: 'Email not verified.',
+        needsVerification: true,
+        email,
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, nmls_id: user.nmls_id, state: user.state, role: user.role } });
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id:      user._id,
+        name:    user.name,
+        email:   user.email,
+        nmls_id: user.nmls_id,
+        state:   user.state,
+        role:    user.role,
+      },
+    });
 
   } catch (err) {
     console.error('Login error:', err);
@@ -179,24 +232,18 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────
-// ── FORGOT PASSWORD ROUTES (NEW) ─────────────────────────────────
-// ─────────────────────────────────────────────────────────────────
-
 // ── POST /api/auth/forgot-password ───────────────────────────────
-// Send reset OTP to email
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
 
-    // Always return 200 to avoid email enumeration
     if (!user || !user.isVerified) {
       return res.status(200).json({ message: 'If that email exists, a reset code has been sent.' });
     }
 
     const otp        = generateOTP();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
     user.otp         = otp;
     user.otpExpires  = otpExpires;
     await user.save();
@@ -211,7 +258,6 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 // ── POST /api/auth/verify-reset-otp ──────────────────────────────
-// Verify OTP only — does NOT log in, just confirms code is valid
 router.post('/verify-reset-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -230,7 +276,6 @@ router.post('/verify-reset-otp', async (req, res) => {
 });
 
 // ── POST /api/auth/reset-password ────────────────────────────────
-// Verify OTP + set new password
 router.post('/reset-password', async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
@@ -244,16 +289,142 @@ router.post('/reset-password', async (req, res) => {
     if (!user.otp || user.otp !== otp) return res.status(400).json({ message: 'Invalid or expired code' });
     if (user.otpExpires < new Date())  return res.status(400).json({ message: 'Code has expired. Please request a new one.' });
 
-    const salt       = await bcrypt.genSalt(10);
-    user.password    = await bcrypt.hash(newPassword, salt);
-    user.otp         = null;
-    user.otpExpires  = null;
+    const salt      = await bcrypt.genSalt(10);
+    user.password   = await bcrypt.hash(newPassword, salt);
+    user.otp        = null;
+    user.otpExpires = null;
     await user.save();
 
     res.json({ message: 'Password reset successfully. You can now sign in.' });
 
   } catch (err) {
     console.error('Reset password error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// ── PROTECTED ROUTES ──────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
+
+// ── GET /api/auth/me ──────────────────────────────────────────────
+router.get('/me', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password -otp -otpExpires');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── PUT /api/auth/profile ─────────────────────────────────────────
+router.put('/profile', authMiddleware, async (req, res) => {
+  try {
+    const {
+      name, phone, address, nmls_id, state,
+      license_type, target_state, target_date, experience,
+    } = req.body;
+
+    const updated = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        ...(name         && { name }),
+        ...(phone        !== undefined && { phone }),
+        ...(address      !== undefined && { address }),
+        ...(nmls_id      !== undefined && { nmls_id }),
+        ...(state        !== undefined && { state }),
+        ...(license_type !== undefined && { license_type }),
+        ...(target_state !== undefined && { target_state }),
+        ...(target_date  !== undefined && { target_date }),
+        ...(experience   !== undefined && { experience }),
+      },
+      { new: true }
+    ).select('-password -otp -otpExpires');
+
+    if (!updated) return res.status(404).json({ message: 'User not found' });
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id:      updated._id,
+        name:    updated.name,
+        email:   updated.email,
+        nmls_id: updated.nmls_id,
+        state:   updated.state,
+        role:    updated.role,
+        phone:   updated.phone,
+        address: updated.address,
+      },
+    });
+
+  } catch (err) {
+    console.error('Profile update error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── PUT /api/auth/change-password ─────────────────────────────────
+router.put('/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Both current and new password are required' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ message: 'New password must be at least 8 characters' });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Current password is incorrect' });
+
+    const salt    = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    res.json({ message: 'Password updated successfully' });
+
+  } catch (err) {
+    console.error('Change password error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── PUT /api/auth/notifications ───────────────────────────────────
+router.put('/notifications', authMiddleware, async (req, res) => {
+  try {
+    const {
+      email_course_updates,
+      email_promotions,
+      email_reminders,
+      email_completions,
+      sms_course_updates,
+      sms_promotions,
+      sms_reminders,
+      sms_completions,
+    } = req.body;
+
+    await User.findByIdAndUpdate(req.user.id, {
+      notification_prefs: {
+        email_course_updates: !!email_course_updates,
+        email_promotions:     !!email_promotions,
+        email_reminders:      !!email_reminders,
+        email_completions:    !!email_completions,
+        sms_course_updates:   !!sms_course_updates,
+        sms_promotions:       !!sms_promotions,
+        sms_reminders:        !!sms_reminders,
+        sms_completions:      !!sms_completions,
+      },
+    });
+
+    res.json({ message: 'Notification preferences saved' });
+
+  } catch (err) {
+    console.error('Notifications update error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

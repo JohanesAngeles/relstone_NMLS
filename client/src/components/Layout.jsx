@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Users } from 'lucide-react';
+import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Home, GraduationCap, Award, Users } from 'lucide-react';
 import logo from '../assets/images/Left Side Logo.png';
 import InnerBreadcrumbs from './InnerBreadcrumbs';
 import GlobalSearchBar from './GlobalSearchBar';
-
 
 /* ─── Logout Confirm Dialog ─────────────────────────────────────── */
 const LogoutConfirm = ({ onConfirm, onCancel }) => (
@@ -25,7 +24,6 @@ const LogoutConfirm = ({ onConfirm, onCancel }) => (
   </>
 );
 
-
 /* ─── Layout ─────────────────────────────────────────────────────── */
 const Layout = ({ children, title, subtitle, actions }) => {
   const { user, logout } = useAuth();
@@ -33,12 +31,10 @@ const Layout = ({ children, title, subtitle, actions }) => {
   const location = useLocation();
   const [showLogout, setShowLogout] = useState(false);
 
-
   const handleLogout = () => { logout(); window.location.href = '/'; };
 
   const role = String(user?.role || 'student').toLowerCase();
   const isAdminView = role === 'admin' || role === 'instructor';
-
 
   const navLinks = isAdminView
     ? [
@@ -47,19 +43,19 @@ const Layout = ({ children, title, subtitle, actions }) => {
         { path: '/courses', label: 'Courses', icon: <BookOpen size={15} /> },
       ]
     : [
+        { path: '/home', label: 'Home', icon: <Home size={15} /> },
         { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
+        { path: '/my-courses', label: 'My Courses', icon: <GraduationCap size={15} /> },
         { path: '/courses', label: 'Courses', icon: <BookOpen size={15} /> },
+        { path: '/certificates', label: 'Certificates', icon: <Award size={15} /> },
         { path: '/checkout', label: 'Checkout', icon: <ShoppingCart size={15} /> },
       ];
 
-
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
-
 
   return (
     <div style={S.page}>
       <style>{css}</style>
-
 
       {showLogout && (
         <LogoutConfirm
@@ -68,22 +64,19 @@ const Layout = ({ children, title, subtitle, actions }) => {
         />
       )}
 
-
       {/* ── Sticky Navbar ───────────────────────────────────────── */}
       <header style={S.topbar}>
         <div style={S.topbarInner}>
 
-
           {/* Left — Logo + Nav */}
           <div style={S.navLeft}>
-            <div style={S.brand} onClick={() => navigate('/dashboard')} role="button" tabIndex={0}>
+            <div style={S.brand} onClick={() => navigate('/home')} role="button" tabIndex={0}>
               <img src={logo} alt="Relstone" style={S.logo} />
               <div style={S.brandText}>
                 <span style={S.brandName}>Relstone</span>
                 <span style={S.brandTag}>NMLS</span>
               </div>
             </div>
-
 
             <nav style={S.nav}>
               {navLinks.map(link => (
@@ -100,13 +93,11 @@ const Layout = ({ children, title, subtitle, actions }) => {
             </nav>
           </div>
 
-
           {/* Right — Actions + User */}
           <div style={S.navRight}>
             {actions}
 
             <GlobalSearchBar minWidth={280} />
-
 
             <button
               style={S.userBtn}
@@ -120,13 +111,11 @@ const Layout = ({ children, title, subtitle, actions }) => {
               <span style={S.userName}>{user?.name || 'Student'}</span>
             </button>
 
-
             <button style={S.logoutBtn} onClick={() => setShowLogout(true)} type="button" title="Logout">
               <LogOut size={15} />
             </button>
           </div>
         </div>
-
 
         {/* Page title bar */}
         {(title || subtitle || location.pathname !== '/home') && (
@@ -140,7 +129,6 @@ const Layout = ({ children, title, subtitle, actions }) => {
         )}
       </header>
 
-
       {/* ── Page Content ────────────────────────────────────────── */}
       <main>
         {children}
@@ -148,7 +136,6 @@ const Layout = ({ children, title, subtitle, actions }) => {
     </div>
   );
 };
-
 
 /* ─── Styles ─────────────────────────────────────────────────────── */
 const S = {
@@ -170,11 +157,10 @@ const S = {
   userName:     { fontWeight: 800, fontSize: 13, color: 'rgba(9,25,37,0.80)' },
   logoutBtn:    { width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(2,8,23,0.10)', background: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', color: 'rgba(9,25,37,0.65)', transition: 'all .15s' },
   titleBar:     { borderTop: '1px solid rgba(2,8,23,0.06)', background: 'rgba(255,255,255,0.60)' },
-  titleBarInner:{ maxWidth: 1180, margin: '0 auto', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  titleBarInner:{ maxWidth: 1180, margin: '0 auto', padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 10 },
   pageTitle:    { fontWeight: 900, fontSize: 14, color: '#091925' },
   pageSub:      { fontSize: 12, fontWeight: 700, color: 'rgba(9,25,37,0.50)' },
 };
-
 
 const D = {
   backdrop:   { position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(9,25,37,0.55)', backdropFilter: 'blur(5px)' },
@@ -187,7 +173,6 @@ const D = {
   confirmBtn: { flex: 1, height: 44, background: 'rgba(220,38,38,0.90)', border: 'none', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 900, color: '#fff', fontFamily: 'inherit' },
 };
 
-
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 * { box-sizing: border-box; }
@@ -196,6 +181,4 @@ body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #f6f7fb
 .rs-logout-btn:hover { background: rgba(239,68,68,0.06) !important; color: rgba(200,50,50,0.9) !important; border-color: rgba(239,68,68,0.20) !important; }
 `;
 
-
 export default Layout;
-

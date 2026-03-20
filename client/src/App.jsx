@@ -18,6 +18,11 @@ import PricingPage from './pages/courses_page/PricingPage';
 import HomePage from './pages/HomePage';
 import ResourcesHub from './pages/resources_page/ResourcesHub';
 import ResourceArticlePage from './pages/resources_page/ResourceArticlePage';
+import MyCourses from './pages/my_courses/MyCourses';
+import Profile from './pages/profile/Profile';
+import MyCertificates from './pages/certificates/MyCertificates';
+import OrdersBilling from './pages/OrdersBilling';
+
 
 // ── Landing wrapper — if already logged in, skip to home ──────────
 const LandingWrapper = () => {
@@ -139,6 +144,22 @@ function App() {
               <Certificate />
             </PrivateRoute>
           } />
+          <Route path="/my-courses" element={
+            <PrivateRoute>
+              <MyCourses />
+            </PrivateRoute>
+          } />
+          <Route path="/profile" element={
+            <PrivateRoute>
+              <Profile />
+            </PrivateRoute>
+          } />
+          <Route path="/certificates" element={
+            <PrivateRoute>
+              <MyCertificates />
+            </PrivateRoute>
+          } />
+          <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
         </Routes>
       </Router>
     </AuthProvider>
