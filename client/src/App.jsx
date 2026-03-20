@@ -7,12 +7,17 @@ import AuthModal from './pages/auth_page/AuthModal';
 import Dashboard from './pages/dashboard/Dashboard';
 import InstructorDashboard from './pages/dashboard/InstructorDashboard';
 import ViewStudents from './pages/dashboard/ViewStudents';
+import CETracker from './pages/dashboard/CETracker';
 import Certificate from './pages/cert_page/Certificate';
 import Courses from './pages/courses_page/Courses';
 import Checkout from './pages/checkout_page/checkout';
 import CourseDetails from './pages/courses_page/CoursesDetails';
 import CoursePortal from './pages/courses_page/CoursePortal';
+import StateRequirements from './pages/courses_page/StateRequirements';
+import PricingPage from './pages/courses_page/PricingPage';
 import HomePage from './pages/HomePage';
+import ResourcesHub from './pages/resources_page/ResourcesHub';
+import ResourceArticlePage from './pages/resources_page/ResourceArticlePage';
 import MyCourses from './pages/my_courses/MyCourses';
 import Profile from './pages/profile/Profile';
 import MyCertificates from './pages/certificates/MyCertificates';
@@ -50,6 +55,10 @@ function App() {
           {/* Public — Landing (redirects to /home if logged in) */}
           <Route path="/" element={<LandingWrapper />} />
 
+          {/* Public resources */}
+          <Route path="/resources" element={<ResourcesHub />} />
+          <Route path="/resources/:slug" element={<ResourceArticlePage />} />
+
           {/* Certificate test (public) */}
           <Route path="/certificate-test" element={<Certificate />} />
 
@@ -64,6 +73,13 @@ function App() {
           <Route path="/dashboard" element={
             <PrivateRoute>
               <Dashboard />
+            </PrivateRoute>
+          } />
+
+          {/* CE Tracker */}
+          <Route path="/ce-tracker" element={
+            <PrivateRoute>
+              <CETracker />
             </PrivateRoute>
           } />
 
@@ -92,6 +108,19 @@ function App() {
           <Route path="/courses" element={
             <PrivateRoute>
               <Courses />
+            </PrivateRoute>
+          } />
+
+          {/* Discover pages */}
+          <Route path="/state-requirements" element={
+            <PrivateRoute>
+              <StateRequirements />
+            </PrivateRoute>
+          } />
+
+          <Route path="/pricing" element={
+            <PrivateRoute>
+              <PricingPage />
             </PrivateRoute>
           } />
 

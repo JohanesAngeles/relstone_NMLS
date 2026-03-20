@@ -43,6 +43,11 @@ const userSchema = new mongoose.Schema({
     }
   ],
 
+  // CE Renewal Tracking
+  ce_renewal_deadline: { type: Date, default: null },
+  ce_hours_required: { type: Number, default: 0 },
+  ce_renewal_cycle_start: { type: Date, default: null },
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

@@ -5,7 +5,7 @@ import API from "../../api/axios";
 import Layout from "../../components/Layout.jsx";
 import {
   FileText, BookOpen, Clock, CheckCircle, Award,
-  ChevronRight, Search, PlayCircle, Lock,
+  ChevronRight, Search, PlayCircle, Lock, TrendingUp,
 } from "lucide-react";
 
 /* ─── Dashboard ──────────────────────────────────────────────────── */
@@ -199,6 +199,11 @@ const Dashboard = () => {
                     <button style={S.actionCard} type="button" onClick={() => navigate("/courses")}>
                       <div style={S.actionIcon}><BookOpen size={18} /></div>
                       <div style={S.actionText}><div style={S.actionTitle}>Browse courses</div><div style={S.actionSub}>Find PE and CE courses</div></div>
+                      <ChevronRight size={18} />
+                    </button>
+                    <button style={S.actionCard} type="button" onClick={() => navigate("/ce-tracker")}>
+                      <div style={S.actionIcon}><TrendingUp size={18} /></div>
+                      <div style={S.actionText}><div style={S.actionTitle}>CE Tracker</div><div style={S.actionSub}>Track renewal progress</div></div>
                       <ChevronRight size={18} />
                     </button>
                     <button style={S.actionCard} type="button" onClick={() => setActiveTab("transcript")}>

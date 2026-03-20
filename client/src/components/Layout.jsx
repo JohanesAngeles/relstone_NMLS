@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Home, GraduationCap, Award } from 'lucide-react';
+import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Home, GraduationCap, Award, Users } from 'lucide-react';
 import logo from '../assets/images/Left Side Logo.png';
+import InnerBreadcrumbs from './InnerBreadcrumbs';
+import GlobalSearchBar from './GlobalSearchBar';
 
 /* ─── Logout Confirm Dialog ─────────────────────────────────────── */
 const LogoutConfirm = ({ onConfirm, onCancel }) => (
@@ -31,16 +33,25 @@ const Layout = ({ children, title, subtitle, actions }) => {
 
   const handleLogout = () => { logout(); window.location.href = '/'; };
 
-  const navLinks = [
-    { path: '/home',       label: 'Home',       icon: <Home size={15} /> },
-    { path: '/dashboard',  label: 'Dashboard',  icon: <LayoutDashboard size={15} /> },
-    { path: '/my-courses', label: 'My Courses', icon: <GraduationCap size={15} /> },
-    { path: '/courses',    label: 'Courses',    icon: <BookOpen size={15} /> },
-    { path: '/certificates', label: 'Certificates', icon: <Award size={15} /> },
-    { path: '/checkout',   label: 'Checkout',   icon: <ShoppingCart size={15} /> },
-  ];
+  const role = String(user?.role || 'student').toLowerCase();
+  const isAdminView = role === 'admin' || role === 'instructor';
 
-  const isActive = (path) => location.pathname === path;
+  const navLinks = isAdminView
+    ? [
+        { path: '/instructor/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
+        { path: '/instructor/students', label: 'Students', icon: <Users size={15} /> },
+        { path: '/courses', label: 'Courses', icon: <BookOpen size={15} /> },
+      ]
+    : [
+        { path: '/home', label: 'Home', icon: <Home size={15} /> },
+        { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
+        { path: '/my-courses', label: 'My Courses', icon: <GraduationCap size={15} /> },
+        { path: '/courses', label: 'Courses', icon: <BookOpen size={15} /> },
+        { path: '/certificates', label: 'Certificates', icon: <Award size={15} /> },
+        { path: '/checkout', label: 'Checkout', icon: <ShoppingCart size={15} /> },
+      ];
+
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   return (
     <div style={S.page}>
@@ -86,6 +97,8 @@ const Layout = ({ children, title, subtitle, actions }) => {
           <div style={S.navRight}>
             {actions}
 
+            <GlobalSearchBar minWidth={280} />
+
             <button
               style={S.userBtn}
               onClick={() => navigate('/profile')}
@@ -105,9 +118,10 @@ const Layout = ({ children, title, subtitle, actions }) => {
         </div>
 
         {/* Page title bar */}
-        {(title || subtitle) && (
+        {(title || subtitle || location.pathname !== '/home') && (
           <div style={S.titleBar}>
             <div style={S.titleBarInner}>
+              <InnerBreadcrumbs />
               {title    && <div style={S.pageTitle}>{title}</div>}
               {subtitle && <div style={S.pageSub}>{subtitle}</div>}
             </div>
