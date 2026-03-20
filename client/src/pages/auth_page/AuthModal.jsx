@@ -12,7 +12,18 @@ const US_STATES = [
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
 ];
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
+/* ─── Role-based redirect ──────────────────────────────────────────
+   student    → /home
+   instructor → /instructor/dashboard
+   admin      → /instructor/dashboard
+─────────────────────────────────────────────────────────────────── */
+const getRoleRoute = (user) => {
+  const role = user?.role;
+  if (role === 'instructor' || role === 'admin') return '/instructor/dashboard';
+  return '/home';
+};
+
+// ── Icons ──────────────────────────────────────────────────────────────────
 const IconEyeOn = () => (
   <svg width="23" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>
@@ -57,13 +68,8 @@ const IconLock = () => (
     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
   </svg>
 );
-const IconArrowRight = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-    <path d="M5 12h14M12 5l7 7-7 7"/>
-  </svg>
-);
 
-// ── Step Progress Dots ────────────────────────────────────────────────────────
+// ── Step Progress Dots ─────────────────────────────────────────────────────
 const StepDots = ({ active = 0 }) => (
   <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
     {[0, 1, 2].map(i => (
@@ -76,7 +82,7 @@ const StepDots = ({ active = 0 }) => (
   </div>
 );
 
-// ── Logo ──────────────────────────────────────────────────────────────────────
+// ── Logo ───────────────────────────────────────────────────────────────────
 const ModalLogo = ({ logoSrc }) => (
   <div style={S.logo}>
     <img src={logoSrc} alt="Relstone" style={S.logoImg} />
@@ -88,7 +94,7 @@ const ModalLogo = ({ logoSrc }) => (
   </div>
 );
 
-// ── Error Banner ──────────────────────────────────────────────────────────────
+// ── Error Banner ───────────────────────────────────────────────────────────
 const ErrorBanner = ({ msg }) => !msg ? null : (
   <div style={S.error}>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -100,7 +106,7 @@ const ErrorBanner = ({ msg }) => !msg ? null : (
   </div>
 );
 
-// ── Input Field ───────────────────────────────────────────────────────────────
+// ── Input Field ────────────────────────────────────────────────────────────
 const Field = ({ placeholder, type = 'text', value, onChange, name, autoComplete, required, style: extra }) => (
   <input
     style={{ ...S.input, ...extra }}
@@ -109,7 +115,7 @@ const Field = ({ placeholder, type = 'text', value, onChange, name, autoComplete
   />
 );
 
-// ── Password Field ────────────────────────────────────────────────────────────
+// ── Password Field ─────────────────────────────────────────────────────────
 const PasswordField = ({ placeholder, value, onChange, name }) => {
   const [show, setShow] = useState(false);
   return (
@@ -127,7 +133,7 @@ const PasswordField = ({ placeholder, value, onChange, name }) => {
   );
 };
 
-// ── 6-Box OTP Input ───────────────────────────────────────────────────────────
+// ── 6-Box OTP Input ────────────────────────────────────────────────────────
 const OTPBoxes = ({ value, onChange }) => {
   const [focused, setFocused] = useState(false);
   const digits = (value + '      ').slice(0, 6).split('');
@@ -144,9 +150,7 @@ const OTPBoxes = ({ value, onChange }) => {
     onChange(val);
   };
 
-  const focusInput = () => {
-    document.getElementById('otp-hidden-input')?.focus();
-  };
+  const focusInput = () => document.getElementById('otp-hidden-input')?.focus();
 
   return (
     <div style={{ position: 'relative', userSelect: 'none', cursor: 'text' }} onClick={focusInput}>
@@ -170,8 +174,7 @@ const OTPBoxes = ({ value, onChange }) => {
               border: `0.5px solid ${isActive ? '#2EABFE' : '#7FA8C4'}`,
               borderRadius: 5,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 32, fontWeight: 800,
-              color: '#091925',
+              fontSize: 32, fontWeight: 800, color: '#091925',
               fontFamily: "'Poppins', sans-serif",
               transition: 'border-color .15s, box-shadow .15s',
               boxShadow: isActive ? '0 0 0 3px rgba(46,171,254,0.14)' : 'none',
@@ -190,7 +193,7 @@ const OTPBoxes = ({ value, onChange }) => {
 const fmtCooldown = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-// ── Forgot Password ───────────────────────────────────────────────────────────
+// ── Forgot Password ────────────────────────────────────────────────────────
 const ForgotPassword = ({ onBack, logoSrc }) => {
   const [step, setStep]         = useState('email');
   const [email, setEmail]       = useState('');
@@ -212,16 +215,22 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
 
   const sendOTP = async (e) => {
     e.preventDefault(); setLoading(true); setError('');
-    try { await API.post('/auth/forgot-password', { email }); setStep('otp'); startCooldown(); }
-    catch (err) { setError(err.response?.data?.message || 'Failed to send reset code.'); }
-    finally { setLoading(false); }
+    try {
+      await API.post('/auth/forgot-password', { email });
+      setStep('otp'); startCooldown();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to send reset code.');
+    } finally { setLoading(false); }
   };
 
   const verifyOTP = async (e) => {
     e.preventDefault(); setLoading(true); setError('');
-    try { await API.post('/auth/verify-reset-otp', { email, otp }); setStep('reset'); }
-    catch (err) { setError(err.response?.data?.message || 'Invalid or expired code.'); }
-    finally { setLoading(false); }
+    try {
+      await API.post('/auth/verify-reset-otp', { email, otp });
+      setStep('reset');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Invalid or expired code.');
+    } finally { setLoading(false); }
   };
 
   const resetPw = async (e) => {
@@ -229,9 +238,12 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
     if (password !== confirm) { setError('Passwords do not match.'); return; }
     if (password.length < 8)  { setError('Password must be at least 8 characters.'); return; }
     setLoading(true); setError('');
-    try { await API.post('/auth/reset-password', { email, otp, newPassword: password }); setStep('done'); }
-    catch (err) { setError(err.response?.data?.message || 'Failed to reset password.'); }
-    finally { setLoading(false); }
+    try {
+      await API.post('/auth/reset-password', { email, otp, newPassword: password });
+      setStep('done');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to reset password.');
+    } finally { setLoading(false); }
   };
 
   if (step === 'done') return (
@@ -245,9 +257,7 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
         <h2 style={{ ...S.fpTitle, color: '#22C55E' }}>PASSWORD RESET!</h2>
         <p style={S.fpSub}>Your password has been updated successfully. You can now sign in with your new password.</p>
       </div>
-      <button style={S.submitBtn} type="button" onClick={onBack}>
-        Go to Sign In <IconArrow />
-      </button>
+      <button style={S.submitBtn} type="button" onClick={onBack}>Go to Sign In <IconArrow /></button>
     </div>
   );
 
@@ -259,7 +269,7 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
       {step === 'email' && (
         <>
           <h2 style={{ ...S.fpTitle, color: '#2EABFE' }}>FORGOT PASSWORD?</h2>
-          <p style={S.fpSub}>No worries — enter your email address and we'll send you a 6-digit reset code right away.</p>
+          <p style={S.fpSub}>No worries — enter your email and we'll send a 6-digit reset code right away.</p>
           <ErrorBanner msg={error} />
           <form onSubmit={sendOTP} style={S.form}>
             <Field placeholder="Email Address" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
@@ -274,7 +284,7 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
       {step === 'otp' && (
         <>
           <h2 style={{ ...S.fpTitle, color: '#091925' }}>CHECK YOUR EMAIL</h2>
-          <p style={S.fpSub}>We sent a 6-digit code to <strong style={{ color: '#091925' }}>{email}</strong>. Enter it below — the code expires in 10 minutes.</p>
+          <p style={S.fpSub}>We sent a 6-digit code to <strong style={{ color: '#091925' }}>{email}</strong>. Expires in 10 minutes.</p>
           <ErrorBanner msg={error} />
           <form onSubmit={verifyOTP} style={S.form}>
             <OTPBoxes value={otp} onChange={setOtp} />
@@ -298,7 +308,7 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
       {step === 'reset' && (
         <>
           <h2 style={{ ...S.fpTitle, color: '#091925' }}>SET NEW PASSWORD</h2>
-          <p style={S.fpSub}>Choose a strong password for your RELSTONE NMLS account. Must be at least 8 characters.</p>
+          <p style={S.fpSub}>Choose a strong password. Must be at least 8 characters.</p>
           <ErrorBanner msg={error} />
           <form onSubmit={resetPw} style={S.form}>
             <PasswordField placeholder="New Password" value={password} onChange={e => setPassword(e.target.value)} />
@@ -327,7 +337,7 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
   );
 };
 
-// ── OTP Screen (post-register) ────────────────────────────────────────────────
+// ── OTP Screen (post-register) ─────────────────────────────────────────────
 const OTPScreen = ({ email, onVerify, onResend, onBack, loading, error, cooldown, logoSrc }) => {
   const [otp, setOtp] = useState('');
   return (
@@ -335,7 +345,7 @@ const OTPScreen = ({ email, onVerify, onResend, onBack, loading, error, cooldown
       <ModalLogo logoSrc={logoSrc} />
       <StepDots active={1} />
       <h2 style={{ ...S.fpTitle, color: '#091925' }}>CHECK YOUR EMAIL</h2>
-      <p style={S.fpSub}>We sent a 6-digit code to <strong style={{ color: '#091925' }}>{email}</strong>. Enter it below — the code expires in 10 minutes.</p>
+      <p style={S.fpSub}>We sent a 6-digit code to <strong style={{ color: '#091925' }}>{email}</strong>. Expires in 10 minutes.</p>
       <ErrorBanner msg={error} />
       <form onSubmit={e => { e.preventDefault(); onVerify(otp); }} style={S.form}>
         <OTPBoxes value={otp} onChange={setOtp} />
@@ -355,7 +365,7 @@ const OTPScreen = ({ email, onVerify, onResend, onBack, loading, error, cooldown
   );
 };
 
-// ── Main AuthModal ────────────────────────────────────────────────────────────
+// ── Main AuthModal ─────────────────────────────────────────────────────────
 const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => {
   const { login }   = useAuth();
   const navigate    = useNavigate();
@@ -370,28 +380,36 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
   const [rememberMe, setRememberMe] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [loginForm, setLoginForm]   = useState({ email: '', password: '' });
-  const [regForm, setRegForm]       = useState({ firstName: '', lastName: '', email: '', phone: '', state: '', password: '', confirm: '' });
+  const [regForm, setRegForm]       = useState({
+    firstName: '', lastName: '', email: '',
+    phone: '', state: '', password: '', confirm: '',
+  });
 
   const setL = e => setLoginForm(f => ({ ...f, [e.target.name]: e.target.value }));
   const setR = e => setRegForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
   const startCooldown = () => {
     setCooldown(30);
-    const t = setInterval(() => setCooldown(c => { if (c <= 1) { clearInterval(t); return 0; } return c - 1; }), 1000);
+    const t = setInterval(() => setCooldown(c => {
+      if (c <= 1) { clearInterval(t); return 0; } return c - 1;
+    }), 1000);
   };
 
-  // ── LOGIN — existing user, never show How It Works ────────────────────────
+  /* ── LOGIN — redirects by role ──────────────────────────────────────
+     student    → /home
+     instructor → /instructor/dashboard
+     admin      → /instructor/dashboard
+  ─────────────────────────────────────────────────────────────────── */
   const handleLogin = async (e) => {
     e.preventDefault(); setLoading(true); setError('');
     try {
       const res = await API.post('/auth/login', {
-        email: loginForm.email,
+        email:    loginForm.email,
         password: loginForm.password,
       });
       login(res.data.user, res.data.token, rememberMe);
       onClose();
-      navigate('/home');
-      // ← existing user: intentionally do NOT touch how-it-works flags
+      navigate(getRoleRoute(res.data.user));
     } catch (err) {
       if (err.response?.data?.needsVerification) {
         setPendingEmail(err.response.data.email);
@@ -403,7 +421,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     } finally { setLoading(false); }
   };
 
-  // ── REGISTER ──────────────────────────────────────────────────────────────
+  /* ── REGISTER ─────────────────────────────────────────────────────── */
   const handleRegister = async (e) => {
     e.preventDefault();
     if (regForm.password !== regForm.confirm) { setError('Passwords do not match.'); return; }
@@ -411,12 +429,12 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     setLoading(true); setError('');
     try {
       const res = await API.post('/auth/register', {
-        name: `${regForm.firstName} ${regForm.lastName}`.trim(),
-        email: regForm.email,
-        phone: regForm.phone,
-        state: regForm.state,
+        name:     `${regForm.firstName} ${regForm.lastName}`.trim(),
+        email:    regForm.email,
+        phone:    regForm.phone,
+        state:    regForm.state,
         password: regForm.password,
-        role: 'student',
+        role:     'student',
       });
       setPendingEmail(res.data.email);
       setOtpStep(true);
@@ -426,34 +444,39 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     } finally { setLoading(false); }
   };
 
-  // ── VERIFY OTP — new user, SHOW How It Works ──────────────────────────────
+  /* ── VERIFY OTP — redirects by role ────────────────────────────────
+     New user: clears how-it-works flag so modal shows once on /home.
+     Then redirects by role same as login.
+  ─────────────────────────────────────────────────────────────────── */
   const handleVerifyOTP = async (otp) => {
     setLoading(true); setError('');
     try {
       const res = await API.post('/auth/verify-otp', { email: pendingEmail, otp });
       login(res.data.user, res.data.token);
 
-      // ── Mark as new user so How It Works modal auto-shows on next page ──
-      // Clear any previous "seen" flag so the modal appears fresh
+      // Mark as new user so How It Works modal auto-shows on next page
       localStorage.removeItem('relstone_how_it_works_seen');
-      // Use sessionStorage so it only fires once per browser session
       sessionStorage.setItem('relstone_is_new_user', '1');
 
       onClose();
-      navigate('/home');
+      navigate(getRoleRoute(res.data.user));
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
     } finally { setLoading(false); }
   };
 
   const handleResend = async () => {
-    try { await API.post('/auth/resend-otp', { email: pendingEmail }); startCooldown(); setError(''); }
-    catch (err) { setError(err.response?.data?.message || 'Failed to resend OTP.'); }
+    try {
+      await API.post('/auth/resend-otp', { email: pendingEmail });
+      startCooldown(); setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend OTP.');
+    }
   };
 
   const switchTab = (t) => { setTab(t); setError(''); setOtpStep(false); };
 
-  // ── Forgot password screen ────────────────────────────────────────────────
+  /* ── Forgot password screen ─────────────────────────────────────── */
   if (forgotMode) return (
     <>
       <style>{CSS}</style>
@@ -465,7 +488,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     </>
   );
 
-  // ── OTP screen ────────────────────────────────────────────────────────────
+  /* ── OTP screen ─────────────────────────────────────────────────── */
   if (otpStep) return (
     <>
       <style>{CSS}</style>
@@ -473,7 +496,9 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
       <div style={S.modal}>
         <button style={S.closeBtn} onClick={onClose} type="button"><CloseIcon /></button>
         <OTPScreen
-          email={pendingEmail} onVerify={handleVerifyOTP} onResend={handleResend}
+          email={pendingEmail}
+          onVerify={handleVerifyOTP}
+          onResend={handleResend}
           onBack={() => { setOtpStep(false); setError(''); }}
           loading={loading} error={error} cooldown={cooldown} logoSrc={logoSrc}
         />
@@ -481,6 +506,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     </>
   );
 
+  /* ── Login / Register ───────────────────────────────────────────── */
   return (
     <>
       <style>{CSS}</style>
@@ -551,8 +577,18 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
                 </select>
                 <span style={S.selectChevron}><IconChevron /></span>
               </div>
-              <PasswordField placeholder="Create a Password" value={regForm.password} onChange={e => setRegForm(f => ({ ...f, password: e.target.value }))} name="password" />
-              <PasswordField placeholder="Confirm Password"   value={regForm.confirm}  onChange={e => setRegForm(f => ({ ...f, confirm:   e.target.value }))} name="confirm" />
+              <PasswordField
+                placeholder="Create a Password"
+                value={regForm.password}
+                onChange={e => setRegForm(f => ({ ...f, password: e.target.value }))}
+                name="password"
+              />
+              <PasswordField
+                placeholder="Confirm Password"
+                value={regForm.confirm}
+                onChange={e => setRegForm(f => ({ ...f, confirm: e.target.value }))}
+                name="confirm"
+              />
               {regForm.confirm.length > 0 && regForm.password !== regForm.confirm && (
                 <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, marginTop: -6 }}>Passwords don't match</div>
               )}
@@ -582,172 +618,56 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
   );
 };
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Styles ─────────────────────────────────────────────────────────────────
 const S = {
-  backdrop: { position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(9,25,37,0.60)', backdropFilter: 'blur(6px)' },
-  modal: {
-    position: 'fixed', zIndex: 201, top: '50%', left: '50%',
-    transform: 'translate(-50%,-50%)',
-    width: '100%', maxWidth: 565,
-    background: '#FFFFFF', borderRadius: 10,
-    padding: '36px 40px 32px',
-    boxShadow: '0 32px 80px rgba(9,25,37,0.22), 0 0 0 1px rgba(9,25,37,0.06)',
-    maxHeight: '94vh', overflowY: 'auto',
-    fontFamily: "'Poppins', system-ui, sans-serif",
-    boxSizing: 'border-box',
-  },
-  closeBtn: {
-    position: 'absolute', top: 16, right: 16,
-    width: 35, height: 35,
-    background: 'rgba(91,115,132,0.10)',
-    border: '0.5px solid #5B7384',
-    borderRadius: 5, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#5B7384', padding: 0,
-  },
-  panel:       { display: 'flex', flexDirection: 'column' },
-  logo:        { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 },
-  logoImg:     { height: 32, objectFit: 'contain', display: 'block' },
-  logoDivider: { width: 0.5, height: 35, background: '#2EABFE', flexShrink: 0 },
-  logoRight:   { display: 'flex', flexDirection: 'column', gap: 1 },
-  logoNmls:    { fontSize: 20, fontWeight: 900, color: '#091925', fontFamily: "'Poppins', sans-serif", lineHeight: 1.2, textTransform: 'capitalize' },
-  logoPortal:  { fontSize: 14, color: '#091925', fontWeight: 400, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.2 },
-  fpTitle: {
-    fontFamily: "'Poppins', sans-serif",
-    fontSize: 38, fontWeight: 700,
-    lineHeight: 1.1, marginBottom: 10, letterSpacing: -0.5,
-    textTransform: 'uppercase',
-  },
-  fpSub: {
-    fontSize: 16, color: '#7FA8C4',
-    fontFamily: "'Poppins', sans-serif",
-    fontWeight: 400, lineHeight: '18px', marginBottom: 18,
-  },
-  loginTitle: {
-    fontFamily: "'Poppins', sans-serif",
-    fontSize: 38, fontWeight: 700,
-    lineHeight: 1, marginBottom: 10, letterSpacing: -0.5,
-    textTransform: 'uppercase',
-  },
-  loginSub: {
-    fontSize: 16, color: '#7FA8C4', marginBottom: 6,
-    lineHeight: 1.5, fontFamily: "'Poppins', sans-serif",
-    fontWeight: 400, textTransform: 'capitalize',
-  },
-  registerTitle: {
-    fontFamily: "'Poppins', sans-serif",
-    fontSize: 36, fontWeight: 700, color: '#091925',
-    lineHeight: 1.1, marginBottom: 8, letterSpacing: -0.5,
-    textTransform: 'uppercase',
-  },
-  form:   { display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 },
-  twoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
-  input: {
-    width: '100%', height: 50, padding: '0 16px',
-    fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500,
-    color: '#091925', background: 'rgba(127,168,196,0.1)',
-    border: '0.5px solid #7FA8C4', borderRadius: 5, outline: 'none',
-    transition: 'border-color .15s, box-shadow .15s', boxSizing: 'border-box',
-  },
-  pwWrap: { position: 'relative', display: 'flex', alignItems: 'center' },
-  eyeBtn: {
-    position: 'absolute', right: 12, width: 32, height: 32,
-    background: 'none', border: 'none', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#5B7384', opacity: 0.5, borderRadius: 6, padding: 0,
-    transition: 'opacity .15s',
-  },
+  backdrop:      { position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(9,25,37,0.60)', backdropFilter: 'blur(6px)' },
+  modal:         { position: 'fixed', zIndex: 201, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '100%', maxWidth: 565, background: '#FFFFFF', borderRadius: 10, padding: '36px 40px 32px', boxShadow: '0 32px 80px rgba(9,25,37,0.22), 0 0 0 1px rgba(9,25,37,0.06)', maxHeight: '94vh', overflowY: 'auto', fontFamily: "'Poppins', system-ui, sans-serif", boxSizing: 'border-box' },
+  closeBtn:      { position: 'absolute', top: 16, right: 16, width: 35, height: 35, background: 'rgba(91,115,132,0.10)', border: '0.5px solid #5B7384', borderRadius: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5B7384', padding: 0 },
+  panel:         { display: 'flex', flexDirection: 'column' },
+  logo:          { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 },
+  logoImg:       { height: 32, objectFit: 'contain', display: 'block' },
+  logoDivider:   { width: 0.5, height: 35, background: '#2EABFE', flexShrink: 0 },
+  logoRight:     { display: 'flex', flexDirection: 'column', gap: 1 },
+  logoNmls:      { fontSize: 20, fontWeight: 900, color: '#091925', fontFamily: "'Poppins', sans-serif", lineHeight: 1.2, textTransform: 'capitalize' },
+  logoPortal:    { fontSize: 14, color: '#091925', fontWeight: 400, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.2 },
+  fpTitle:       { fontFamily: "'Poppins', sans-serif", fontSize: 38, fontWeight: 700, lineHeight: 1.1, marginBottom: 10, letterSpacing: -0.5, textTransform: 'uppercase' },
+  fpSub:         { fontSize: 16, color: '#7FA8C4', fontFamily: "'Poppins', sans-serif", fontWeight: 400, lineHeight: '18px', marginBottom: 18 },
+  loginTitle:    { fontFamily: "'Poppins', sans-serif", fontSize: 38, fontWeight: 700, lineHeight: 1, marginBottom: 10, letterSpacing: -0.5, textTransform: 'uppercase' },
+  loginSub:      { fontSize: 16, color: '#7FA8C4', marginBottom: 6, lineHeight: 1.5, fontFamily: "'Poppins', sans-serif", fontWeight: 400, textTransform: 'capitalize' },
+  registerTitle: { fontFamily: "'Poppins', sans-serif", fontSize: 36, fontWeight: 700, color: '#091925', lineHeight: 1.1, marginBottom: 8, letterSpacing: -0.5, textTransform: 'uppercase' },
+  form:          { display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 },
+  twoCol:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  input:         { width: '100%', height: 50, padding: '0 16px', fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500, color: '#091925', background: 'rgba(127,168,196,0.1)', border: '0.5px solid #7FA8C4', borderRadius: 5, outline: 'none', transition: 'border-color .15s, box-shadow .15s', boxSizing: 'border-box' },
+  pwWrap:        { position: 'relative', display: 'flex', alignItems: 'center' },
+  eyeBtn:        { position: 'absolute', right: 12, width: 32, height: 32, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5B7384', opacity: 0.5, borderRadius: 6, padding: 0, transition: 'opacity .15s' },
   selectWrap:    { position: 'relative', display: 'flex', alignItems: 'center' },
-  select: {
-    width: '100%', height: 50, padding: '0 40px 0 16px',
-    fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500,
-    color: '#5B7384', background: 'rgba(127,168,196,0.1)',
-    border: '0.5px solid #7FA8C4', borderRadius: 5,
-    outline: 'none', appearance: 'none', cursor: 'pointer',
-    boxSizing: 'border-box', opacity: 0.75,
-  },
-  selectChevron: {
-    position: 'absolute', right: 14,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    color: '#7FA8C4', opacity: 0.5, pointerEvents: 'none',
-  },
+  select:        { width: '100%', height: 50, padding: '0 40px 0 16px', fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500, color: '#5B7384', background: 'rgba(127,168,196,0.1)', border: '0.5px solid #7FA8C4', borderRadius: 5, outline: 'none', appearance: 'none', cursor: 'pointer', boxSizing: 'border-box', opacity: 0.75 },
+  selectChevron: { position: 'absolute', right: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7FA8C4', opacity: 0.5, pointerEvents: 'none' },
   rememberRow:   { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   rememberLabel: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' },
   rememberText:  { fontSize: 14, color: '#5B7384', fontWeight: 500, fontFamily: "'Poppins', sans-serif" },
-  checkbox:   { width: 20, height: 20, borderRadius: 5, flexShrink: 0, border: '0.5px solid #7FA8C4', background: 'rgba(127,168,196,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s', cursor: 'pointer' },
-  checkboxOn: { background: '#2EABFE', border: 'none' },
-  forgotBtn:  { background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#2EABFE', fontFamily: "'Poppins', sans-serif", padding: 0 },
-  submitBtn: {
-    height: 50, width: '100%',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-    fontSize: 16, fontWeight: 700, letterSpacing: 0.3,
-    color: '#091925', background: '#2EABFE',
-    border: '0.5px solid #2EABFE', borderRadius: 5,
-    cursor: 'pointer', marginTop: 4, transition: 'all .2s',
-    fontFamily: "'Poppins', sans-serif", textTransform: 'capitalize', padding: 0,
-  },
-  termsLink: { color: '#2EABFE', textDecoration: 'none', fontWeight: 600 },
-  resendRow: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 13, color: '#7FA8C4',
-    fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '17px',
-  },
-  resendBtn: {
-    background: 'none', border: 'none', cursor: 'pointer',
-    fontSize: 13, fontWeight: 700, color: '#2EABFE',
-    fontFamily: "'JetBrains Mono', monospace", padding: 0,
-  },
-  backLink: {
-    marginTop: 18, background: 'none', border: 'none', cursor: 'pointer',
-    fontSize: 13, fontWeight: 800, color: '#7FA8C4',
-    fontFamily: "'JetBrains Mono', monospace", padding: 0,
-    textAlign: 'left', display: 'inline-flex', alignItems: 'center',
-    transition: 'color .15s',
-  },
-  switchText: {
-    marginTop: 18, textAlign: 'center',
-    fontSize: 13, color: '#7FA8C4',
-    fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
-  },
-  linkBtn: {
-    background: 'none', border: 'none', cursor: 'pointer',
-    fontSize: 13, fontWeight: 700, color: '#2EABFE',
-    fontFamily: "'JetBrains Mono', monospace", padding: 0,
-  },
-  disclaimer: {
-    marginTop: 14, textAlign: 'center',
-    fontSize: 13, color: '#7FA8C4',
-    fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '15px',
-  },
-  error: {
-    display: 'flex', alignItems: 'center', gap: 8,
-    padding: '11px 14px', marginBottom: 14,
-    background: '#fef2f2', border: '1px solid #fecaca',
-    borderRadius: 5, color: '#b91c1c', fontSize: 13,
-  },
+  checkbox:      { width: 20, height: 20, borderRadius: 5, flexShrink: 0, border: '0.5px solid #7FA8C4', background: 'rgba(127,168,196,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s', cursor: 'pointer' },
+  checkboxOn:    { background: '#2EABFE', border: 'none' },
+  forgotBtn:     { background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#2EABFE', fontFamily: "'Poppins', sans-serif", padding: 0 },
+  submitBtn:     { height: 50, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 16, fontWeight: 700, letterSpacing: 0.3, color: '#091925', background: '#2EABFE', border: '0.5px solid #2EABFE', borderRadius: 5, cursor: 'pointer', marginTop: 4, transition: 'all .2s', fontFamily: "'Poppins', sans-serif", textTransform: 'capitalize', padding: 0 },
+  termsLink:     { color: '#2EABFE', textDecoration: 'none', fontWeight: 600 },
+  resendRow:     { display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '17px' },
+  resendBtn:     { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#2EABFE', fontFamily: "'JetBrains Mono', monospace", padding: 0 },
+  backLink:      { marginTop: 18, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", padding: 0, textAlign: 'left', display: 'inline-flex', alignItems: 'center', transition: 'color .15s' },
+  switchText:    { marginTop: 18, textAlign: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 },
+  linkBtn:       { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#2EABFE', fontFamily: "'JetBrains Mono', monospace", padding: 0 },
+  disclaimer:    { marginTop: 14, textAlign: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '15px' },
+  error:         { display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', marginBottom: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, color: '#b91c1c', fontSize: 13 },
 };
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
-
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
-
-input:focus, select:focus {
-  border-color: #2EABFE !important;
-  box-shadow: 0 0 0 3px rgba(46,171,254,0.12) !important;
-  outline: none !important;
-}
+input:focus, select:focus { border-color: #2EABFE !important; box-shadow: 0 0 0 3px rgba(46,171,254,0.12) !important; outline: none !important; }
 input::placeholder { color: #7FA8C4 !important; opacity: 0.5; }
 select option { color: #091925; background: #fff; opacity: 1; }
-
-button[style*="background: #2EABFE"]:hover:not(:disabled),
-button[style*='background: #2EABFE']:hover:not(:disabled) {
-  opacity: 0.88 !important; transform: translateY(-1px) !important;
-}
-button[style*="background: #2EABFE"]:disabled,
-button[style*='background: #2EABFE']:disabled {
-  opacity: 0.55 !important; cursor: not-allowed !important;
-}
+button[style*="background: #2EABFE"]:hover:not(:disabled), button[style*='background: #2EABFE']:hover:not(:disabled) { opacity: 0.88 !important; transform: translateY(-1px) !important; }
+button[style*="background: #2EABFE"]:disabled, button[style*='background: #2EABFE']:disabled { opacity: 0.55 !important; cursor: not-allowed !important; }
 `;
 
-export default AuthModal; 
+export default AuthModal;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, PlayCircle,
@@ -62,6 +62,13 @@ const buildContent = (course) => {
     });
   }
   return content;
+};
+
+// Review version — appends a summary step at the end
+const buildReviewContent = (course) => {
+  const base = buildContent(course);
+  base.push({ id: "review-summary", type: "review_summary", title: "Course Summary", moduleOrder: 9999 });
+  return base;
 };
 
 /* ─── Main Component ─────────────────────────────────────────────── */
@@ -133,7 +140,9 @@ const CoursePortal = () => {
 
         const data = courseRes.data?.data || courseRes.data;
         setCourse(data);
-        const built = buildContent(data);
+        // Use review content (with summary step) if already completed
+        const isAlreadyCompleted = transcriptRes.data?.transcript?.some((t) => String(t.course_id?._id || t.course_id) === String(id));
+        const built = isAlreadyCompleted ? buildReviewContent(data) : buildContent(data);
         setContent(built);
 
         if (data.type === 'CE' && data.expires_at) {
@@ -210,7 +219,6 @@ const CoursePortal = () => {
     try { await Promise.all([API.post("/dashboard/complete", { courseId: id }), API.post(`/enrollment/${id}/complete`)]); }
     catch (err) { console.warn("Could not save completion:", err.message); }
     setFinished(true);
-    setReviewMode(true);
     const allIdxs = new Set(content.map((_, i) => i));
     setCompleted(allIdxs);
   };
@@ -229,6 +237,16 @@ const CoursePortal = () => {
         </div>
       </div>
     </div>
+  );
+
+  if (finished && !reviewMode) return (
+    <CompletionScreen
+      course={course}
+      transcriptEntry={transcriptEntry}
+      navigate={navigate}
+      courseId={id}
+      onReview={() => { const rc = buildReviewContent(course); setContent(rc); const allIdxs = new Set(rc.map((_, i) => i)); setCompleted(allIdxs); setCurrentIdx(0); setReviewMode(true); }}
+    />
   );
 
   if (isExpired) return (
@@ -310,7 +328,7 @@ const CoursePortal = () => {
 
       <div style={S.body}>
         {sidebarOpen && (
-          <aside style={S.sidebar}>
+          <aside style={S.sidebar} className="cp-sidebar">
             <div style={S.sidebarHead}>
               {reviewMode ? "📋 Course Review" : "Course Contents"}
               <span style={{ marginLeft: 8, fontSize: 11, color: "rgba(10,22,40,0.40)", fontWeight: 600 }}>
@@ -324,7 +342,7 @@ const CoursePortal = () => {
                 const isLocked  = !canNavigateTo(idx);
                 const icon = item.type === "lesson" ? <PlayCircle size={14} /> : item.type === "pdf_gate" ? <FileText size={14} /> : item.type === "checkpoint" ? <ClipboardList size={14} /> : item.type === "quiz_fundamentals" ? <ClipboardList size={14} /> : <Trophy size={14} />;
                 const iconColor = item.type === "checkpoint" ? "rgba(245,158,11,1)" : item.type === "quiz_fundamentals" ? "rgba(245,158,11,1)" : item.type === "pdf_gate" ? "rgba(239,68,68,0.80)" : item.type === "quiz" ? "rgba(34,197,94,1)" : "var(--cp-blue)";
-                const typeLabel = item.type === "lesson" ? "Lesson" : item.type === "pdf_gate" ? "Study Material" : item.type === "checkpoint" ? "Checkpoint" : item.type === "quiz_fundamentals" ? "Fundamentals Exam" : "Final Exam";
+                const typeLabel = item.type === "lesson" ? "Lesson" : item.type === "pdf_gate" ? "Study Material" : item.type === "checkpoint" ? "Checkpoint" : item.type === "quiz_fundamentals" ? "Fundamentals Exam" : item.type === "review_summary" ? "Summary" : "Final Exam";
                 return (
                   <button key={item.id} style={{ ...S.sidebarItem, ...(isCurrent ? S.sidebarItemActive : {}), ...(isLocked ? S.sidebarItemLocked : {}) }}
                     onClick={() => !isLocked && navigateTo(idx)} type="button" disabled={isLocked}>
@@ -355,7 +373,7 @@ const CoursePortal = () => {
           </aside>
         )}
 
-        <main style={S.main}>
+        <main style={S.main} className="cp-main">
           <div style={S.contentWrap}>
             {current?.type === "lesson" && (
               <LessonView item={current} onComplete={goNext} onPrev={goPrev} showPrev={currentIdx > 0}
@@ -373,6 +391,9 @@ const CoursePortal = () => {
               <QuizView item={current} onFinish={goNext} onPrev={goPrev}
                 courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts}
                 reviewMode={reviewMode} />
+            )}
+            {current?.type === "review_summary" && (
+              <ReviewSummaryView course={course} courseId={id} content={content} onPrev={goPrev} navigate={navigate} />
             )}
             {current?.type === "quiz" && (
               <QuizView item={current} onFinish={reviewMode ? goNext : handleFinish} onPrev={goPrev}
@@ -798,7 +819,6 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
 
   if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
 
-  // ── Review mode: show read-only past answers ──
   if (reviewMode) return (
     <div style={S.checkWrap}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
@@ -883,14 +903,12 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
         </div>
       )}
 
-      {/* ── Answer progress bar ── */}
       {!submitted && (
         <div style={{ background: "rgba(2,8,23,0.07)", borderRadius: 999, height: 6, overflow: "hidden" }}>
           <div style={{ height: "100%", borderRadius: 999, background: "var(--cp-blue)", width: `${(answered / item.questions.length) * 100}%`, transition: "width 0.3s" }} />
         </div>
       )}
 
-      {/* ── Early submit hint ── */}
       {!submitted && allAnswered && (
         <div style={S.earlySubmitHint}>
           <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(21,128,61,1)" }} />
@@ -942,8 +960,238 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   );
 };
 
+/* ─── Review Summary View ────────────────────────────────────────── */
+// ✅ FIXED: useMemo stabilises quizItems so the useEffect dependency
+//    is a stable array reference, not a flickering .length integer.
+//    This prevents the fetch from never re-running when content arrives
+//    after the first render, which caused scores to show "No data".
+const ReviewSummaryView = ({ course, courseId, content, onPrev, navigate }) => {
+  const modules = (course?.modules || []).sort((a, b) => a.order - b.order);
+  const totalCreditHours = course?.credit_hours || 0;
+
+  // ── ✅ FIX: stable reference via useMemo instead of inline filter ──
+  const quizItems = useMemo(
+    () => content.filter((c) =>
+      c.type === "checkpoint" || c.type === "quiz_fundamentals" || c.type === "quiz"
+    ),
+    [content]
+  );
+
+  const [allAttempts, setAllAttempts] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setAllAttempts({});
+    setLoading(true);
+
+    if (quizItems.length === 0) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchAll = async () => {
+      try {
+        // ── Debug: verify IDs match what's stored in the DB ──
+        console.log("[ReviewSummaryView] Fetching attempts for quiz IDs:", quizItems.map((q) => q.id));
+
+        const results = await Promise.all(
+          quizItems.map((q) =>
+            API.get(`/quiz-attempts/${courseId}/${q.id}`)
+              .then((r) => ({ id: q.id, attempts: r.data?.attempts || [] }))
+              .catch(() => ({ id: q.id, attempts: [] }))
+          )
+        );
+
+        // ── Debug: verify what came back ──
+        console.log("[ReviewSummaryView] Fetched results:", results);
+
+        const map = {};
+        results.forEach(({ id, attempts }) => { map[id] = attempts; });
+        setAllAttempts(map);
+      } catch (err) {
+        console.error("[ReviewSummaryView] Failed to fetch quiz attempts:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAll();
+  }, [courseId, quizItems]); // ✅ stable memo ref, not quizItems.length
+
+  // Get best attempt for a quiz
+  const getBest = (quizId) => {
+    const attempts = allAttempts[quizId] || [];
+    if (!attempts.length) return null;
+    return attempts.reduce((best, a) => (!best || a.score_pct > best.score_pct ? a : best), null);
+  };
+
+  // Overall grade = average of all best scores
+  const gradeSummary = quizItems.map((q) => {
+    const best = getBest(q.id);
+    return { title: q.title, type: q.type, score: best?.score_pct ?? null, passed: best?.passed ?? null };
+  });
+  const scoredItems = gradeSummary.filter((g) => g.score !== null);
+  const overallGrade = scoredItems.length
+    ? Math.round(scoredItems.reduce((sum, g) => sum + g.score, 0) / scoredItems.length)
+    : null;
+
+  const gradeColor = overallGrade === null ? "rgba(10,22,40,0.45)"
+    : overallGrade >= 70 ? "rgba(21,128,61,1)"
+    : "rgba(185,28,28,1)";
+
+  const certCourseId = course?._id || courseId;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 999, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: "rgba(180,110,0,1)", fontWeight: 800, fontSize: 12 }}>
+          <Trophy size={14} /> Course Summary
+        </div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 999, background: "rgba(46,171,254,0.08)", border: "1px solid rgba(46,171,254,0.22)", color: "#2EABFE", fontWeight: 800, fontSize: 12 }}>
+          <Eye size={12} /> Review
+        </div>
+      </div>
+
+      <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--cp-dark)", letterSpacing: "-0.4px", lineHeight: 1.2, fontFamily: "'DM Serif Display',serif" }}>
+        {course?.title}
+      </h1>
+
+      {/* ── Overall Grade Card ── */}
+      <div style={{ borderRadius: 18, padding: "24px", textAlign: "center",
+        background: overallGrade !== null && overallGrade >= 70
+          ? "linear-gradient(135deg,rgba(34,197,94,0.10),rgba(0,180,180,0.10))"
+          : "rgba(2,8,23,0.03)",
+        border: `1px solid ${overallGrade !== null && overallGrade >= 70 ? "rgba(34,197,94,0.25)" : "rgba(2,8,23,0.10)"}` }}>
+        {loading ? (
+          <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(10,22,40,0.45)" }}>Calculating grades…</div>
+        ) : (
+          <>
+            <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(10,22,40,0.45)", letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Overall Grade</div>
+            <div style={{ fontSize: 64, fontWeight: 950, color: gradeColor, letterSpacing: "-3px", fontFamily: "'DM Serif Display',serif", lineHeight: 1 }}>
+              {overallGrade !== null ? `${overallGrade}%` : "—"}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.55)", marginTop: 8 }}>
+              {overallGrade !== null
+                ? overallGrade >= 70 ? "✓ Passing — All requirements met" : "Below passing threshold"
+                : "No quiz data available"}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Credit Hours Summary ── */}
+      <div style={{ background: "#fff", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", overflow: "hidden" }}>
+        <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(2,8,23,0.07)", fontWeight: 900, fontSize: 13, color: "rgba(10,22,40,0.55)", letterSpacing: "0.4px", display: "flex", alignItems: "center", gap: 8 }}>
+          <Clock size={14} /> Credit Hours by Module
+        </div>
+        <div style={{ padding: "8px 0" }}>
+          {modules.map((mod, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 18px", borderBottom: i < modules.length - 1 ? "1px solid rgba(2,8,23,0.05)" : "none" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(46,171,254,0.10)", border: "1px solid rgba(46,171,254,0.20)", display: "grid", placeItems: "center", flexShrink: 0, fontSize: 11, fontWeight: 900, color: "#2EABFE" }}>{i + 1}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.85)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{mod.title}</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                <Clock size={12} style={{ color: "rgba(10,22,40,0.40)" }} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: "rgba(10,22,40,0.70)" }}>{mod.credit_hours || 0} hr{(mod.credit_hours || 0) !== 1 ? "s" : ""}</span>
+              </div>
+            </div>
+          ))}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", background: "rgba(2,8,23,0.03)", borderTop: "2px solid rgba(2,8,23,0.08)" }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: "rgba(10,22,40,0.85)" }}>Total Credit Hours</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Clock size={12} style={{ color: "#2EABFE" }} />
+              <span style={{ fontSize: 14, fontWeight: 900, color: "#2EABFE" }}>{totalCreditHours} hrs</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Quiz / Exam Scores ── */}
+      {gradeSummary.length > 0 && (
+        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", overflow: "hidden" }}>
+          <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(2,8,23,0.07)", fontWeight: 900, fontSize: 13, color: "rgba(10,22,40,0.55)", letterSpacing: "0.4px", display: "flex", alignItems: "center", gap: 8 }}>
+            <ClipboardList size={14} /> Quiz &amp; Exam Scores (Best Attempt)
+          </div>
+          <div style={{ padding: "8px 0" }}>
+            {loading ? (
+              <div style={{ padding: "18px", textAlign: "center", fontSize: 13, color: "rgba(10,22,40,0.45)", fontWeight: 600 }}>Loading scores…</div>
+            ) : gradeSummary.map((g, i) => {
+              const isFinal = g.type === "quiz";
+              const scoreColor = g.score === null ? "rgba(10,22,40,0.40)"
+                : g.passed ? "rgba(21,128,61,1)"
+                : "rgba(185,28,28,1)";
+              const pill = g.type === "quiz" ? { bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.25)", color: "rgba(21,128,61,1)", label: "Final Exam" }
+                : g.type === "quiz_fundamentals" ? { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)", label: "Fundamentals" }
+                : { bg: "rgba(46,171,254,0.08)", border: "rgba(46,171,254,0.22)", color: "#2EABFE", label: "Checkpoint" };
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: i < gradeSummary.length - 1 ? "1px solid rgba(2,8,23,0.05)" : "none", ...(isFinal ? { background: "rgba(34,197,94,0.03)" } : {}) }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800, background: pill.bg, border: `1px solid ${pill.border}`, color: pill.color, flexShrink: 0 }}>{pill.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.80)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.title}</span>
+                  </div>
+                  <div style={{ flexShrink: 0, marginLeft: 12, textAlign: "right" }}>
+                    {g.score !== null ? (
+                      <>
+                        <span style={{ fontSize: 16, fontWeight: 950, color: scoreColor, fontFamily: "'DM Serif Display',serif" }}>{g.score}%</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 6, color: scoreColor }}>{g.passed ? "✓ Passed" : "✗ Failed"}</span>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(10,22,40,0.35)" }}>No data</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {!loading && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", background: "rgba(2,8,23,0.03)", borderTop: "2px solid rgba(2,8,23,0.08)" }}>
+                <div style={{ fontSize: 13, fontWeight: 900, color: "rgba(10,22,40,0.85)" }}>Overall Average</div>
+                <div style={{ textAlign: "right" }}>
+                  {overallGrade !== null
+                    ? <span style={{ fontSize: 16, fontWeight: 950, color: gradeColor, fontFamily: "'DM Serif Display',serif" }}>{overallGrade}%</span>
+                    : <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(10,22,40,0.35)" }}>—</span>}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── NMLS Completion Info ── */}
+      <div style={{ borderRadius: 16, padding: "18px 20px", background: "rgba(46,171,254,0.05)", border: "1px solid rgba(46,171,254,0.18)", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ fontWeight: 900, fontSize: 13, color: "#2EABFE", marginBottom: 4 }}>NMLS Course Requirements Met</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.70)", display: "flex", alignItems: "center", gap: 8 }}>
+          <CheckCircle2 size={14} style={{ color: "rgba(34,197,94,1)", flexShrink: 0 }} />
+          {totalCreditHours} credit hours completed
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.70)", display: "flex", alignItems: "center", gap: 8 }}>
+          <CheckCircle2 size={14} style={{ color: "rgba(34,197,94,1)", flexShrink: 0 }} />
+          Course type: {course?.type === "PE" ? "Pre-Licensing Education (PE)" : course?.type === "CE" ? "Continuing Education (CE)" : course?.type}
+        </div>
+        {course?.nmls_course_id && (
+          <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.70)", display: "flex", alignItems: "center", gap: 8 }}>
+            <CheckCircle2 size={14} style={{ color: "rgba(34,197,94,1)", flexShrink: 0 }} />
+            NMLS Course ID: {course.nmls_course_id}
+          </div>
+        )}
+      </div>
+
+      {/* ── Nav row ── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
+        <button style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 20px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.12)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 14, color: "rgba(10,22,40,0.72)" }}
+          onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
+        <button style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 24px", borderRadius: 12, border: "1px solid rgba(245,158,11,0.35)", background: "linear-gradient(135deg,rgba(245,158,11,0.12),rgba(245,158,11,0.06))", color: "rgba(146,84,0,1)", cursor: "pointer", fontWeight: 900, fontSize: 14, boxShadow: "0 4px 16px rgba(245,158,11,0.18)" }}
+          onClick={() => navigate(`/certificate/${certCourseId}`)} type="button">
+          <Award size={16} /> View Certificate
+        </button>
+      </div>
+    </div>
+  );
+};
+
 /* ─── Completion Screen ──────────────────────────────────────────── */
-const CompletionScreen = ({ course, transcriptEntry, navigate, courseId }) => {
+const CompletionScreen = ({ course, transcriptEntry, navigate, courseId, onReview }) => {
   const completedAt = transcriptEntry?.completed_at
     ? new Date(transcriptEntry.completed_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
   const certCourseId = transcriptEntry?.course_id?._id || transcriptEntry?.course_id || courseId;
@@ -968,6 +1216,12 @@ const CompletionScreen = ({ course, transcriptEntry, navigate, courseId }) => {
                 <Award size={18} /> View Certificate
               </button>
             )}
+            {onReview && (
+              <button style={{ ...S.completionPrimary, background: "rgba(46,171,254,1)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                onClick={onReview} type="button">
+                <Eye size={18} /> Review Course
+              </button>
+            )}
             <button style={S.completionPrimary} onClick={() => navigate("/dashboard")} type="button">Go to Dashboard</button>
             <button style={S.completionSecondary} onClick={() => navigate("/my-courses")} type="button">My Courses</button>
           </div>
@@ -982,15 +1236,24 @@ const css = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=DM+Serif+Display&display=swap');
 :root { --cp-dark:#0a1628;--cp-blue:#2EABFE;--cp-teal:#00B4B4;--cp-bg:#f4f6fa; }
 *{box-sizing:border-box;margin:0;padding:0;}
+html,body,#root{height:100%;overflow:hidden;}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--cp-bg);color:#0a1628;}
 .cp-spin{width:38px;height:38px;border-radius:50%;border:3px solid rgba(2,8,23,0.10);border-top-color:var(--cp-blue);animation:cpspin 0.9s linear infinite;}
 @keyframes cpspin{to{transform:rotate(360deg);}}
 @keyframes biosig-spin{to{transform:rotate(360deg);}}
+.cp-sidebar::-webkit-scrollbar{width:4px;}
+.cp-sidebar::-webkit-scrollbar-track{background:transparent;}
+.cp-sidebar::-webkit-scrollbar-thumb{background:rgba(2,8,23,0.12);border-radius:999px;}
+.cp-sidebar::-webkit-scrollbar-thumb:hover{background:rgba(2,8,23,0.22);}
+.cp-main::-webkit-scrollbar{width:6px;}
+.cp-main::-webkit-scrollbar-track{background:transparent;}
+.cp-main::-webkit-scrollbar-thumb{background:rgba(2,8,23,0.10);border-radius:999px;}
+.cp-main::-webkit-scrollbar-thumb:hover{background:rgba(2,8,23,0.18);}
 `;
 
 /* ─── Styles ─────────────────────────────────────────────────────── */
 const S = {
-  page:             { minHeight:"100vh",background:"var(--cp-bg)",display:"flex",flexDirection:"column" },
+  page:             { height:"100vh",background:"var(--cp-bg)",display:"flex",flexDirection:"column",overflow:"hidden" },
   loadCenter:       { minHeight:"100vh",display:"grid",placeItems:"center" },
   errorBanner:      { background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.25)",color:"rgba(185,28,28,1)",padding:"10px 20px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8 },
   inactivityBanner: { background:"rgba(245,158,11,0.10)",border:"1px solid rgba(245,158,11,0.30)",color:"rgba(146,84,0,1)",padding:"10px 20px",fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:8,lineHeight:1.5 },
@@ -1003,7 +1266,7 @@ const S = {
   lockTitle:        { fontSize:20,fontWeight:900,color:"rgba(185,28,28,1)",marginBottom:10 },
   lockSub:          { fontSize:14,fontWeight:600,color:"rgba(10,22,40,0.70)",lineHeight:1.7,maxWidth:460,marginBottom:12 },
   lockMeta:         { fontSize:12,fontWeight:700,color:"rgba(10,22,40,0.45)",fontStyle:"italic" },
-  topbar:          { height:58,background:"var(--cp-dark)",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",gap:16,flexShrink:0,borderBottom:"1px solid rgba(255,255,255,0.08)" },
+  topbar:          { height:58,background:"var(--cp-dark)",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",gap:16,flexShrink:0,borderBottom:"1px solid rgba(255,255,255,0.08)",position:"sticky",top:0,zIndex:100 },
   topbarLeft:      { display:"flex",alignItems:"center",gap:14,minWidth:0,flex:1 },
   exitBtn:         { display:"inline-flex",alignItems:"center",gap:7,padding:"7px 14px",borderRadius:999,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.08)",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0 },
   courseNameWrap:  { minWidth:0 },
@@ -1014,9 +1277,9 @@ const S = {
   progressBarFill: { height:"100%",borderRadius:999,background:"linear-gradient(90deg,var(--cp-teal),var(--cp-blue))",transition:"width 0.5s ease" },
   progressText:    { color:"rgba(255,255,255,0.65)",fontSize:12,fontWeight:700,whiteSpace:"nowrap" },
   menuBtn:         { display:"inline-flex",alignItems:"center",gap:7,padding:"7px 14px",borderRadius:999,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.08)",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:13,flexShrink:0 },
-  body:              { display:"flex",flex:1,overflow:"hidden",height:"calc(100vh - 58px)" },
-  sidebar:           { width:290,flexShrink:0,background:"#fff",borderRight:"1px solid rgba(2,8,23,0.08)",display:"flex",flexDirection:"column",overflowY:"auto" },
-  sidebarHead:       { padding:"16px 18px 12px",fontWeight:900,fontSize:13,color:"rgba(10,22,40,0.55)",letterSpacing:"0.4px",borderBottom:"1px solid rgba(2,8,23,0.07)",display:"flex",alignItems:"center" },
+  body:              { display:"flex",flex:1,minHeight:0,overflow:"hidden" },
+  sidebar:           { width:290,flexShrink:0,background:"#fff",borderRight:"1px solid rgba(2,8,23,0.08)",display:"flex",flexDirection:"column",overflowY:"auto",position:"sticky",top:0,height:"100%",alignSelf:"flex-start" },
+  sidebarHead:       { padding:"16px 18px 12px",fontWeight:900,fontSize:13,color:"rgba(10,22,40,0.55)",letterSpacing:"0.4px",borderBottom:"1px solid rgba(2,8,23,0.07)",display:"flex",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:10 },
   sidebarList:       { display:"flex",flexDirection:"column",padding:"8px 0",flex:1 },
   sidebarItem:       { display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"11px 16px",border:"none",background:"transparent",cursor:"pointer",textAlign:"left",transition:"background 0.15s" },
   sidebarItemActive: { background:"rgba(46,171,254,0.08)",borderRight:"3px solid var(--cp-blue)" },
@@ -1028,7 +1291,7 @@ const S = {
   resumeBanner:      { margin:"8px 12px 12px",padding:"10px 14px",borderRadius:12,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.22)",flexShrink:0 },
   resumeBannerText:  { display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:800,color:"rgba(21,128,61,1)",marginBottom:3 },
   resumeBannerSub:   { fontSize:11,fontWeight:600,color:"rgba(10,22,40,0.45)",paddingLeft:19 },
-  main:        { flex:1,overflowY:"auto",padding:"20px 0 32px" },
+  main:        { flex:1,overflowY:"auto",padding:"20px 0 32px",minHeight:0 },
   contentWrap: { maxWidth:860,margin:"0 auto",padding:"0 24px" },
   typePill:      { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(46,171,254,0.10)",border:"1px solid rgba(46,171,254,0.22)",color:"var(--cp-blue)",fontWeight:800,fontSize:12,marginBottom:16 },
   typePillAmber: { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(245,158,11,0.10)",border:"1px solid rgba(245,158,11,0.28)",color:"rgba(180,110,0,1)",fontWeight:800,fontSize:12,marginBottom:16 },

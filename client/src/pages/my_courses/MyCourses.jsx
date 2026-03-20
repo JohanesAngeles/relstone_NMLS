@@ -4,7 +4,7 @@ import API from "../../api/axios.js";
 import Layout from "../../components/Layout.jsx";
 import {
   BookOpen, Clock, CheckCircle, PlayCircle, Award,
-  ChevronRight, Heart, Filter, Search, Eye,
+  ChevronRight, Heart, Filter, Search, Eye, MessageSquare,
 } from "lucide-react";
 
 /* ─── MyCourses ──────────────────────────────────────────────────── */
@@ -19,15 +19,18 @@ const MyCourses = () => {
   const [typeFilter, setTypeFilter]   = useState("all");
   const [search, setSearch]           = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [myReviews,   setMyReviews]   = useState([]);   // student's submitted testimonials
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [dashRes, transcriptRes] = await Promise.all([
+        const [dashRes, transcriptRes, reviewsRes] = await Promise.all([
           API.get("/dashboard"),
           API.get("/dashboard/transcript"),
+          API.get("/testimonials/mine").catch(() => ({ data: { testimonials: [] } })),
         ]);
         setData({ dashboard: dashRes.data, transcript: transcriptRes.data });
+        setMyReviews(reviewsRes.data?.testimonials || []);
       } catch { setError("Failed to load courses"); }
       finally { setLoading(false); }
     };
@@ -206,6 +209,8 @@ const MyCourses = () => {
                 course={course}
                 onResume={() => navigate(`/courses/${course.id}/learn`)}
                 onViewCertificate={() => navigate(`/certificate/${course.certificate_course_id || course.id}`)}
+                onLeaveReview={() => navigate("/testimonials")}
+                hasReviewed={myReviews.some(r => String(r.course_id) === String(course.id))}
               />
             ))}
           </div>
@@ -217,7 +222,7 @@ const MyCourses = () => {
 };
 
 /* ─── Course Card ────────────────────────────────────────────────── */
-const CourseCard = ({ course, onResume, onViewCertificate }) => {
+const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasReviewed }) => {
   const isCompleted = course.status === "completed";
   const isWishlist  = course.status === "wishlist";
   const progress    = course.progress || 0;
@@ -293,17 +298,28 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
         )}
 
         {/* ── Action buttons ── */}
-        <div style={S.cardActions}>
+        <div style={{ ...S.cardActions, flexDirection: "column", gap: 8 }}>
           {isCompleted ? (
             <>
-              {/* Certificate button */}
-              <button style={S.certBtn} onClick={onViewCertificate} type="button">
-                <Award size={14} /> Certificate
-              </button>
-              {/* Review Course button — opens CoursePortal in review mode */}
-              <button style={S.reviewBtn} onClick={onResume} type="button">
-                <Eye size={14} /> Review Course
-              </button>
+              {/* Top row — Certificate + Review Course */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={S.certBtn} onClick={onViewCertificate} type="button">
+                  <Award size={14} /> Certificate
+                </button>
+                <button style={S.reviewBtn} onClick={onResume} type="button">
+                  <Eye size={14} /> Review Course
+                </button>
+              </div>
+              {/* Bottom row — Leave a Review (only if not yet reviewed) */}
+              {!hasReviewed ? (
+                <button style={S.leaveReviewBtn} onClick={onLeaveReview} type="button">
+                  <MessageSquare size={14} /> Leave a Review
+                </button>
+              ) : (
+                <div style={S.alreadyReviewedBadge}>
+                  <CheckCircle size={13} style={{ color: "#22C55E" }} /> Review Submitted
+                </div>
+              )}
             </>
           ) : isWishlist ? (
             <button style={S.resumeBtn} onClick={onResume} type="button">
@@ -466,6 +482,27 @@ const S = {
     background:"rgba(46,171,254,0.08)",
     color:"#2EABFE",
     cursor:"pointer",fontWeight:800,fontSize:13,
+  },
+
+  // ── Leave a Review button — full width, amber accent ──
+  leaveReviewBtn: {
+    width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
+    padding:"10px",borderRadius:11,
+    border:"1px solid rgba(245,158,11,0.35)",
+    background:"linear-gradient(135deg,rgba(245,158,11,0.10),rgba(245,158,11,0.04))",
+    color:"rgba(146,84,0,1)",
+    cursor:"pointer",fontWeight:800,fontSize:13,
+    transition:"all 0.18s",
+  },
+
+  // ── Already reviewed badge ──
+  alreadyReviewedBadge: {
+    width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
+    padding:"10px",borderRadius:11,
+    background:"rgba(34,197,94,0.06)",
+    border:"1px solid rgba(34,197,94,0.22)",
+    color:"rgba(21,128,61,1)",
+    fontSize:13,fontWeight:800,
   },
 
   empty:      { textAlign:"center",padding:"60px 20px",borderRadius:20,border:"1px dashed rgba(2,8,23,0.14)",background:"rgba(2,8,23,0.02)",marginTop:8 },

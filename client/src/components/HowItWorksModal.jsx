@@ -61,7 +61,19 @@ export const HowItWorksModal = ({ user, onClose }) => {
   const handleGoToSetup = () => {
     localStorage.setItem(SEEN_KEY, '1');
     onClose();
-    navigate('/dashboard');
+    // ── Pass all available user data as prefill state ──────────────
+    navigate('/account-setup', {
+      state: {
+        prefill: {
+          name:    user?.name    || '',
+          email:   user?.email   || '',
+          nmls_id: user?.nmls_id || '',
+          state:   user?.state   || '',
+          phone:   user?.phone   || '',
+          address: user?.address || '',
+        },
+      },
+    });
   };
 
   const handleSkip = () => {
@@ -176,16 +188,13 @@ export const HowItWorksButton = ({ onClick }) => (
 );
 
 // ── Hook: controls visibility ─────────────────────────────────────────────────
-// Returns [visible, show, hide]
 export const useHowItWorks = (user, isNewUser = false) => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    // Show automatically only if user hasn't seen it before
     const seen = localStorage.getItem(SEEN_KEY);
     if (!seen && isNewUser) {
-      // Small delay so the page renders first
       const t = setTimeout(() => setVisible(true), 600);
       return () => clearTimeout(t);
     }
@@ -216,14 +225,10 @@ const S = {
     fontFamily: "'Poppins', system-ui, sans-serif",
     boxShadow: '0 40px 100px rgba(0,0,0,0.5)',
   },
-
-  // Top gradient bar
   topBar: {
     height: 4,
     background: 'linear-gradient(90deg, #2EABFE, #00B4B4)',
   },
-
-  // Header
   header: {
     display: 'flex', alignItems: 'center',
     justifyContent: 'space-between',
@@ -256,14 +261,11 @@ const S = {
     flexShrink: 0, padding: 0,
     transition: 'all .15s',
   },
-
   dividerFull: {
     height: 0,
     borderBottom: '0.5px solid #2EABFE',
     margin: '0 30px',
   },
-
-  // Section label row
   sectionLabelRow: {
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '18px 30px 4px',
@@ -277,8 +279,6 @@ const S = {
     fontSize: 14, fontWeight: 500, color: '#2EABFE',
     textTransform: 'uppercase', letterSpacing: '.06em',
   },
-
-  // Title row
   titleRow: {
     display: 'flex', alignItems: 'flex-start',
     justifyContent: 'space-between',
@@ -314,8 +314,6 @@ const S = {
     fontSize: 13, fontWeight: 400, color: '#7FA8C4',
     lineHeight: 1.6,
   },
-
-  // Steps — 4 columns, 2 rows
   stepsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(4, 1fr)',
@@ -348,8 +346,6 @@ const S = {
     fontSize: 13, fontWeight: 400, color: '#7FA8C4',
     lineHeight: 1.6,
   },
-
-  // Footer
   footer: {
     display: 'flex', alignItems: 'center',
     justifyContent: 'space-between',
@@ -389,7 +385,6 @@ const S = {
   },
 };
 
-// ── ? Button styles ───────────────────────────────────────────────────────────
 const B = {
   btn: {
     width: 32, height: 32,
@@ -406,7 +401,6 @@ const B = {
   },
 };
 
-// ── Global CSS ────────────────────────────────────────────────────────────────
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap');
 `;
