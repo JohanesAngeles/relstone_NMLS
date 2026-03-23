@@ -4,39 +4,8 @@ import API from "../../api/axios.js";
 import Layout from "../../components/Layout.jsx";
 import {
   BookOpen, Clock, CheckCircle, PlayCircle, Award,
-  ChevronRight, Heart, Filter, Search,
+  ChevronRight, Heart, Filter, Search, Eye, MessageSquare,
 } from "lucide-react";
-
-/* ─── localStorage progress helpers (must match CoursePortal) ────── */
-const getLocalProgress = (courseId) => {
-  try {
-    const completed = localStorage.getItem(`course-progress-${courseId}`);
-    const idxRaw    = localStorage.getItem(`course-currentIdx-${courseId}`);
-    return {
-      completedCount: completed ? JSON.parse(completed).length : 0,
-      currentIdx:     idxRaw !== null ? parseInt(idxRaw, 10) : 0,
-    };
-  } catch { return { completedCount: 0, currentIdx: 0 }; }
-};
-
-const calcProgress = (completedCount, totalSteps) => {
-  if (!totalSteps) return 0;
-  return Math.min(100, Math.round((completedCount / totalSteps) * 100));
-};
-
-const countSteps = (course) => {
-  if (!course?.modules?.length) return 0;
-  let count = 0;
-  const coursePdf = course.pdf_url || null;
-  course.modules.forEach((mod) => {
-    const modPdf = mod.pdf_url || coursePdf;
-    count++;
-    if (mod.show_pdf_before_quiz && modPdf) count++;
-    if (mod.quiz?.length) count++;
-  });
-  if (course.final_exam?.questions?.length) count++;
-  return count;
-};
 
 /* ─── MyCourses ──────────────────────────────────────────────────── */
 const MyCourses = () => {
@@ -50,65 +19,23 @@ const MyCourses = () => {
   const [typeFilter, setTypeFilter]   = useState("all");
   const [search, setSearch]           = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [courseSteps, setCourseSteps] = useState({});
+  const [myReviews,   setMyReviews]   = useState([]);   // student's submitted testimonials
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [dashRes, transcriptRes] = await Promise.all([
+        const [dashRes, transcriptRes, reviewsRes] = await Promise.all([
           API.get("/dashboard"),
           API.get("/dashboard/transcript"),
+          API.get("/testimonials/mine").catch(() => ({ data: { testimonials: [] } })),
         ]);
         setData({ dashboard: dashRes.data, transcript: transcriptRes.data });
+        setMyReviews(reviewsRes.data?.testimonials || []);
       } catch { setError("Failed to load courses"); }
       finally { setLoading(false); }
     };
     load();
   }, []);
-
-  // ── KEY FIX: auto-save completion for any course that reached 100% locally
-  //    but wasn't recorded on the server (e.g. student closed browser before
-  //    clicking "Complete Course" on the final exam screen)
-  useEffect(() => {
-    if (!data) return;
-
-    const available     = data.dashboard?.available_courses || [];
-    const transcriptIds = new Set(
-      (data.transcript?.transcript || []).map((t) =>
-        String(t.course_id?._id || t.course_id)
-      )
-    );
-
-    available
-      .filter((c) => !c.already_completed && !transcriptIds.has(String(c.course_id)))
-      .forEach(async (c) => {
-        try {
-          // Fetch total steps if we don't have them yet
-          let totalSteps = c.total_steps || courseSteps[String(c.course_id)] || 0;
-          if (!totalSteps) {
-            const res    = await API.get(`/courses/${c.course_id}`);
-            const course = res.data?.data || res.data;
-            totalSteps   = countSteps(course);
-            setCourseSteps((prev) => ({ ...prev, [String(c.course_id)]: totalSteps }));
-          }
-
-          const { completedCount } = getLocalProgress(c.course_id);
-          if (totalSteps > 0 && completedCount >= totalSteps) {
-            // Progress is 100% locally but not saved — save it now
-            console.log(`Auto-saving completion for course ${c.course_id}`);
-            await API.post("/dashboard/complete", { courseId: c.course_id });
-            // Reload data to move card to Completed tab
-            const [dashRes, transcriptRes] = await Promise.all([
-              API.get("/dashboard"),
-              API.get("/dashboard/transcript"),
-            ]);
-            setData({ dashboard: dashRes.data, transcript: transcriptRes.data });
-          }
-        } catch (err) {
-          console.warn(`Could not auto-save completion for ${c.course_id}:`, err.message);
-        }
-      });
-  }, [data]);
 
   const { inProgress, completed, allStates, allTypes } = useMemo(() => {
     if (!data) return { inProgress: [], completed: [], allStates: [], allTypes: [] };
@@ -142,10 +69,9 @@ const MyCourses = () => {
         const order = orders.find((o) =>
           (o.items || []).some((i) => String(i.course_id?._id) === String(c.course_id))
         );
-        const { completedCount } = getLocalProgress(c.course_id);
-        const totalSteps         = c.total_steps || courseSteps[String(c.course_id)] || 0;
-        const localProgress      = calcProgress(completedCount, totalSteps);
-        const progress           = completedCount > 0 ? localProgress : (c.progress || 0);
+        const completedCount = Number.isFinite(c.completed_steps) ? c.completed_steps : 0;
+        const totalSteps     = Number.isFinite(c.total_steps) ? c.total_steps : 0;
+        const progress       = Number.isFinite(c.progress) ? c.progress : 0;
         return {
           id:            c.course_id,
           title:         c.title,
@@ -171,22 +97,6 @@ const MyCourses = () => {
     ])].filter(Boolean);
 
     return { inProgress: inProgressCourses, completed: completedCourses, allStates, allTypes };
-  }, [data, courseSteps]);
-
-  // Fetch step counts for courses with local progress
-  useEffect(() => {
-    if (!data) return;
-    const available = data.dashboard?.available_courses || [];
-    const toFetch = available
-      .filter((c) => !c.already_completed && !c.total_steps)
-      .filter((c) => getLocalProgress(c.course_id).completedCount > 0);
-    toFetch.forEach(async (c) => {
-      try {
-        const res    = await API.get(`/courses/${c.course_id}`);
-        const course = res.data?.data || res.data;
-        setCourseSteps((prev) => ({ ...prev, [String(c.course_id)]: countSteps(course) }));
-      } catch {}
-    });
   }, [data]);
 
   const filterCourses = (list) =>
@@ -281,6 +191,14 @@ const MyCourses = () => {
           </div>
         )}
 
+        {/* ── Completed tab info banner ── */}
+        {activeTab === "completed" && completed.length > 0 && (
+          <div style={S.reviewInfoBanner}>
+            <Eye size={14} style={{ flexShrink: 0 }} />
+            <span>Click <strong>Review Course</strong> on any completed course to revisit the content and see your quiz answers.</span>
+          </div>
+        )}
+
         {currentList.length === 0 ? (
           <EmptyTab tab={activeTab} onBrowse={() => navigate("/courses")} />
         ) : (
@@ -291,6 +209,8 @@ const MyCourses = () => {
                 course={course}
                 onResume={() => navigate(`/courses/${course.id}/learn`)}
                 onViewCertificate={() => navigate(`/certificate/${course.certificate_course_id || course.id}`)}
+                onLeaveReview={() => navigate("/testimonials")}
+                hasReviewed={myReviews.some(r => String(r.course_id) === String(course.id))}
               />
             ))}
           </div>
@@ -302,7 +222,7 @@ const MyCourses = () => {
 };
 
 /* ─── Course Card ────────────────────────────────────────────────── */
-const CourseCard = ({ course, onResume, onViewCertificate }) => {
+const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasReviewed }) => {
   const isCompleted = course.status === "completed";
   const isWishlist  = course.status === "wishlist";
   const progress    = course.progress || 0;
@@ -321,6 +241,7 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
 
   return (
     <div style={S.card} className="mc-card">
+      {/* ── Colored top accent bar ── */}
       <div style={{ ...S.cardAccent, background: course.type === "PE" ? "#2EABFE" : course.type === "CE" ? "#00B4B4" : "#F59E0B" }} />
 
       <div style={S.cardBody}>
@@ -335,6 +256,10 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
           <div style={S.cardBadges}>
             <span style={badgeStyle(course.type)}>{String(course.type || "").toUpperCase()}</span>
             {course.state && course.state !== "Federal" && <span style={S.stateBadge}>{course.state}</span>}
+            {/* ── Completed badge shown on card header ── */}
+            {isCompleted && (
+              <span style={S.completedHeaderBadge}>✓ Completed</span>
+            )}
           </div>
         </div>
 
@@ -345,6 +270,7 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
           {course.nmls_id && <span style={S.metaItem}>NMLS #{course.nmls_id}</span>}
         </div>
 
+        {/* ── Progress bar for in-progress courses ── */}
         {!isCompleted && !isWishlist && (
           <div style={S.progressWrap}>
             <div style={S.progressTop}>
@@ -361,6 +287,7 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
           </div>
         )}
 
+        {/* ── Completion date row ── */}
         {isCompleted && (
           <div style={S.completedBadgeRow}>
             <div style={S.completedBadge}>
@@ -370,15 +297,29 @@ const CourseCard = ({ course, onResume, onViewCertificate }) => {
           </div>
         )}
 
-        <div style={S.cardActions}>
+        {/* ── Action buttons ── */}
+        <div style={{ ...S.cardActions, flexDirection: "column", gap: 8 }}>
           {isCompleted ? (
             <>
-              <button style={S.certBtn} onClick={onViewCertificate} type="button">
-                <Award size={14} /> View Certificate
-              </button>
-              <button style={S.resumeBtn} onClick={onResume} type="button">
-                <PlayCircle size={14} /> Review
-              </button>
+              {/* Top row — Certificate + Review Course */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={S.certBtn} onClick={onViewCertificate} type="button">
+                  <Award size={14} /> Certificate
+                </button>
+                <button style={S.reviewBtn} onClick={onResume} type="button">
+                  <Eye size={14} /> Review Course
+                </button>
+              </div>
+              {/* Bottom row — Leave a Review (only if not yet reviewed) */}
+              {!hasReviewed ? (
+                <button style={S.leaveReviewBtn} onClick={onLeaveReview} type="button">
+                  <MessageSquare size={14} /> Leave a Review
+                </button>
+              ) : (
+                <div style={S.alreadyReviewedBadge}>
+                  <CheckCircle size={13} style={{ color: "#22C55E" }} /> Review Submitted
+                </div>
+              )}
             </>
           ) : isWishlist ? (
             <button style={S.resumeBtn} onClick={onResume} type="button">
@@ -467,6 +408,16 @@ const S = {
   chipActive:    { background:"#091925",color:"#fff",border:"1px solid #091925" },
   clearFilters:  { alignSelf:"flex-end",padding:"6px 12px",borderRadius:999,border:"1px solid rgba(239,68,68,0.25)",background:"rgba(239,68,68,0.06)",cursor:"pointer",fontSize:12,fontWeight:700,color:"rgba(180,30,30,0.85)" },
 
+  // ── Review info banner shown on completed tab ──
+  reviewInfoBanner: {
+    display:"flex",alignItems:"center",gap:10,
+    padding:"12px 16px",borderRadius:12,marginBottom:16,
+    background:"rgba(245,158,11,0.07)",
+    border:"1px solid rgba(245,158,11,0.25)",
+    color:"rgba(146,84,0,1)",
+    fontSize:13,fontWeight:700,lineHeight:1.5,
+  },
+
   grid: { display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16 },
 
   card:        { borderRadius:18,border:"1px solid rgba(2,8,23,0.08)",background:"#fff",overflow:"hidden",position:"relative" },
@@ -474,8 +425,18 @@ const S = {
   cardBody:    { padding:18 },
   cardHeader:  { display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12 },
   cardIconWrap:{ width:38,height:38,borderRadius:12,background:"rgba(2,8,23,0.04)",border:"1px solid rgba(2,8,23,0.07)",display:"grid",placeItems:"center" },
-  cardBadges:  { display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end" },
+  cardBadges:  { display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center" },
   stateBadge:  { display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,fontSize:11,fontWeight:700,color:"rgba(9,25,37,0.65)",background:"rgba(2,8,23,0.05)",border:"1px solid rgba(2,8,23,0.10)" },
+
+  // ── Small "✓ Completed" badge shown in card header ──
+  completedHeaderBadge: {
+    display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,
+    fontSize:11,fontWeight:800,
+    color:"rgba(21,128,61,1)",
+    background:"rgba(34,197,94,0.10)",
+    border:"1px solid rgba(34,197,94,0.25)",
+  },
+
   cardTitle:   { fontWeight:900,fontSize:14,color:"rgba(9,25,37,0.88)",lineHeight:1.45,marginBottom:8 },
   cardMeta:    { display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 },
   metaItem:    { display:"inline-flex",alignItems:"center",gap:4,fontSize:12,fontWeight:700,color:"rgba(9,25,37,0.50)" },
@@ -493,7 +454,16 @@ const S = {
   completedBadge:    { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 10px",borderRadius:999,background:"rgba(34,197,94,0.08)",border:"1px solid rgba(34,197,94,0.22)",fontSize:12,fontWeight:800,color:"rgba(21,128,61,1)" },
 
   cardActions: { display:"flex",gap:8,marginTop:4 },
-  resumeBtn:   { flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px",borderRadius:11,border:"none",background:"#091925",color:"#fff",cursor:"pointer",fontWeight:800,fontSize:13 },
+
+  // ── Resume / Start Learning button ──
+  resumeBtn: {
+    flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,
+    padding:"10px",borderRadius:11,border:"none",
+    background:"#091925",color:"#fff",
+    cursor:"pointer",fontWeight:800,fontSize:13,
+  },
+
+  // ── View Certificate button ──
   certBtn: {
     flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
     padding:"10px",borderRadius:11,
@@ -502,6 +472,37 @@ const S = {
     color:"rgba(146,84,0,1)",
     cursor:"pointer",fontWeight:800,fontSize:13,
     boxShadow:"0 2px 10px rgba(245,158,11,0.15)",
+  },
+
+  // ── Review Course button — new style ──
+  reviewBtn: {
+    flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
+    padding:"10px",borderRadius:11,
+    border:"1px solid rgba(46,171,254,0.30)",
+    background:"rgba(46,171,254,0.08)",
+    color:"#2EABFE",
+    cursor:"pointer",fontWeight:800,fontSize:13,
+  },
+
+  // ── Leave a Review button — full width, amber accent ──
+  leaveReviewBtn: {
+    width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
+    padding:"10px",borderRadius:11,
+    border:"1px solid rgba(245,158,11,0.35)",
+    background:"linear-gradient(135deg,rgba(245,158,11,0.10),rgba(245,158,11,0.04))",
+    color:"rgba(146,84,0,1)",
+    cursor:"pointer",fontWeight:800,fontSize:13,
+    transition:"all 0.18s",
+  },
+
+  // ── Already reviewed badge ──
+  alreadyReviewedBadge: {
+    width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
+    padding:"10px",borderRadius:11,
+    background:"rgba(34,197,94,0.06)",
+    border:"1px solid rgba(34,197,94,0.22)",
+    color:"rgba(21,128,61,1)",
+    fontSize:13,fontWeight:800,
   },
 
   empty:      { textAlign:"center",padding:"60px 20px",borderRadius:20,border:"1px dashed rgba(2,8,23,0.14)",background:"rgba(2,8,23,0.02)",marginTop:8 },

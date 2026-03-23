@@ -471,102 +471,82 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* ── ABOUT NMLS BANNER ── */}
-      <div className="lp-about-banner" id="about">
-        <div className="lp-container lp-banner-inner">
-          <p className="lp-banner-text">
-            <strong>What is NMLS?</strong> The Nationwide Multistate Licensing System is the official platform
-            for U.S. mortgage licensing. The SAFE Act requires all Mortgage Loan Originators (MLOs)
-            to complete NMLS-approved education before originating loans.
-          </p>
-          <a href="#courses" className="lp-banner-link">View Courses →</a>
-        </div>
-      </div>
-
-      {/* ── ABOUT RELSTONE ── */}
-      <section className="lp-about-relstone" id="about-relstone">
-        <div className="lp-container">
-          <div className="lp-section-label">ABOUT RELSTONE</div>
-
-          <div className="lp-about-relstone-top">
-            <div className="lp-story-card">
-              <h2 className="lp-section-h2">
-                Mission, Story, and the Team Behind
-                <span className="lp-h2-accent"> Relstone.</span>
-              </h2>
-              <p className="lp-about-para">
-                Relstone was built to make mortgage licensing education more reliable, less fragmented, and more supportive for professionals balancing work and certification requirements.
-              </p>
-              <p className="lp-about-para">
-                Our mission is simple: give learners a compliant, high-clarity path from first enrollment to long-term license renewal, with real instructional support along the way.
-              </p>
-            </div>
-
-            <div className="lp-why-grid">
-              {WHY_RELSTONE.map((item) => (
-                <article key={item.label} className="lp-why-card">
-                  <div className="lp-why-value">{item.value}</div>
-                  <div className="lp-why-label">{item.label}</div>
-                  <p>{item.desc}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <div className="lp-about-block">
-            <h3 className="lp-about-title">Instructor and Leadership Team</h3>
-            <div className="lp-team-grid">
-              {LEADERSHIP_TEAM.map((member) => (
-                <article key={member.name} className="lp-team-card">
-                  <img src={member.photo} alt={`${member.name} portrait`} loading="lazy" className="lp-team-photo" />
-                  <div className="lp-team-content">
-                    <div className="lp-team-name">{member.name}</div>
-                    <div className="lp-team-role">{member.role}</div>
-                    <p>{member.bio}</p>
-                  </div>
-                </article>
-              ))}
+      // ─── Course Catalog Section ──────────────────────────────────────────────────
+<section className="lp-courses" id="courses">
+  <div className="lp-container">
+    <div className="lp-section-center">
+      <p className="lp-eyebrow-blue">COURSE CATALOG</p>
+      <h2 className="lp-h2">CHOOSE YOUR <span className="lp-blue">COURSE</span></h2>
+      <p className="lp-sub">All courses are NMLS-approved, fully online, and report directly to your NMLS record upon completion.</p>
+    </div>
+    <div className="lp-course-grid">
+      {[
+        { 
+          tag: 'CALIFORNIA DFPI', 
+          title: '8-Hour CA-DFPI SAFE Comprehensive: Annual MLO Fundamentals', 
+          pills: [{l:'NMLS Approved', c:'blue'}, {l:'California', c:'green'}, {l:'Required', c:'orange'}], 
+          hrs: 8, 
+          price: '$99', 
+          desc: 'Covers federal mortgage law (3 hrs), ethics (2 hrs), non-traditional mortgage lending (2 hrs), and California state law & DFPI regulations (1 hr).', 
+          bullets: ['3 Hours Federal Law', '2 Hours Ethics', '2 Hours Non-Traditional Lending', '1 Hour CA-DFPI Law', 'Direct NMLS Reporting'], 
+          cta: user ? 'View Course' : 'Enroll Now', 
+          action: () => user ? navigate('/courses') : setModal('register') 
+        },
+        { 
+          tag: 'FLORIDA DBPR', 
+          title: '8-Hour FL SAFE Comprehensive: Annual MLO Fundamentals', 
+          pills: [{l:'NMLS Approved', c:'blue'}, {l:'Florida', c:'green'}], 
+          hrs: 8, 
+          price: '$99', 
+          desc: 'Covers federal mortgage law (3 hrs), ethics (2 hrs), non-traditional mortgage lending (2 hrs), and Florida state law & regulations (1 hr).', 
+          bullets: ['3 Hours Federal Law Updates', '2 Hours Ethics', '2 Hours Non-Traditional Lending', '1 Hour Florida Law', 'Direct NMLS Reporting'], 
+          cta: user ? 'View Course' : 'Enroll Now', 
+          action: () => user ? navigate('/courses') : setModal('register') 
+        },
+        { 
+          tag: 'HAWAII DFI', 
+          title: '8-Hour HI SAFE Comprehensive: Annual MLO Fundamentals', 
+          pills: [{l:'NMLS Approved', c:'blue'}, {l:'Hawaii', c:'teal'}], 
+          hrs: 8, 
+          price: '$99', 
+          desc: 'Covers federal mortgage law (3 hrs), ethics (2 hrs), non-traditional mortgage lending (2 hrs), and Hawaii state law & regulations (1 hr).', 
+          bullets: ['3 Hours Federal Law', '2 Hours Ethics', '2 Hours Non-Traditional Lending', '1 Hour Hawaii Law', 'Direct NMLS Reporting'], 
+          cta: user ? 'View Course' : 'Enroll Now', 
+          action: () => user ? navigate('/courses') : setModal('register') 
+        },
+      ].map((c, i) => (
+        <div key={i} className="lp-course-card">
+          <div className="lp-course-header">
+            <p className="lp-course-tag">{c.tag}</p>
+            <h3 className="lp-course-title">{c.title}</h3>
+            <div className="lp-course-pills">
+              {c.pills.map(p => <span key={p.l} className={`lp-cpill lp-cpill--${p.c}`}>{p.l}</span>)}
             </div>
           </div>
-
-          <div className="lp-about-block lp-about-block--split">
-            <div className="lp-approval-panel">
-              <h3 className="lp-about-title">State Approvals</h3>
-              <p className="lp-about-note">Approved coverage across all 50 states for applicable federal tracks and supported licensing pathways.</p>
-              <div className="lp-approval-grid">
-                {STATE_APPROVALS.map((state) => (
-                  <span key={state} className="lp-approval-chip">{state}</span>
-                ))}
-              </div>
+          <div className="lp-course-body">
+            <div className="lp-course-hrs">
+              <span className="lp-hrs-num">{c.hrs}</span>
+              <div className="lp-hrs-lbl"><div>NMLS CREDIT</div><div>HOURS</div></div>
             </div>
-
-            <div className="lp-accreditation-panel">
-              <h3 className="lp-about-title">Accreditations and Standards</h3>
-              <div className="lp-accred-list">
-                {ACCREDITATIONS.map((item) => (
-                  <div key={item} className="lp-accred-item">
-                    <span className="lp-accred-dot" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="lp-about-block">
-            <h3 className="lp-about-title">Press Mentions and Awards</h3>
-            <div className="lp-press-grid">
-              {PRESS_AND_AWARDS.map((item) => (
-                <article key={`${item.source}-${item.year}`} className="lp-press-card">
-                  <div className="lp-press-source">{item.source}</div>
-                  <div className="lp-press-title">{item.title}</div>
-                  <div className="lp-press-year">{item.year}</div>
-                </article>
+            <p className="lp-course-desc">{c.desc}</p>
+            <ul className="lp-course-bullets">
+              {c.bullets.map(b => (
+                <li key={b}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  {b}
+                </li>
               ))}
+            </ul>
+            <div className="lp-course-footer">
+              <span className="lp-course-price">{c.price}<span className="lp-course-unit">/course</span></span>
+              <button className="lp-btn-blue" onClick={c.action}>{c.cta}</button>
             </div>
           </div>
         </div>
-      </section>
+      ))}
+    </div>
+  </div>
+</section>
 
       {/* ── ABOUT SECTION ── */}
       <section className="lp-about" id="about-full">

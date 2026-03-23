@@ -1,151 +1,146 @@
 const express = require('express');
 const router  = express.Router();
-const User    = require('../models/User');
-const Course  = require('../models/Course');
 const Order   = require('../models/Order');
+const Course  = require('../models/Course');
+const User    = require('../models/User');
+const CourseProgress = require('../models/CourseProgress');
 const authMiddleware = require('../middleware/auth');
 
-const buildTranscript = async (user) => {
-  const completions = user.completions || [];
-  if (completions.length === 0) return [];
-
-  const courseIds = completions
-    .map((c) => c.course_id?._id || c.course_id)
-    .filter(Boolean);
-
-  const courses = await Course.find({ _id: { $in: courseIds } })
-    .select('title type credit_hours nmls_course_id state_approval_number states_approved');
-
-  const courseMap = {};
-  courses.forEach((c) => { courseMap[String(c._id)] = c; });
-
-  return completions.map((c) => {
-    const cId    = String(c.course_id?._id || c.course_id || '');
-    const course = courseMap[cId] || {};
-    return {
-      _id:             c._id,
-      course_id: {
-        _id:                   cId,
-        title:                 course.title                || '—',
-        type:                  course.type                 || '—',
-        credit_hours:          course.credit_hours         || 0,
-        nmls_course_id:        course.nmls_course_id       || '—',
-        state_approval_number: course.state_approval_number || '—',
-      },
-      course_title:    course.title           || '—',
-      type:            course.type            || '—',
-      credit_hours:    course.credit_hours    || 0,
-      nmls_course_id:  course.nmls_course_id  || '—',
-      completed_at:    c.completed_at,
-      certificate_url: c.certificate_url || null,
-      state:           course.states_approved?.[0] || user.state || '—',
-    };
-  });
-};
-
-// GET /api/dashboard
-router.get('/', authMiddleware, async (req, res) => {
+// @route   POST /api/orders
+router.post('/', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const { items } = req.body;
 
-    // ── FIX: accept both 'paid' (old orders) and 'completed' (new orders)
-    const orders = await Order.find({
-      user_id: req.user.id,
-      status:  { $in: ['paid', 'completed'] },
-    }).populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url');
-
-    const completedCourseIds = new Set(
-      (user.completions || []).map((c) => String(c.course_id?._id || c.course_id))
-    );
-
-    const seen = new Set();
-    const available_courses = [];
-
-    orders.forEach((order) => {
-      (order.items || []).forEach((item) => {
-        const course = item.course_id;
-        if (!course) return;
-        const courseId = String(course._id);
-        if (seen.has(courseId)) return;
-        seen.add(courseId);
-        available_courses.push({
-          course_id:         courseId,
-          title:             course.title,
-          type:              course.type,
-          credit_hours:      course.credit_hours,
-          nmls_course_id:    course.nmls_course_id,
-          state:             course.states_approved?.[0] || 'Federal',
-          already_completed: completedCourseIds.has(courseId),
-          progress:          0,
-        });
-      });
-    });
-
-    res.json({
-      user: {
-        name:    user.name,
-        email:   user.email,
-        state:   user.state,
-        nmls_id: user.nmls_id,
-        role:    user.role,
-      },
-      available_courses,
-      orders,
-    });
-  } catch (err) {
-    console.error('GET /dashboard error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
-
-// GET /api/dashboard/transcript
-router.get('/transcript', authMiddleware, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    const transcript = await buildTranscript(user);
-    res.json({ transcript });
-  } catch (err) {
-    console.error('GET /dashboard/transcript error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
-
-// POST /api/dashboard/complete
-router.post('/complete', authMiddleware, async (req, res) => {
-  try {
-    const { courseId } = req.body;
-    console.log(`POST /dashboard/complete — user: ${req.user.id}, courseId: ${courseId}`);
-    if (!courseId) return res.status(400).json({ message: 'courseId is required' });
-
-    const [user, course] = await Promise.all([
-      User.findById(req.user.id),
-      Course.findById(courseId).select('title type credit_hours nmls_course_id states_approved'),
-    ]);
-
-    if (!user)   return res.status(404).json({ message: 'User not found' });
-    if (!course) return res.status(404).json({ message: 'Course not found' });
-
-    const alreadyDone = (user.completions || []).some(
-      (c) => String(c.course_id?._id || c.course_id) === String(courseId)
-    );
-
-    if (alreadyDone) {
-      return res.json({ message: 'Already completed', already_existed: true });
+    if (!items || items.length === 0) {
+      return res.status(400).json({ message: 'No items in order' });
     }
 
-    user.completions.push({ course_id: courseId, completed_at: new Date() });
-    await user.save();
-    console.log(`✅ Completion saved — user: ${req.user.id}, course: ${courseId}`);
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
-    res.json({
-      message:         'Course completion saved successfully',
-      already_existed: false,
-      completion: { course_id: courseId, course_title: course.title, completed_at: new Date() },
+    const completedCourseIds = (user.completions || []).map(c =>
+      String(c.course_id?._id || c.course_id)
+    );
+
+    for (const item of items) {
+      if (completedCourseIds.includes(String(item.course_id))) {
+        return res.status(400).json({
+          message: `You have already completed course ${item.course_id}`,
+        });
+      }
+    }
+
+    let total = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      const course = await Course.findById(item.course_id);
+      if (!course) {
+        return res.status(404).json({ message: `Course ${item.course_id} not found` });
+      }
+
+      const textbook_price = item.include_textbook ? (course.textbook_price || 0) : 0;
+      total += (course.price || 0) + textbook_price;
+
+      orderItems.push({
+        course_id:        course._id,
+        price:            course.price || 0,
+        include_textbook: item.include_textbook || false,
+        textbook_price,
+      });
+    }
+
+    const order = await Order.create({
+      user_id:      req.user.id,
+      items:        orderItems,
+      total_amount: total,
+      status:       'completed',
     });
+
+    // Reset per-course progress on new purchase (per user)
+    await Promise.all(
+      orderItems.map((it) =>
+        CourseProgress.findOneAndUpdate(
+          { user_id: req.user.id, course_id: it.course_id },
+          {
+            $set: {
+              completed_idxs: [],
+              current_idx: 0,
+              is_completed: false,
+              completed_at: null,
+              last_activity_at: new Date(),
+              reset_at: new Date(),
+            },
+            $setOnInsert: { user_id: req.user.id, course_id: it.course_id },
+          },
+          { upsert: true, new: true }
+        )
+      )
+    );
+
+    const populated = await Order.findById(order._id)
+      .populate('items.course_id', 'title nmls_course_id type credit_hours states_approved pdf_url');
+
+    res.status(201).json(populated);
+
   } catch (err) {
-    console.error('POST /dashboard/complete error:', err);
+    console.error('POST /orders error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// @route   GET /api/orders/my
+router.get('/my', authMiddleware, async (req, res) => {
+  try {
+    const orders = await Order.find({ user_id: req.user.id })
+      .populate('items.course_id', 'title nmls_course_id type credit_hours');
+    res.json(orders);
+  } catch (err) {
+    console.error('GET /orders/my error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// @route   GET /api/orders  (admin only)
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admins only' });
+    }
+    const orders = await Order.find()
+      .populate('user_id', 'name email nmls_id')
+      .populate('items.course_id', 'title nmls_course_id type credit_hours');
+    res.json(orders);
+  } catch (err) {
+    console.error('GET /orders error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// @route   PATCH /api/orders/:id/status  (admin only)
+router.patch('/:id/status', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admins only' });
+    }
+
+    const { status } = req.body;
+    const allowed = ['pending', 'paid', 'completed', 'cancelled'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ message: `Invalid status. Must be one of: ${allowed.join(', ')}` });
+    }
+
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    ).populate('items.course_id', 'title nmls_course_id type credit_hours');
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    res.json({ message: 'Order status updated', order });
+  } catch (err) {
+    console.error('PATCH /orders/:id/status error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

@@ -22,55 +22,98 @@ import MyCourses from './pages/my_courses/MyCourses';
 import Profile from './pages/profile/Profile';
 import MyCertificates from './pages/certificates/MyCertificates';
 import OrdersBilling from './pages/OrdersBilling';
+import AccountSetup from './pages/auth_page/AccountSetupStep';
+import Testimonials from './pages/testimonials/Testimonial';
+import TestimonialApproval from './pages/instructor_page/TestimonialApproval';
+import CourseDetail from './pages/instructor_page/CourseDetail';
+import StudentDetail from './pages/instructor_page/StudentDetail';
+import ContactSupport from './pages/dashboard/ContactSupport';
+import SupportInbox   from './pages/instructor_page/SupportInbox';
 
+/* ─── Role helpers ───────────────────────────────────────────────── */
+const isInstructor = (user) =>
+  user?.role === 'instructor' || user?.role === 'admin';
 
-// ── Landing wrapper — if already logged in, skip to home ──────────
+/* ─── Landing wrapper ────────────────────────────────────────────────
+   Not logged in  → show landing page
+   Logged in as instructor/admin → /instructor/dashboard
+   Logged in as student          → /home
+─────────────────────────────────────────────────────────────────── */
 const LandingWrapper = () => {
   const { user, loading } = useAuth();
   const [authModal, setAuthModal] = useState(null);
 
   if (loading) return null;
 
-  // Already logged in → go to HomePage
-  if (user) return <Navigate to="/home" replace />;
+  if (user) {
+    return <Navigate to={isInstructor(user) ? '/instructor/dashboard' : '/home'} replace />;
+  }
 
   return (
     <>
       <LandingPage onOpenAuth={(mode) => setAuthModal(mode)} />
       {authModal && (
-        <AuthModal
-          mode={authModal}
-          onClose={() => setAuthModal(null)}
-        />
+        <AuthModal mode={authModal} onClose={() => setAuthModal(null)} />
       )}
     </>
   );
 };
 
+/* ─── StudentRoute ───────────────────────────────────────────────────
+   Must be logged in AND be a student.
+   Instructors/admins → bounced to /instructor/dashboard
+─────────────────────────────────────────────────────────────────── */
+const StudentRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/" replace />;
+  if (isInstructor(user)) return <Navigate to="/instructor/dashboard" replace />;
+  return children;
+};
+
+/* ─── InstructorRoute ────────────────────────────────────────────────
+   Must be logged in AND be instructor/admin.
+   Students → bounced to /dashboard
+─────────────────────────────────────────────────────────────────── */
+const InstructorRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/" replace />;
+  if (!isInstructor(user)) return <Navigate to="/dashboard" replace />;
+  return children;
+};
+
+/* ─── App ─────────────────────────────────────────────────────────── */
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public — Landing (redirects to /home if logged in) */}
-          <Route path="/" element={<LandingWrapper />} />
 
+<<<<<<< HEAD
           {/* Public resources */}
           <Route path="/resources" element={<ResourcesHub />} />
           <Route path="/resources/:slug" element={<ResourceArticlePage />} />
 
           {/* Certificate test (public) */}
           <Route path="/certificate-test" element={<Certificate />} />
+=======
+          {/* ── Public ── */}
+          <Route path="/"                   element={<LandingWrapper />} />
+          <Route path="/certificate-test"   element={<Certificate />} />
+>>>>>>> feat/matt
 
-          {/* /home → HomePage */}
+          {/* ── /home — role-aware entry point ── */}
           <Route path="/home" element={
             <PrivateRoute>
-              <HomePage />
+              {/* Inline redirect so instructors never land on HomePage */}
+              <RoleHomeRedirect />
             </PrivateRoute>
           } />
 
-          {/* Student dashboard */}
+          {/* ── Student-only pages ── */}
           <Route path="/dashboard" element={
+<<<<<<< HEAD
             <PrivateRoute>
               <Dashboard />
             </PrivateRoute>
@@ -143,27 +186,78 @@ function App() {
             <PrivateRoute>
               <Certificate />
             </PrivateRoute>
+=======
+            <StudentRoute><Dashboard /></StudentRoute>
+>>>>>>> feat/matt
           } />
           <Route path="/my-courses" element={
-            <PrivateRoute>
-              <MyCourses />
-            </PrivateRoute>
+            <StudentRoute><MyCourses /></StudentRoute>
+          } />
+          <Route path="/account-setup" element={
+            <StudentRoute><AccountSetup /></StudentRoute>
+          } />
+          <Route path="/testimonials" element={
+            <StudentRoute><Testimonials /></StudentRoute>
           } />
           <Route path="/profile" element={
-            <PrivateRoute>
-              <Profile />
-            </PrivateRoute>
+            <StudentRoute><Profile /></StudentRoute>
           } />
           <Route path="/certificates" element={
-            <PrivateRoute>
-              <MyCertificates />
-            </PrivateRoute>
+            <StudentRoute><MyCertificates /></StudentRoute>
           } />
-          <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
+          <Route path="/orders" element={
+            <StudentRoute><OrdersBilling /></StudentRoute>
+          } />
+
+          {/* ── Instructor-only pages ── */}
+          <Route path="/instructor/dashboard" element={
+            <InstructorRoute><InstructorDashboard /></InstructorRoute>
+          } />
+          <Route path="/instructor/students" element={
+            <InstructorRoute><ViewStudents /></InstructorRoute>
+          } />
+
+          {/* ── Shared private pages ── */}
+          <Route path="/courses" element={
+            <PrivateRoute><Courses /></PrivateRoute>
+          } />
+          <Route path="/courses/:id" element={
+            <PrivateRoute><CourseDetails /></PrivateRoute>
+          } />
+          <Route path="/courses/:id/learn" element={
+            <PrivateRoute><CoursePortal /></PrivateRoute>
+          } />
+          <Route path="/certificate/:courseId" element={
+            <PrivateRoute><Certificate /></PrivateRoute>
+          } />
+          <Route path="/checkout" element={
+            <PrivateRoute><Checkout /></PrivateRoute>
+          } />
+          <Route path="/instructor/testimonials" element={
+            <InstructorRoute><TestimonialApproval /></InstructorRoute>
+          } />
+          <Route path="/instructor/course/:courseId" element={
+  <InstructorRoute><CourseDetail /></InstructorRoute>
+} />
+<Route path="/instructor/students/:studentId" element={
+  <InstructorRoute><StudentDetail /></InstructorRoute>
+} />
+<Route path="/support" element={<StudentRoute><ContactSupport /></StudentRoute>} />
+
+<Route path="/instructor/support" element={<InstructorRoute><SupportInbox /></InstructorRoute>} />
         </Routes>
       </Router>
     </AuthProvider>
   );
 }
+
+/* ─── RoleHomeRedirect ───────────────────────────────────────────────
+   Used on /home — students see HomePage, instructors go to their dashboard
+─────────────────────────────────────────────────────────────────── */
+const RoleHomeRedirect = () => {
+  const { user } = useAuth();
+  if (isInstructor(user)) return <Navigate to="/instructor/dashboard" replace />;
+  return <HomePage />;
+};
 
 export default App;

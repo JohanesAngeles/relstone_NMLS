@@ -2,38 +2,51 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import API from "../../api/axios";
-import Layout from "../../components/Layout.jsx";
+import Layout from "../../components/Layout";
 import {
   FileText, BookOpen, Clock, CheckCircle, Award,
+<<<<<<< HEAD
   ChevronRight, Search, PlayCircle, Lock, TrendingUp,
+=======
+  ChevronRight, Search, PlayCircle, Lock, User, Download,
+>>>>>>> feat/matt
 } from "lucide-react";
 
-/* ─── Dashboard ──────────────────────────────────────────────────── */
 const Dashboard = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
 
-  const [dashboard, setDashboard]   = useState(null);
-  const [transcript, setTranscript] = useState(null);
-  const [activeTab, setActiveTab]   = useState("overview");
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState("");
-  const [q, setQ]                   = useState("");
+  const [dashboard,    setDashboard]    = useState(null);
+  const [transcript,   setTranscript]   = useState(null);
+  const [certificates, setCertificates] = useState([]);
+  const [activeTab,    setActiveTab]    = useState("overview");
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState("");
+  const [q,            setQ]            = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [dashRes, transcriptRes] = await Promise.all([
+        const [dashRes, transcriptRes, certsRes] = await Promise.all([
           API.get("/dashboard"),
           API.get("/dashboard/transcript"),
+          API.get("/certificates"),
         ]);
         setDashboard(dashRes.data);
         setTranscript(transcriptRes.data);
-      } catch {
-        setError("Failed to load dashboard");
-      } finally {
-        setLoading(false);
-      }
+        const raw = certsRes.data?.certificates || [];
+        setCertificates(raw.map((c) => ({
+          _id:             c._id,
+          course_id:       String(c.course_id || ""),
+          course_title:    c.course_title  || "—",
+          course_type:     c.course_type   || "—",
+          credit_hours:    c.credit_hours,
+          nmls_course_id:  c.nmls_course_id || "—",
+          completed_at:    c.completed_at,
+          certificate_url: c.certificate_url || null,
+        })));
+      } catch { setError("Failed to load dashboard"); }
+      finally  { setLoading(false); }
     };
     fetchData();
   }, []);
@@ -42,157 +55,235 @@ const Dashboard = () => {
   const completions      = dashboard?.completions      || {};
   const orders           = dashboard?.orders           || [];
   const availableCourses = dashboard?.available_courses || [];
-
-  const peCount = completions?.PE?.length || 0;
-  const ceCount = completions?.CE?.length || 0;
+  const ceTracker        = dashboard?.ce_tracker       || null;
+  const inProgressCount  = availableCourses.filter(c => !c.already_completed).length;
 
   const recentCompletions = useMemo(() => {
-    const list = [...(completions?.PE || []), ...(completions?.CE || [])];
-    list.sort((a, b) => new Date(b?.completed_at||0) - new Date(a?.completed_at||0));
-    return list.slice(0, 5);
-  }, [completions]);
+    const fromDash = [...(completions?.PE || []), ...(completions?.CE || [])];
+    const list = fromDash.length > 0 ? fromDash : certificates.map(c => ({
+      course_id: { title: c.course_title, type: c.course_type, credit_hours: c.credit_hours },
+      completed_at: c.completed_at, certificate_url: c.certificate_url,
+    }));
+    return [...list].sort((a, b) => new Date(b?.completed_at||0) - new Date(a?.completed_at||0)).slice(0, 5);
+  }, [completions, certificates]);
 
   const filteredTranscript = useMemo(() => {
     const rows = transcript?.transcript || [];
     if (!q.trim()) return rows;
-    const needle = q.toLowerCase();
-    return rows.filter((t) =>
-      String(t.course_title||"").toLowerCase().includes(needle) ||
-      String(t.nmls_course_id||"").toLowerCase().includes(needle) ||
-      String(t.type||"").toLowerCase().includes(needle)
+    const n = q.toLowerCase();
+    return rows.filter(t =>
+      String(t.course_title||"").toLowerCase().includes(n) ||
+      String(t.nmls_course_id||"").toLowerCase().includes(n) ||
+      String(t.type||"").toLowerCase().includes(n)
     );
   }, [transcript, q]);
 
-  if (loading) return (
-    <Layout>
-      <style>{css}</style>
-      <div style={S.center}><div className="rs-spinner" /><div style={{ marginTop:12, color:"rgba(11,18,32,0.65)" }}>Loading dashboard…</div></div>
-    </Layout>
-  );
+  const profileFields = [
+    { label: "Email verified",  done: true               },
+    { label: "Password set",    done: true               },
+    { label: "Mailing address", done: !!profile?.address },
+    { label: "Phone number",    done: !!profile?.phone   },
+    { label: "NMLS ID number",  done: !!profile?.nmls_id },
+  ];
+  const profilePct = Math.round((profileFields.filter(f => f.done).length / profileFields.length) * 100);
 
-  if (error) return (
-    <Layout>
-      <style>{css}</style>
-      <div style={S.center}><div className="rs-alert"><span className="rs-alert-dot" /><span>{error}</span></div></div>
-    </Layout>
-  );
+  const renewalYear   = ceTracker?.renewal_year    || new Date().getFullYear();
+  const ceDeadline    = ceTracker?.deadline        || `Dec 31, ${renewalYear}`;
+  const ceDaysLeft    = ceTracker?.days_left       ?? null;
+  const ceRequired    = ceTracker?.required_hours  || 8;
+  const ceCompleted   = ceTracker?.completed_hours || 0;
+  const ceStillNeeded = Math.max(0, ceRequired - ceCompleted);
+  const ceSubjects    = ceTracker?.subjects        || [];
+  const studentId     = profile?.nmls_id || user?.nmls_id ? `#NM-${profile?.nmls_id || user?.nmls_id}` : "—";
+
+  if (loading) return <Layout><style>{CSS}</style><div style={S.fullCenter}><div className="dash-spin" /></div></Layout>;
+  if (error)   return <Layout><div style={S.fullCenter}><div style={{ color: "#ef4444" }}>{error}</div></div></Layout>;
 
   return (
     <Layout>
-      <style>{css}</style>
-      <div style={S.shell}>
+      <style>{CSS}</style>
+      <div style={S.wrap}>
 
-        {/* ── Hero ── */}
-        <section style={S.hero}>
-          <div style={S.heroBg} />
-          <div style={S.heroInner}>
-            <div style={S.heroTop}>
-              <div>
-                <div style={S.heroKicker}>Account Snapshot</div>
-                <div style={S.heroHeadline}>Stay on track with your NMLS progress.</div>
+        {/* Page header */}
+        <div style={S.pageHead}>
+          <div style={S.breadcrumb}>Student Portal › Dashboard</div>
+          <h1 style={S.pageTitle}>Dashboard</h1>
+          <p style={S.pageSubtitle}>Your enrolled courses, certificates, and recent activity — all in one place.</p>
+          <div style={S.headDivider} />
+        </div>
+
+        {/* Stat cards */}
+        <div style={S.statGrid}>
+          <StatCard color="#2EABFE" icon={<BookOpen size={24} style={{color:"#2EABFE"}}/>} value={availableCourses.length} label="Courses Enrolled" badge="TOTAL" badgeColor="#2EABFE"/>
+          <StatCard color="#008000" icon={<Award size={24} style={{color:"#008000"}}/>}    value={certificates.length}     label="Certificates Earned" badge={certificates.length > 0 ? `+${certificates.length}` : "0"} badgeColor="#008000"/>
+          <StatCard color="#F59E0B" icon={<Clock size={24} style={{color:"#F59E0B"}}/>}    value={inProgressCount}          label="In Progress" badge={inProgressCount > 0 ? "Active" : "None"} badgeColor="#F59E0B"/>
+          <StatCard color="#9569F7" icon={<User size={24} style={{color:"#9569F7"}}/>}     value={studentId}                label="Student ID" badge="ST" badgeColor="#9569F7"/>
+        </div>
+
+        {/* Middle row */}
+        <div style={S.midRow}>
+          <div style={S.panel}>
+            <div style={S.panelHdr}>
+              <div style={S.panelHdrLeft}>
+                <div style={S.panelIcon}><BookOpen size={15} style={{color:"#2EABFE"}}/></div>
+                <div><div style={S.panelTitle}>My Courses</div><div style={S.panelSub}>All enrolled courses</div></div>
               </div>
-              <button type="button" style={S.primaryBtn} onClick={() => navigate("/courses")}>
-                <BookOpen size={18} /><span>Browse courses</span><ChevronRight size={18} />
+              <button style={S.viewAllBtn} onClick={() => navigate("/my-courses")} type="button">View all →</button>
+            </div>
+            <div style={S.divider}/>
+            {availableCourses.length === 0
+              ? <div style={S.emptyMsg}>No courses enrolled yet.</div>
+              : availableCourses.slice(0,5).map((c,i) => <CourseRow key={i} course={c} onStart={() => navigate(`/courses/${c.course_id}/learn`)}/>)
+            }
+          </div>
+
+          <div style={{display:"flex",flexDirection:"column",gap:14,flex:1,minWidth:0}}>
+            {/* Profile completion */}
+            <div style={S.panel}>
+              <div style={S.panelHdr}>
+                <div style={S.panelTitle}>Profile Completion</div>
+                <span style={{fontSize:24,fontWeight:700,color:"#2EABFE",fontFamily:"'Poppins',sans-serif"}}>{profilePct}%</span>
+              </div>
+              <div style={S.divider}/>
+              <div style={{padding:"8px 0 4px"}}>
+                <div style={S.progressTrack}><div style={{...S.progressFill,width:`${profilePct}%`,background:"#2EABFE"}}/></div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:7,marginTop:8}}>
+                {profileFields.map((f,i) => (
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:10}}>
+                    {f.done
+                      ? <CheckCircle size={14} style={{color:"#008000",flexShrink:0}}/>
+                      : <div style={{width:12,height:12,borderRadius:"50%",border:"1px solid #7FA8C4",flexShrink:0}}/>
+                    }
+                    <span style={{fontSize:13,color:"#091925",fontFamily:"'Poppins',sans-serif",fontWeight:f.done?500:400}}>{f.label}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{...S.divider,margin:"12px 0"}}/>
+              <button style={S.ctaBlue} onClick={() => navigate("/account-setup")} type="button">
+                COMPLETE PROFILE <span style={{marginLeft:8,borderLeft:"1.5px solid #091925",paddingLeft:8}}>→</span>
               </button>
             </div>
-            <div style={S.profileRow}>
-              <div style={S.profileChip}><span>NMLS ID: <strong>{profile?.nmls_id || "Not set"}</strong></span></div>
-              <div style={S.profileChip}><span>State: <strong>{profile?.state || "Not set"}</strong></span></div>
-              <div style={S.profileChip}><span>Total Completions: <strong>{completions?.total || 0}</strong></span></div>
-            </div>
-            <div style={S.kpiGrid}>
-              <KpiCard icon={<BookOpen size={20} />}  title="Pre-Licensing (PE)"  value={peCount}                 caption="Completed"      tone="blue"  />
-              <KpiCard icon={<FileText size={20} />}  title="Continuing Ed (CE)"  value={ceCount}                 caption="Completed"      tone="teal"  />
-              <KpiCard icon={<PlayCircle size={20} />} title="Available Courses"  value={availableCourses.length} caption="Ready to start" tone="green" />
-            </div>
-          </div>
-        </section>
 
-        {/* ── My Courses ── */}
-        {availableCourses.length > 0 && (
-  <section style={S.myCoursesSection}>
-    <div style={S.myCoursesHead}>
-      <div>
-        <div style={S.myCoursesTitle}>📚 My Courses</div>
-        <div style={S.myCoursesSub}>Courses you've paid for — click Start Learning to begin</div>
-      </div>
-      {/* ── View Full My Courses button ── */}
-      <button
-        style={S.viewAllBtn}
-        onClick={() => navigate("/my-courses")}
-        type="button"
-      >
-        View All My Courses <ChevronRight size={15} />
-      </button>
-    </div>
-    <div style={S.courseGrid}>
-      {availableCourses.slice(0, 3).map((course) => (  // ← slice to show max 3 on dashboard
-        <div key={course.course_id} style={S.courseCard}>
-          <div style={S.courseCardTop}>
-            <div style={S.courseCardIcon}><BookOpen size={20} /></div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={S.courseCardTitle}>{course.title}</div>
-              <div style={S.courseCardMeta}>
-                <span style={badgeStyle(course.type)}>{String(course.type||"").toUpperCase()}</span>
-                <span style={S.courseCardHrs}><Clock size={12} /> {course.credit_hours} hrs</span>
+            {/* Certificates */}
+            <div style={S.panel}>
+              <div style={S.panelHdr}>
+                <div style={S.panelTitle}>Certificates</div>
+                <div style={{padding:"3px 10px",borderRadius:999,background:"rgba(0,128,0,0.10)",border:"0.5px solid #008000",color:"#008000",fontSize:10,fontWeight:800}}>{certificates.length} EARNED</div>
+              </div>
+              <div style={S.divider}/>
+              {certificates.length === 0
+                ? <div style={S.emptyMsg}>No certificates yet.</div>
+                : certificates.slice(0,2).map((c,i) => <CertRow key={i} item={c}/>)
+              }
+              <div style={{marginTop:12}}>
+                <button style={S.ctaGreen} onClick={() => navigate("/certificates")} type="button">
+                  VIEW ALL CERTIFICATES <span style={{marginLeft:8,borderLeft:"1.5px solid #fff",paddingLeft:8}}>→</span>
+                </button>
               </div>
             </div>
           </div>
-          {course.already_completed ? (
-            <div style={S.completedBadge}><CheckCircle size={15} /> Completed</div>
-          ) : (
-            <button style={S.startLearningBtn} onClick={() => navigate(`/courses/${course.course_id}/learn`)} type="button">
-              <PlayCircle size={16} /> Start Learning
-            </button>
-          )}
         </div>
-      ))}
-    </div>
-    {/* ── Show "View All" footer link if more than 3 courses ── */}
-    {availableCourses.length > 3 && (
-      <div style={S.viewAllFooter}>
-        <button style={S.viewAllFooterBtn} onClick={() => navigate("/my-courses")} type="button">
-          View all {availableCourses.length} courses <ChevronRight size={14} />
-        </button>
-      </div>
-    )}
-  </section>
-)}
 
-        {/* ── Tabs card ── */}
-        <section style={S.card}>
-          <div style={S.tabRow}>
-            <div style={S.tabs}>
-              <TabButton label="Overview"   active={activeTab==="overview"}   onClick={() => setActiveTab("overview")} />
-              <TabButton label="Transcript" active={activeTab==="transcript"} onClick={() => setActiveTab("transcript")} />
-              <TabButton label="Orders"     active={activeTab==="orders"}     onClick={() => setActiveTab("orders")} />
+        {/* Bottom row */}
+        <div style={S.midRow}>
+          {/* CE Tracker */}
+          <div style={{...S.panel,border:"0.5px solid #F59E0B",background:"rgba(245,158,11,0.03)"}}>
+            <div style={S.panelHdr}>
+              <div style={S.panelHdrLeft}>
+                <div style={{...S.panelIcon,background:"rgba(208,235,255,0.25)",border:"0.5px solid #2EABFE"}}>
+                  <Clock size={15} style={{color:"#2EABFE"}}/>
+                </div>
+                <div>
+                  <div style={S.panelTitle}>Annual CE Tracker</div>
+                  <div style={S.panelSub}>{renewalYear} renewal · Deadline {ceDeadline}</div>
+                </div>
+              </div>
+              {ceDaysLeft !== null && (
+                <div style={{padding:"3px 10px",borderRadius:999,background:"rgba(46,171,254,0.10)",border:"0.5px solid #2EABFE",color:"#2EABFE",fontSize:10,fontWeight:800}}>
+                  {ceDaysLeft} days left
+                </div>
+              )}
             </div>
+            <div style={{...S.divider,borderColor:"#F59E0B"}}/>
+            {ceTracker ? (
+              <>
+                <p style={{fontSize:13,color:"#091925",lineHeight:1.6,fontFamily:"'Poppins',sans-serif",marginBottom:12}}>
+                  Required: <strong>{ceRequired} hrs</strong> by <strong>{ceDeadline}</strong>.
+                  {ceStillNeeded > 0
+                    ? <> Still need <strong>{ceStillNeeded} hr{ceStillNeeded!==1?"s":""}</strong>.</>
+                    : <> All hours completed ✓</>}
+                </p>
+                {ceSubjects.map((row,i) => {
+                  const pct = row.total > 0 ? Math.round((row.completed/row.total)*100) : 0;
+                  const col = pct===100?"#008000":pct>0?"#F59E0B":"#EF4444";
+                  return (
+                    <div key={i} style={{marginBottom:10}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                        <span style={{fontSize:13,color:"#091925",fontFamily:"'Poppins',sans-serif"}}>{row.label}</span>
+                        <span style={{fontSize:13,fontWeight:700,color:col}}>{row.completed}/{row.total}</span>
+                      </div>
+                      <div style={S.progressTrack}><div style={{...S.progressFill,width:`${pct}%`,background:col}}/></div>
+                    </div>
+                  );
+                })}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4,marginBottom:4}}>
+                  <span style={{fontSize:11,color:"#7FA8C4"}}>{ceStillNeeded>0?`${ceStillNeeded} hr${ceStillNeeded!==1?"s":""} needed`:"Complete ✓"}</span>
+                  <span style={{fontSize:18,fontWeight:700,color:"#2EABFE",fontFamily:"'Poppins',sans-serif"}}>{ceCompleted}/{ceRequired} hrs</span>
+                </div>
+              </>
+            ) : <div style={S.emptyMsg}>Complete a CE course to begin tracking.</div>}
+            <div style={{...S.divider,borderColor:"#F59E0B"}}/>
+            <button style={S.ctaAmber} onClick={() => navigate("/courses")} type="button">
+              COMPLETE CE NOW <span style={{marginLeft:8,borderLeft:"1.5px solid #fff",paddingLeft:8}}>→</span>
+            </button>
+          </div>
+
+          {/* Recent Completions */}
+          <div style={{...S.panel,flex:1,minWidth:0}}>
+            <div style={S.panelHdr}><div style={S.panelTitle}>Recent completions</div></div>
+            <div style={S.divider}/>
+            {recentCompletions.length === 0 ? (
+              <div style={{textAlign:"center",padding:"32px 16px"}}>
+                <div style={{fontSize:14,fontWeight:600,color:"#091925",marginBottom:6,fontFamily:"'Poppins',sans-serif"}}>No completions yet</div>
+                <div style={{fontSize:12,color:"#7FA8C4",marginBottom:14,fontFamily:"'Poppins',sans-serif"}}>Complete a course to see your record here.</div>
+                <button style={S.ctaGreen} onClick={() => navigate("/courses")} type="button">BROWSE COURSES →</button>
+              </div>
+            ) : recentCompletions.map((c,i) => <CompletionRow key={i} item={c}/>)}
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={S.tabsCard}>
+          <div style={S.tabBar}>
+            <TabBtn label="Overview"   active={activeTab==="overview"}   onClick={() => setActiveTab("overview")}/>
+            <TabBtn label="Transcript" active={activeTab==="transcript"} onClick={() => setActiveTab("transcript")}/>
+            <TabBtn label="Orders"     active={activeTab==="orders"}     onClick={() => setActiveTab("orders")}/>
             {activeTab === "transcript" && (
-              <div style={S.searchWrap}>
-                <Search size={16} style={{ color:"rgba(9,25,37,0.55)" }} />
-                <input style={S.searchInput} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search transcript…" />
+              <div style={S.tabSearch}>
+                <Search size={13} style={{color:"rgba(9,25,37,0.55)"}}/>
+                <input style={S.tabSearchInput} value={q} onChange={e => setQ(e.target.value)} placeholder="Search transcript…"/>
               </div>
             )}
+            <button style={S.backBtn} onClick={() => navigate("/my-courses")} type="button">My Courses ›</button>
           </div>
 
-          <div style={S.cardBody}>
-
-            {/* Overview */}
-            {activeTab === "overview" && (
-              <div style={S.gridTwo}>
-                <div style={S.panel}>
-                  <div style={S.panelHead}>
-                    <div style={S.panelTitle}>Recent completions</div>
-                    <button style={S.ghostBtn} type="button" onClick={() => setActiveTab("transcript")}>View transcript <ChevronRight size={16} /></button>
+          {activeTab === "overview" && (
+            <div style={S.tabBody}>
+              <div style={{display:"grid",gridTemplateColumns:"1.4fr 0.8fr",gap:14}}>
+                <div style={S.innerPanel}>
+                  <div style={S.innerHdr}>
+                    <div style={S.innerTitle}>Recent completions</div>
+                    <button style={S.ghostBtn} onClick={() => setActiveTab("transcript")} type="button">
+                      View transcript <ChevronRight size={13}/>
+                    </button>
                   </div>
-                  {recentCompletions.length === 0 ? (
-                    <EmptyState icon={<Award size={18} />} title="No completions yet" subtitle="Once you complete a course, it will show here." actionLabel="Browse courses" onAction={() => navigate("/courses")} />
-                  ) : (
-                    <div style={{ display:"grid", gap:10 }}>
-                      {recentCompletions.map((c, i) => <CompletionRow key={i} item={c} />)}
-                    </div>
-                  )}
+                  {recentCompletions.length===0
+                    ? <div style={S.emptyMsg}>No completions yet.</div>
+                    : recentCompletions.map((c,i) => <CompletionRow key={i} item={c}/>)
+                  }
                 </div>
+<<<<<<< HEAD
                 <div style={S.panel}>
                   <div style={S.panelHead}><div style={S.panelTitle}>Quick actions</div></div>
                   <div style={S.quickActions}>
@@ -216,39 +307,67 @@ const Dashboard = () => {
                       <div style={S.actionText}><div style={S.actionTitle}>My orders</div><div style={S.actionSub}>Track payment and status</div></div>
                       <ChevronRight size={18} />
                     </button>
+=======
+                <div style={S.innerPanel}>
+                  <div style={S.innerHdr}><div style={S.innerTitle}>Quick actions</div></div>
+                  <div style={{display:"flex",flexDirection:"column",gap:9}}>
+                    {[
+                      {icon:<BookOpen size={15}/>,title:"Browse courses",  sub:"Find PE and CE courses",     action:() => navigate("/courses")       },
+                      {icon:<FileText size={15}/>,title:"View transcript", sub:"Download and verify details",action:() => setActiveTab("transcript")},
+                      {icon:<Clock size={15}/>,   title:"My orders",       sub:"Track payment and status",   action:() => setActiveTab("orders")    },
+                    ].map((a,i) => (
+                      <button key={i} style={S.actionCard} onClick={a.action} type="button">
+                        <div style={S.actionIcon}>{a.icon}</div>
+                        <div style={{flex:1}}>
+                          <div style={S.actionTitle}>{a.title}</div>
+                          <div style={S.actionSub}>{a.sub}</div>
+                        </div>
+                        <ChevronRight size={15} style={{color:"rgba(9,25,37,0.40)"}}/>
+                      </button>
+                    ))}
+>>>>>>> feat/matt
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Transcript */}
-            {activeTab === "transcript" && (
-              <div>
-                <div style={S.sectionHead}>
-                  <div><div style={S.sectionTitle}>Transcript</div><div style={S.sectionSub}>{transcript?.student?.name ? `NMLS Transcript — ${transcript.student.name}` : "Your completed courses"}</div></div>
+          {activeTab === "transcript" && (
+            <div style={S.tabBody}>
+              <div style={S.innerHdr}>
+                <div>
+                  <div style={S.innerTitle}>Transcript</div>
+                  <div style={{fontSize:11,color:"#7FA8C4",marginTop:2}}>
+                    {transcript?.student?.name ? `NMLS Transcript — ${transcript.student.name}` : "Your completed courses"}
+                  </div>
                 </div>
-                {filteredTranscript.length === 0 ? (
-                  <EmptyState icon={<FileText size={18} />} title={q.trim() ? "No matches found" : "No completed courses yet"} subtitle={q.trim() ? "Try a different keyword." : "Complete a course to populate your transcript."} actionLabel="Browse courses" onAction={() => navigate("/courses")} />
-                ) : (
+              </div>
+              {filteredTranscript.length===0
+                ? <div style={S.emptyMsg}>{q.trim()?"No matches found.":"Complete a course to populate your transcript."}</div>
+                : (
                   <div style={S.tableWrap}>
                     <table style={S.table}>
                       <thead>
-                        <tr>
-                          <th style={S.th}>Course</th><th style={S.th}>NMLS ID</th><th style={S.th}>Type</th>
-                          <th style={S.thRight}>Credit Hrs</th><th style={S.th}>Completed</th><th style={S.th}>Certificate</th>
+                        <tr style={{background:"rgba(2,8,23,0.02)"}}>
+                          {["Course","NMLS ID","Type","Credit Hrs","Completed","Certificate"].map(h => (
+                            <th key={h} style={S.th}>{h}</th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredTranscript.map((t, i) => (
-                          <tr key={i} className="rs-tr">
-                            <td style={S.td}><span style={{ fontWeight:700, color:"rgba(11,18,32,0.88)" }}>{t.course_title}</span></td>
-                            <td style={S.td}>{t.nmls_course_id}</td>
-                            <td style={S.td}><span style={badgeStyle(t.type)}>{String(t.type||"").toUpperCase()}</span></td>
-                            <td style={S.tdRight}>{t.credit_hours}</td>
-                            <td style={S.td}>{t.completed_at ? new Date(t.completed_at).toLocaleDateString() : "-"}</td>
-                            <td style={S.td}>{t.certificate_url
-                              ? <a href={t.certificate_url} target="_blank" rel="noreferrer" className="rs-link" style={{ display:"inline-flex", alignItems:"center", gap:6 }}><Award size={16} /> View</a>
-                              : <span style={{ color:"rgba(11,18,32,0.45)" }}>—</span>}
+                        {filteredTranscript.map((t,i) => (
+                          <tr key={i} className="tr-hover">
+                            <td style={S.td}><span style={{fontWeight:700}}>{t.course_title}</span></td>
+                            <td style={S.td}>{t.nmls_course_id||"—"}</td>
+                            <td style={S.td}><TypeBadge type={t.type}/></td>
+                            <td style={S.td}>{t.credit_hours??"—"}</td>
+                            <td style={S.td}>{t.completed_at?new Date(t.completed_at).toLocaleDateString():"—"}</td>
+                            <td style={S.td}>
+                              {t.certificate_url
+                                ? <a href={t.certificate_url} target="_blank" rel="noreferrer" style={{color:"#2EABFE",fontWeight:700,display:"inline-flex",alignItems:"center",gap:5,textDecoration:"none"}}>
+                                    <Award size={13}/> View
+                                  </a>
+                                : <span style={{color:"rgba(11,18,32,0.35)"}}>—</span>}
                             </td>
                           </tr>
                         ))}
@@ -256,287 +375,228 @@ const Dashboard = () => {
                     </table>
                   </div>
                 )}
-              </div>
-            )}
+            </div>
+          )}
 
-            {/* Orders */}
-           {activeTab === "orders" && (
-  <div>
-    <div style={S.sectionHead}>
-      <div>
-        <div style={S.sectionTitle}>Orders</div>
-        <div style={S.sectionSub}>Your purchases, receipts, and payment methods</div>
-      </div>
-    </div>
-
-    {orders.length === 0 ? (
-      <EmptyState
-        icon={<Clock size={18} />}
-        title="No orders yet"
-        subtitle="When you purchase courses, your orders will show here."
-        actionLabel="Browse courses"
-        onAction={() => navigate("/courses")}
-      />
-    ) : (
-      <div>
-        {/* Preview — last 3 orders only */}
-        <div style={{ display:"grid", gap:12, marginBottom:16 }}>
-          {orders.slice(0, 3).map((order, i) => {
-            const isPaid = String(order?.status||"").toLowerCase() === "paid";
-            return (
-              <div key={i} style={S.orderCard}>
-                <div style={S.orderTop}>
-                  <div style={S.orderLeft}>
-                    <div style={S.orderTitle}>
-                      <FileText size={16} />
-                      <span>Order #{String(order?._id||"").slice(-6).toUpperCase()}</span>
-                    </div>
-                    <div style={S.orderMeta}>
-                      <Clock size={14} />
-                      {order?.createdAt ? new Date(order.createdAt).toLocaleDateString() : "-"}
-                    </div>
-                  </div>
-                  <span style={orderStatusStyle(order?.status)}>{order?.status}</span>
+          {activeTab === "orders" && (
+            <div style={S.tabBody}>
+              <div style={S.innerHdr}>
+                <div>
+                  <div style={S.innerTitle}>Orders</div>
+                  <div style={{fontSize:11,color:"#7FA8C4",marginTop:2}}>Your purchases, receipts, and payment methods</div>
                 </div>
-                <div style={S.orderItems}>
-                  {(order?.items||[]).map((item, j) => (
-                    <div key={j} style={{ ...S.orderItem, ...(isPaid ? {} : S.orderItemLocked) }}>
-                      <div style={S.orderItemIcon}><BookOpen size={15} /></div>
-                      <div style={S.orderItemInfo}>
-                        <div style={S.orderItemTitle}>{item?.course_id?.title || "Course"}</div>
-                        <div style={S.orderItemMeta}>
-                          {item?.course_id?.type && <span style={badgeStyle(item.course_id.type)}>{String(item.course_id.type).toUpperCase()}</span>}
-                          {item?.course_id?.credit_hours && <span style={S.orderMetaChip}><Clock size={11} /> {item.course_id.credit_hours} hrs</span>}
-                          {item?.include_textbook && <span style={S.pill}>+ Textbook</span>}
+              </div>
+              {orders.length===0
+                ? <div style={S.emptyMsg}>No orders yet.</div>
+                : (
+                  <div style={{display:"flex",flexDirection:"column",gap:11}}>
+                    {orders.slice(0,3).map((order,i) => {
+                      const isPaid = String(order?.status||"").toLowerCase()==="paid";
+                      return (
+                        <div key={i} style={S.orderCard}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                            <div>
+                              <div style={{fontWeight:700,color:"#091925",display:"flex",alignItems:"center",gap:7,fontSize:12}}>
+                                <FileText size={13}/> Order #{String(order?._id||"").slice(-6).toUpperCase()}
+                              </div>
+                              <div style={{fontSize:11,color:"#7FA8C4",marginTop:3,display:"flex",alignItems:"center",gap:4}}>
+                                <Clock size={10}/> {order?.createdAt?new Date(order.createdAt).toLocaleDateString():"—"}
+                              </div>
+                            </div>
+                            <StatusBadge status={order?.status}/>
+                          </div>
+                          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                            {(order?.items||[]).map((item,j) => (
+                              <div key={j} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 11px",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.07)",background:"rgba(2,8,23,0.01)"}}>
+                                <div style={{width:30,height:30,borderRadius:7,background:"rgba(46,171,254,0.10)",border:"0.5px solid rgba(46,171,254,0.18)",display:"grid",placeItems:"center"}}>
+                                  <BookOpen size={12} style={{color:"#2EABFE"}}/>
+                                </div>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontWeight:600,fontSize:12,color:"#091925",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                    {item?.course_id?.title||"Course"}
+                                  </div>
+                                </div>
+                                {isPaid&&item?.course_id?._id
+                                  ? <button style={S.startBtn} onClick={() => navigate(`/courses/${item.course_id._id}/learn`)} type="button"><PlayCircle size={11}/> Start</button>
+                                  : <div style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 9px",borderRadius:6,border:"0.5px solid rgba(245,158,11,0.28)",background:"rgba(245,158,11,0.08)",color:"rgba(140,90,0,1)",fontSize:10,fontWeight:700}}><Lock size={9}/> Pending</div>
+                                }
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{marginTop:9,paddingTop:9,borderTop:"0.5px solid rgba(2,8,23,0.06)",display:"flex",justifyContent:"flex-end"}}>
+                            <span style={{fontSize:12,fontWeight:700,color:"#091925"}}>Total: <strong>${Number(order?.total_amount||0).toFixed(2)}</strong></span>
+                          </div>
                         </div>
-                      </div>
-                      {isPaid && item?.course_id?._id ? (
-                        <button style={S.startBtn} onClick={() => navigate(`/courses/${item.course_id._id}/learn`)} type="button">
-                          <PlayCircle size={13} /> Start Learning
-                        </button>
-                      ) : (
-                        <div style={S.lockedBadge}><Lock size={13} /> Pending Payment</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div style={S.orderBottom}>
-                  <div style={S.total}>Total: <strong>${Number(order?.total_amount||0).toFixed(2)}</strong></div>
-                </div>
-              </div>
-            );
-          })}
+                      );
+                    })}
+                    {orders.length>3 && (
+                      <button style={{...S.ctaBlue,maxWidth:200,margin:"0 auto"}} onClick={() => navigate("/orders")} type="button">View All Orders →</button>
+                    )}
+                  </div>
+                )}
+            </div>
+          )}
         </div>
 
-        {/* View All Orders & Billing CTA */}
-        <div style={{ borderTop:"1px solid rgba(2,8,23,0.07)", paddingTop:16, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
-          <div style={{ fontSize:13, fontWeight:700, color:"rgba(11,18,32,0.55)" }}>
-            {orders.length > 3 ? `Showing 3 of ${orders.length} orders` : `${orders.length} order${orders.length !== 1 ? "s" : ""} total`}
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate("/orders")}
-            style={{
-              display:"inline-flex", alignItems:"center", gap:8,
-              padding:"11px 20px", borderRadius:12,
-              border:"1px solid rgba(46,171,254,0.30)",
-              background:"rgba(46,171,254,0.07)",
-              color:"#2EABFE", cursor:"pointer",
-              fontWeight:800, fontSize:13,
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background="#2EABFE"; e.currentTarget.style.color="#fff"; }}
-            onMouseLeave={e => { e.currentTarget.style.background="rgba(46,171,254,0.07)"; e.currentTarget.style.color="#2EABFE"; }}
-          >
-            View All Orders &amp; Billing <ChevronRight size={15} />
-          </button>
-        </div>
-      </div>
-    )}
-  </div>
-)}
-          </div>
-        </section>
       </div>
     </Layout>
   );
 };
 
-/* ─── Sub-components ─────────────────────────────────────────────── */
-const TabButton = ({ label, active, onClick }) => (
-  <button type="button" onClick={onClick} style={{ ...S.tabBtn, ...(active ? S.tabBtnActive : {}) }}>{label}</button>
+const StatCard = ({ color, icon, value, label, badge, badgeColor }) => (
+  <div style={{background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:`0 3px 0 0 ${color},0 2px 10px rgba(2,8,23,0.07)`}}>
+    <div style={{padding:"16px 15px 13px"}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:11}}>
+        <div style={{width:50,height:50,borderRadius:11,border:`1px solid ${color}30`,background:`${color}15`,display:"grid",placeItems:"center"}}>{icon}</div>
+        <div style={{padding:"3px 8px",borderRadius:999,background:`${badgeColor}18`,fontSize:9,fontWeight:800,color:badgeColor}}>{badge}</div>
+      </div>
+      <div style={{fontSize:30,fontWeight:800,color:"#091925",lineHeight:1.1,fontFamily:"'Poppins',sans-serif"}}>{value}</div>
+      <div style={{fontSize:12,color:"rgba(9,25,37,0.55)",marginTop:3,fontFamily:"'Poppins',sans-serif"}}>{label}</div>
+    </div>
+  </div>
 );
 
-const KpiCard = ({ icon, title, value, caption, tone }) => {
-  const toneMap = {
-    blue:  { bg:"rgba(46,171,254,0.10)", border:"rgba(46,171,254,0.25)" },
-    teal:  { bg:"rgba(0,180,180,0.10)",  border:"rgba(0,180,180,0.22)"  },
-    green: { bg:"rgba(34,197,94,0.10)",  border:"rgba(34,197,94,0.25)"  },
-    amber: { bg:"rgba(245,158,11,0.10)", border:"rgba(245,158,11,0.22)" },
-  };
-  const t = toneMap[tone] || toneMap.blue;
+const CourseRow = ({ course, onStart }) => {
+  const progress=course.progress||0, isComplete=course.already_completed;
+  const col=isComplete?"#008000":progress>0?"#F59E0B":"#2EABFE";
+  const lbl=isComplete?"Complete":progress>0?"In Progress":"Not Started";
   return (
-    <div style={{ ...S.kpiCard, background:t.bg, border:`1px solid ${t.border}` }}>
-      <div style={S.kpiIcon}>{icon}</div>
-      <div style={S.kpiText}>
-        <div style={S.kpiTitle}>{title}</div>
-        <div style={S.kpiValue}>{value}</div>
-        <div style={S.kpiCaption}>{caption}</div>
+    <div>
+      <div style={{display:"flex",alignItems:"flex-start",gap:11,padding:"12px 0"}}>
+        <div style={{width:32,height:32,borderRadius:7,flexShrink:0,background:isComplete?"rgba(0,128,0,0.10)":"rgba(245,158,11,0.10)",border:`1px solid ${isComplete?"#008000":"#F59E0B"}40`,display:"grid",placeItems:"center"}}>
+          <BookOpen size={14} style={{color:isComplete?"#008000":"#F59E0B"}}/>
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,color:"#091925",fontFamily:"'Poppins',sans-serif",marginBottom:4,lineHeight:1.4,fontWeight:500}}>{course.title}</div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <span style={{fontSize:11,color:"#7FA8C4"}}>Progress</span>
+            <span style={{fontSize:11,fontWeight:700,color:col}}>{isComplete?"100%":`${progress}%`}</span>
+          </div>
+          <div style={S.progressTrack}><div style={{...S.progressFill,width:isComplete?"100%":`${progress}%`,background:col}}/></div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5,flexShrink:0}}>
+          <div style={{padding:"3px 8px",borderRadius:999,background:`${col}18`,border:`1px solid ${col}40`,fontSize:10,fontWeight:800,color:col,display:"flex",alignItems:"center",gap:3}}>
+            <div style={{width:4,height:4,borderRadius:"50%",background:col}}/>{lbl}
+          </div>
+          {!isComplete && <button onClick={onStart} type="button" style={{fontSize:11,fontWeight:700,color:"#2EABFE",background:"none",border:"none",cursor:"pointer",padding:0}}>Resume →</button>}
+        </div>
       </div>
+      <div style={S.divider}/>
+    </div>
+  );
+};
+
+const CertRow = ({ item }) => {
+  const title=item?.course_title||item?.course?.title||"Certificate";
+  const date=item?.completed_at?new Date(item.completed_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:11,padding:"10px 0"}}>
+      <div style={{width:40,height:40,borderRadius:9,background:"rgba(0,128,0,0.10)",border:"1px solid #00800030",display:"grid",placeItems:"center",flexShrink:0}}><Award size={18} style={{color:"#008000"}}/></div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:12,fontWeight:600,color:"#091925",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</div>
+        {date && <div style={{fontSize:11,color:"rgba(9,25,37,0.55)",marginTop:2}}>Issued {date}</div>}
+      </div>
+      {item?.certificate_url && (
+        <a href={item.certificate_url} target="_blank" rel="noreferrer" style={{width:34,height:34,borderRadius:7,background:"rgba(91,115,132,0.10)",border:"1px solid rgba(91,115,132,0.20)",display:"grid",placeItems:"center",flexShrink:0}}>
+          <Download size={12} style={{color:"#5B7384"}}/>
+        </a>
+      )}
     </div>
   );
 };
 
 const CompletionRow = ({ item }) => {
-  const title       = item?.course?.title        || item?.course_id?.title || "Course";
-  const type        = item?.course?.type         || item?.course_id?.type  || "";
-  const hrs         = item?.course?.credit_hours ?? item?.course_id?.credit_hours ?? "-";
-  const completedAt = item?.completed_at ? new Date(item.completed_at).toLocaleDateString() : "-";
+  const title=item?.course?.title||item?.course_id?.title||"Course";
+  const type=item?.course?.type||item?.course_id?.type||"";
+  const hrs=item?.course?.credit_hours??item?.course_id?.credit_hours??"—";
+  const date=item?.completed_at?new Date(item.completed_at).toLocaleDateString():"—";
   return (
-    <div style={S.rowCard}>
-      <div style={{ display:"grid", gap:6, flex:1 }}>
-        <div style={S.rowTop}>
-          <div style={S.rowTitle}>{title}</div>
-          <span style={badgeStyle(type)}>{String(type||"").toUpperCase()}</span>
-        </div>
-        <div style={S.rowMeta}>
-          <span style={S.metaItem}><Clock size={14} /> {hrs} hrs</span>
-          <span style={S.metaItem}><CheckCircle size={14} /> {completedAt}</span>
-          {item?.certificate_url && <a href={item.certificate_url} target="_blank" rel="noreferrer" className="rs-link" style={S.metaLink}><Award size={14} /> Certificate</a>}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"8px 0",borderBottom:"0.5px solid rgba(2,8,23,0.06)"}}>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontWeight:600,fontSize:12,color:"#091925",marginBottom:3,fontFamily:"'Poppins',sans-serif"}}>{title}</div>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <TypeBadge type={type}/>
+          <span style={{fontSize:11,color:"rgba(11,18,32,0.55)",display:"flex",alignItems:"center",gap:3}}><Clock size={10}/> {hrs} hrs</span>
+          <span style={{fontSize:11,color:"rgba(11,18,32,0.55)",display:"flex",alignItems:"center",gap:3}}><CheckCircle size={10}/> {date}</span>
         </div>
       </div>
-      <ChevronRight size={18} style={{ color:"rgba(9,25,37,0.45)" }} />
+      <ChevronRight size={14} style={{color:"rgba(9,25,37,0.35)",flexShrink:0}}/>
     </div>
   );
 };
 
-const EmptyState = ({ icon, title, subtitle, actionLabel, onAction }) => (
-  <div style={S.emptyWrap}>
-    <div style={S.emptyIcon}>{icon}</div>
-    <div style={S.emptyTitle}>{title}</div>
-    <div style={S.emptySub}>{subtitle}</div>
-    <button style={S.primaryBtnSmall} type="button" onClick={onAction}>{actionLabel} <ChevronRight size={16} /></button>
-  </div>
+const TypeBadge = ({ type }) => {
+  const t=String(type||"").toUpperCase();
+  const s=t==="PE"?{color:"#2EABFE",background:"rgba(46,171,254,0.12)",border:"0.5px solid rgba(46,171,254,0.22)"}
+    :t==="CE"?{color:"rgba(0,140,140,1)",background:"rgba(0,180,180,0.12)",border:"0.5px solid rgba(0,180,180,0.20)"}
+    :{color:"rgba(9,25,37,0.78)",background:"rgba(2,8,23,0.06)",border:"0.5px solid rgba(2,8,23,0.10)"};
+  return <span style={{...s,display:"inline-flex",alignItems:"center",padding:"2px 7px",borderRadius:999,fontSize:9,fontWeight:800}}>{t||"—"}</span>;
+};
+
+const StatusBadge = ({ status }) => {
+  const s=String(status||"").toLowerCase();
+  const st=s==="paid"||s==="completed"?{color:"rgba(0,140,140,1)",background:"rgba(0,180,180,0.12)",border:"0.5px solid rgba(0,180,180,0.20)"}
+    :s==="pending"?{color:"rgba(180,120,0,1)",background:"rgba(245,158,11,0.12)",border:"0.5px solid rgba(245,158,11,0.22)"}
+    :{color:"rgba(200,50,50,1)",background:"rgba(239,68,68,0.10)",border:"0.5px solid rgba(239,68,68,0.20)"};
+  return <span style={{...st,display:"inline-flex",alignItems:"center",padding:"4px 9px",borderRadius:999,fontSize:11,fontWeight:700,textTransform:"capitalize"}}>{status}</span>;
+};
+
+const TabBtn = ({ label, active, onClick }) => (
+  <button onClick={onClick} type="button" style={{padding:"12px 16px",border:"none",background:active?"#2EABFE":"transparent",color:active?"#091925":"#5B7384",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Poppins',sans-serif",borderRadius:0}}>
+    {label}
+  </button>
 );
 
-/* ─── Style helpers ──────────────────────────────────────────────── */
-const badgeStyle = (type) => {
-  const t = String(type||"").toUpperCase();
-  const base = { display:"inline-flex", alignItems:"center", padding:"4px 8px", borderRadius:999, fontSize:11, fontWeight:800 };
-  if (t==="PE") return { ...base, color:"#2EABFE",           background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.22)" };
-  if (t==="CE") return { ...base, color:"rgba(0,140,140,1)", background:"rgba(0,180,180,0.12)",  border:"1px solid rgba(0,180,180,0.20)"  };
-  return { ...base, color:"rgba(9,25,37,0.78)", background:"rgba(2,8,23,0.06)", border:"1px solid rgba(2,8,23,0.10)" };
-};
-
-const orderStatusStyle = (status) => {
-  const s = String(status||"").toLowerCase();
-  const base = { display:"inline-flex", alignItems:"center", padding:"6px 10px", borderRadius:999, fontSize:12, fontWeight:800, textTransform:"capitalize" };
-  if (s==="paid"||s==="completed") return { ...base, color:"rgba(0,140,140,1)",  background:"rgba(0,180,180,0.12)",  border:"1px solid rgba(0,180,180,0.20)"  };
-  if (s==="pending")               return { ...base, color:"rgba(180,120,0,1)",  background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.22)" };
-  return { ...base, color:"rgba(200,50,50,1)", background:"rgba(239,68,68,0.10)", border:"1px solid rgba(239,68,68,0.20)" };
-};
-
-/* ─── CSS ────────────────────────────────────────────────────────── */
-const css = `
-.rs-link{color:#2EABFE;text-decoration:none;font-weight:800;} .rs-link:hover{text-decoration:underline;}
-.rs-spinner{width:36px;height:36px;border-radius:999px;border:3px solid rgba(2,8,23,0.12);border-top-color:#2EABFE;animation:rs-spin 1s linear infinite;} @keyframes rs-spin{to{transform:rotate(360deg);}}
-.rs-alert{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:14px;border:1px solid rgba(46,171,254,0.25);background:rgba(46,171,254,0.10);color:#091925;font-size:13px;}
-.rs-alert-dot{width:10px;height:10px;border-radius:999px;background:#2EABFE;margin-top:4px;flex-shrink:0;}
-.rs-tr:hover{background:rgba(46,171,254,0.05);}
+const CSS = `
+.dash-spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(2,8,23,0.10);border-top-color:#2EABFE;animation:dspin 1s linear infinite;}
+@keyframes dspin{to{transform:rotate(360deg);}}
+.tr-hover:hover{background:rgba(46,171,254,0.04);}
 `;
 
-/* ─── Styles ─────────────────────────────────────────────────────── */
 const S = {
-  shell:          { maxWidth:1180, margin:"0 auto", padding:"18px 18px 40px" },
-  center:         { minHeight:"60vh", display:"grid", placeItems:"center" },
-  hero:           { position:"relative", borderRadius:24, overflow:"hidden", background:"linear-gradient(110deg,#091925 0%,#0b2a3a 45%,#2EABFE 100%)", boxShadow:"0 22px 60px rgba(2,8,23,0.16)" },
-  heroBg:         { position:"absolute", inset:0, background:"radial-gradient(900px 500px at 20% 25%, rgba(46,171,254,0.22), transparent 60%)", pointerEvents:"none" },
-  heroInner:      { position:"relative", padding:20 },
-  heroTop:        { display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap", padding:"8px 8px 14px" },
-  heroKicker:     { color:"rgba(255,255,255,0.78)", fontWeight:800, fontSize:12 },
-  heroHeadline:   { color:"#fff", fontWeight:950, fontSize:18, letterSpacing:"-0.2px", marginTop:4 },
-  primaryBtn:     { display:"inline-flex", alignItems:"center", gap:10, padding:"12px 14px", borderRadius:14, border:"1px solid rgba(255,255,255,0.18)", background:"rgba(9,25,37,0.35)", color:"#fff", cursor:"pointer", fontWeight:900, boxShadow:"0 14px 30px rgba(2,8,23,0.20)" },
-  primaryBtnSmall:{ display:"inline-flex", alignItems:"center", gap:8, padding:"10px 12px", borderRadius:14, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", color:"rgba(11,18,32,0.85)", cursor:"pointer", fontWeight:900 },
-  profileRow:     { display:"flex", gap:10, flexWrap:"wrap", padding:"0 8px 14px" },
-  profileChip:    { display:"inline-flex", alignItems:"center", gap:8, padding:"10px 12px", borderRadius:999, background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.16)", color:"rgba(255,255,255,0.88)", fontWeight:700, fontSize:13 },
-  kpiGrid:        { display:"grid", gridTemplateColumns:"repeat(3,minmax(0,1fr))", gap:12, padding:8 },
-  kpiCard:        { display:"flex", alignItems:"center", gap:12, padding:14, borderRadius:18 },
-  kpiIcon:        { width:42, height:42, borderRadius:16, background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.14)", display:"grid", placeItems:"center", color:"#fff", flexShrink:0 },
-  kpiText:        { display:"grid", gap:2 },
-  kpiTitle:       { color:"rgba(255,255,255,0.78)", fontWeight:800, fontSize:12 },
-  kpiValue:       { color:"#fff", fontWeight:950, fontSize:24, letterSpacing:"-0.4px" },
-  kpiCaption:     { color:"rgba(255,255,255,0.70)", fontWeight:700, fontSize:12 },
-  myCoursesSection:{ marginTop:14, borderRadius:22, background:"rgba(255,255,255,0.88)", border:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 18px 48px rgba(2,8,23,0.10)", padding:18 },
-  myCoursesHead:  { display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 },
-  myCoursesTitle: { fontWeight:950, fontSize:17, color:"rgba(11,18,32,0.88)" },
-  myCoursesSub:   { fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.55)", marginTop:3 },
-  courseGrid:     { display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", gap:12 },
-  courseCard:     { borderRadius:18, border:"1px solid rgba(46,171,254,0.18)", background:"linear-gradient(135deg,rgba(46,171,254,0.04),rgba(0,180,180,0.04))", padding:16, display:"flex", flexDirection:"column", gap:14 },
-  courseCardTop:  { display:"flex", alignItems:"flex-start", gap:12 },
-  courseCardIcon: { width:44, height:44, borderRadius:14, background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.20)", display:"grid", placeItems:"center", color:"#2EABFE", flexShrink:0 },
-  courseCardTitle:{ fontWeight:900, color:"rgba(11,18,32,0.88)", fontSize:14, lineHeight:1.4 },
-  courseCardMeta: { display:"flex", alignItems:"center", gap:8, marginTop:6, flexWrap:"wrap" },
-  courseCardHrs:  { display:"inline-flex", alignItems:"center", gap:4, fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.55)" },
-  startLearningBtn:{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"11px", borderRadius:12, border:"none", background:"#2EABFE", color:"#fff", cursor:"pointer", fontWeight:900, fontSize:14, boxShadow:"0 6px 18px rgba(46,171,254,0.28)" },
-  completedBadge: { display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"11px", borderRadius:12, background:"rgba(34,197,94,0.10)", border:"1px solid rgba(34,197,94,0.25)", color:"rgba(21,128,61,1)", fontWeight:900, fontSize:13 },
-  card:           { marginTop:14, borderRadius:22, background:"rgba(255,255,255,0.82)", border:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 18px 48px rgba(2,8,23,0.10)", backdropFilter:"blur(10px)", overflow:"hidden" },
-  tabRow:         { display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap", padding:"14px 14px 10px", borderBottom:"1px solid rgba(2,8,23,0.06)" },
-  tabs:           { display:"flex", gap:8, flexWrap:"wrap" },
-  tabBtn:         { padding:"10px 12px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", cursor:"pointer", fontWeight:900, color:"rgba(11,18,32,0.72)", fontSize:13 },
-  tabBtnActive:   { border:"1px solid rgba(46,171,254,0.32)", boxShadow:"0 0 0 5px rgba(46,171,254,0.28)", color:"#091925", background:"#fff" },
-  searchWrap:     { display:"flex", alignItems:"center", gap:8, padding:"10px 12px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", minWidth:260 },
-  searchInput:    { border:"none", outline:"none", width:"100%", fontSize:13, fontWeight:700, color:"rgba(11,18,32,0.80)", background:"transparent" },
-  cardBody:       { padding:14 },
-  gridTwo:        { display:"grid", gridTemplateColumns:"1.35fr 0.85fr", gap:12 },
-  panel:          { borderRadius:18, background:"#fff", border:"1px solid rgba(2,8,23,0.08)", padding:14 },
-  panelHead:      { display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:10 },
-  panelTitle:     { fontWeight:950, color:"rgba(11,18,32,0.82)" },
-  ghostBtn:       { border:"1px solid rgba(2,8,23,0.10)", background:"rgba(2,8,23,0.02)", borderRadius:999, padding:"8px 10px", cursor:"pointer", fontWeight:900, display:"inline-flex", alignItems:"center", gap:6, color:"rgba(11,18,32,0.72)" },
-  rowCard:        { borderRadius:16, border:"1px solid rgba(2,8,23,0.08)", background:"rgba(2,8,23,0.02)", padding:12, display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 },
-  rowTop:         { display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap" },
-  rowTitle:       { fontWeight:950, color:"rgba(11,18,32,0.88)" },
-  rowMeta:        { display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" },
-  metaItem:       { display:"inline-flex", alignItems:"center", gap:6, color:"rgba(11,18,32,0.62)", fontWeight:800, fontSize:12 },
-  metaLink:       { display:"inline-flex", alignItems:"center", gap:6, fontSize:12 },
-  quickActions:   { display:"grid", gap:10 },
-  actionCard:     { width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:12, borderRadius:16, border:"1px solid rgba(2,8,23,0.08)", background:"rgba(2,8,23,0.02)", cursor:"pointer", textAlign:"left" },
-  actionIcon:     { width:40, height:40, borderRadius:16, background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.18)", display:"grid", placeItems:"center", color:"#091925", flexShrink:0 },
-  actionText:     { flex:1, display:"grid", gap:2 },
-  actionTitle:    { fontWeight:950, color:"rgba(11,18,32,0.84)" },
-  actionSub:      { fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.55)" },
-  sectionHead:    { display:"flex", justifyContent:"space-between", alignItems:"flex-end", gap:12, marginBottom:10, flexWrap:"wrap" },
-  sectionTitle:   { fontWeight:950, fontSize:16, color:"rgba(11,18,32,0.86)" },
-  sectionSub:     { marginTop:4, fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.55)" },
-  tableWrap:      { overflowX:"auto", borderRadius:16, border:"1px solid rgba(2,8,23,0.08)", background:"#fff" },
-  table:          { width:"100%", borderCollapse:"separate", borderSpacing:0, minWidth:820 },
-  th:             { textAlign:"left", fontSize:12, fontWeight:950, color:"rgba(11,18,32,0.62)", padding:"12px", borderBottom:"1px solid rgba(2,8,23,0.08)", background:"rgba(2,8,23,0.02)" },
-  thRight:        { textAlign:"right", fontSize:12, fontWeight:950, color:"rgba(11,18,32,0.62)", padding:"12px", borderBottom:"1px solid rgba(2,8,23,0.08)", background:"rgba(2,8,23,0.02)" },
-  td:             { padding:"12px", borderBottom:"1px solid rgba(2,8,23,0.06)", fontSize:13, color:"rgba(11,18,32,0.78)" },
-  tdRight:        { padding:"12px", borderBottom:"1px solid rgba(2,8,23,0.06)", fontSize:13, textAlign:"right", color:"rgba(11,18,32,0.78)" },
-  orderCard:      { borderRadius:18, border:"1px solid rgba(2,8,23,0.08)", background:"#fff", padding:16 },
-  orderTop:       { display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start", flexWrap:"wrap", marginBottom:14 },
-  orderLeft:      { display:"grid", gap:6 },
-  orderTitle:     { display:"inline-flex", alignItems:"center", gap:8, fontWeight:950, color:"rgba(11,18,32,0.86)" },
-  orderMeta:      { color:"rgba(11,18,32,0.55)", fontWeight:750, fontSize:12, display:"inline-flex", gap:6, alignItems:"center" },
-  orderItems:     { display:"grid", gap:10 },
-  orderItem:      { display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderRadius:14, border:"1px solid rgba(2,8,23,0.07)", background:"rgba(2,8,23,0.01)" },
-  orderItemLocked:{ opacity:0.65 },
-  orderItemIcon:  { width:34, height:34, borderRadius:10, background:"rgba(46,171,254,0.10)", border:"1px solid rgba(46,171,254,0.18)", display:"grid", placeItems:"center", color:"#2EABFE", flexShrink:0 },
-  orderItemInfo:  { flex:1, display:"grid", gap:5, minWidth:0 },
-  orderItemTitle: { fontWeight:800, color:"rgba(11,18,32,0.86)", fontSize:14, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" },
-  orderItemMeta:  { display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" },
-  orderMetaChip:  { display:"inline-flex", alignItems:"center", gap:4, fontSize:11, fontWeight:700, color:"rgba(11,18,32,0.55)" },
-  pill:           { padding:"3px 8px", borderRadius:999, background:"rgba(2,8,23,0.06)", border:"1px solid rgba(2,8,23,0.08)", fontSize:11, fontWeight:850, color:"rgba(11,18,32,0.70)" },
-  startBtn:       { display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:12, border:"none", background:"#2EABFE", color:"#fff", cursor:"pointer", fontWeight:900, fontSize:12, flexShrink:0, whiteSpace:"nowrap", boxShadow:"0 4px 12px rgba(46,171,254,0.25)" },
-  lockedBadge:    { display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:12, border:"1px solid rgba(245,158,11,0.28)", background:"rgba(245,158,11,0.08)", color:"rgba(140,90,0,1)", fontWeight:800, fontSize:12, flexShrink:0, whiteSpace:"nowrap" },
-  orderBottom:    { marginTop:14, paddingTop:12, borderTop:"1px solid rgba(2,8,23,0.06)", display:"flex", justifyContent:"flex-end" },
-  total:          { color:"rgba(11,18,32,0.70)", fontWeight:800, fontSize:14 },
-  emptyWrap:      { borderRadius:18, border:"1px dashed rgba(2,8,23,0.16)", background:"rgba(2,8,23,0.02)", padding:18, textAlign:"center" },
-  emptyIcon:      { width:44, height:44, borderRadius:16, background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.18)", display:"grid", placeItems:"center", color:"#091925", margin:"0 auto" },
-  emptyTitle:     { marginTop:10, fontWeight:950, color:"rgba(11,18,32,0.86)" },
-  emptySub:       { marginTop:6, color:"rgba(11,18,32,0.55)", fontWeight:700, fontSize:12, lineHeight:1.6 },
-  viewAllBtn:       { display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:12, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", cursor:"pointer", fontWeight:800, fontSize:13, color:"rgba(9,25,37,0.72)", flexShrink:0 },
-viewAllFooter:    { marginTop:14, paddingTop:12, borderTop:"1px solid rgba(2,8,23,0.07)", display:"flex", justifyContent:"center" },
-viewAllFooterBtn: { display:"inline-flex", alignItems:"center", gap:6, padding:"8px 16px", borderRadius:999, border:"1px solid rgba(46,171,254,0.22)", background:"rgba(46,171,254,0.06)", cursor:"pointer", fontWeight:800, fontSize:13, color:"#2EABFE" },
+  fullCenter:  {minHeight:"60vh",display:"grid",placeItems:"center"},
+  wrap:        {padding:"20px 24px 40px"},
+  pageHead:    {marginBottom:18},
+  breadcrumb:  {fontSize:12,fontWeight:600,color:"#2EABFE",fontFamily:"'Poppins',sans-serif",marginBottom:4},
+  pageTitle:   {fontSize:30,fontWeight:800,color:"#091925",fontFamily:"'Poppins',sans-serif",lineHeight:1.1,marginBottom:4,margin:0},
+  pageSubtitle:{fontSize:13,fontWeight:500,color:"#5B7384",fontFamily:"'Poppins',sans-serif",marginBottom:10,marginTop:4},
+  headDivider: {height:"1.5px",background:"linear-gradient(90deg,#2EABFE,transparent)",borderRadius:99,marginBottom:16},
+  statGrid:    {display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11,marginBottom:14},
+  midRow:      {display:"grid",gridTemplateColumns:"1fr 1fr",gap:13,marginBottom:14},
+  panel:       {background:"#fff",borderRadius:10,padding:"15px 17px",display:"flex",flexDirection:"column",boxShadow:"0 2px 8px rgba(2,8,23,0.06)",border:"0.5px solid rgba(2,8,23,0.07)"},
+  panelHdr:    {display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:9},
+  panelHdrLeft:{display:"flex",alignItems:"center",gap:9},
+  panelIcon:   {width:32,height:32,borderRadius:8,background:"rgba(208,235,255,0.25)",border:"0.5px solid #2EABFE",display:"grid",placeItems:"center",flexShrink:0},
+  panelTitle:  {fontSize:13,fontWeight:700,color:"#091925",fontFamily:"'Poppins',sans-serif"},
+  panelSub:    {fontSize:10,color:"#7FA8C4",fontFamily:"'Poppins',sans-serif",marginTop:1},
+  divider:     {height:"0.5px",background:"#7FA8C4",opacity:0.3,margin:"3px 0"},
+  viewAllBtn:  {padding:"5px 11px",borderRadius:6,background:"rgba(46,171,254,0.10)",border:"1px solid rgba(46,171,254,0.22)",color:"#2EABFE",fontWeight:700,fontSize:11,cursor:"pointer"},
+  progressTrack:{height:6,borderRadius:999,background:"rgba(9,25,37,0.07)",overflow:"hidden"},
+  progressFill: {height:"100%",borderRadius:999,transition:"width 0.4s"},
+  ctaBlue:  {display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:7,border:"none",background:"#2EABFE",color:"#091925",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"'Poppins',sans-serif",marginTop:"auto"},
+  ctaGreen: {display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:7,border:"none",background:"#008000",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"'Poppins',sans-serif"},
+  ctaAmber: {display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:7,border:"none",background:"#F59E0B",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"'Poppins',sans-serif",marginTop:10},
+  tabsCard:      {background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 2px 8px rgba(2,8,23,0.06)",border:"0.5px solid rgba(2,8,23,0.07)"},
+  tabBar:        {display:"flex",alignItems:"center",borderBottom:"0.5px solid rgba(2,8,23,0.08)"},
+  tabSearch:     {display:"flex",alignItems:"center",gap:7,padding:"0 11px",height:46,borderLeft:"0.5px solid rgba(2,8,23,0.08)",flex:1},
+  tabSearchInput:{flex:1,border:"none",outline:"none",fontSize:12,fontFamily:"'Poppins',sans-serif",background:"transparent",color:"#091925"},
+  backBtn:       {marginLeft:"auto",padding:"0 16px",height:46,border:"none",borderLeft:"0.5px solid rgba(2,8,23,0.08)",background:"transparent",color:"#5B7384",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Poppins',sans-serif"},
+  tabBody:       {padding:"14px"},
+  innerPanel:    {background:"#fff",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.08)",padding:"12px"},
+  innerHdr:      {display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:9},
+  innerTitle:    {fontSize:12,fontWeight:700,color:"#091925",fontFamily:"'Poppins',sans-serif"},
+  ghostBtn:      {display:"inline-flex",alignItems:"center",gap:4,padding:"4px 9px",borderRadius:999,border:"0.5px solid rgba(2,8,23,0.10)",background:"rgba(2,8,23,0.02)",cursor:"pointer",fontWeight:700,fontSize:11,color:"rgba(11,18,32,0.65)",fontFamily:"'Poppins',sans-serif"},
+  actionCard:    {display:"flex",alignItems:"center",gap:11,padding:"9px 11px",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.07)",background:"rgba(2,8,23,0.01)",cursor:"pointer",width:"100%",textAlign:"left"},
+  actionIcon:    {width:32,height:32,borderRadius:7,background:"rgba(46,171,254,0.10)",border:"0.5px solid rgba(46,171,254,0.15)",display:"grid",placeItems:"center",color:"#091925",flexShrink:0},
+  actionTitle:   {fontSize:12,fontWeight:700,color:"rgba(11,18,32,0.85)",fontFamily:"'Poppins',sans-serif"},
+  actionSub:     {fontSize:10,fontWeight:500,color:"rgba(11,18,32,0.50)",fontFamily:"'Poppins',sans-serif",marginTop:2},
+  tableWrap:     {overflowX:"auto",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.08)"},
+  table:         {width:"100%",borderCollapse:"separate",borderSpacing:0,minWidth:640},
+  th:            {textAlign:"left",fontSize:10,fontWeight:700,color:"rgba(11,18,32,0.55)",padding:"8px 11px",borderBottom:"0.5px solid rgba(2,8,23,0.08)",background:"rgba(2,8,23,0.02)",fontFamily:"'Poppins',sans-serif"},
+  td:            {padding:"8px 11px",borderBottom:"0.5px solid rgba(2,8,23,0.05)",fontSize:12,color:"rgba(11,18,32,0.78)",fontFamily:"'Poppins',sans-serif"},
+  orderCard:     {borderRadius:8,border:"0.5px solid rgba(2,8,23,0.08)",background:"#fff",padding:12},
+  startBtn:      {display:"inline-flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:6,border:"none",background:"#2EABFE",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:10,flexShrink:0},
+  emptyMsg:      {fontSize:12,color:"#7FA8C4",padding:"16px 0",textAlign:"center",fontFamily:"'Poppins',sans-serif"},
 };
 
 export default Dashboard;

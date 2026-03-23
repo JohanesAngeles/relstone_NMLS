@@ -1,84 +1,142 @@
-const express = require('express');
-const nodemailer = require('nodemailer');
+const express  = require('express');
+const router   = express.Router();
+const Ticket = require('../models/SupportTicket');
+const authMiddleware = require('../middleware/auth');
 
-const router = express.Router();
+router.use(authMiddleware);
 
-const escapeHtml = (value) => String(value)
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/\"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+/* ── POST /api/support ─────────────────────────────────────────────── */
+router.post('/', async (req, res) => {
+  try {
+    const { subject, category, message, priority } = req.body;
+    if (!subject || !message)
+      return res.status(400).json({ message: 'Subject and message are required' });
 
-const getTransporter = () => nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id).select('name email').lean();
+
+    const ticket = await Ticket.create({
+      user_id:    req.user.id,
+      user_name:  user?.name  || 'Unknown',
+      user_email: user?.email || '',
+      subject:    subject.trim(),
+      category:   category || 'other',
+      message:    message.trim(),
+      priority:   priority || 'normal',
+    });
+
+    res.status(201).json({ ticket, message: 'Support ticket submitted successfully' });
+  } catch (err) {
+    console.error('[support POST]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
 });
 
-router.post('/contact', async (req, res) => {
+/* ── GET /api/support/mine ─────────────────────────────────────────── */
+router.get('/mine', async (req, res) => {
   try {
-    const { name, email, subject, message } = req.body || {};
-
-    if (!name || !email || !subject || !message) {
-      return res.status(400).json({ message: 'All fields are required.' });
-    }
-
-    if (!String(email).includes('@')) {
-      return res.status(400).json({ message: 'Valid email is required.' });
-    }
-
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      return res.status(500).json({ message: 'Support email service is not configured.' });
-    }
-
-    const safeName = escapeHtml(name);
-    const safeEmail = escapeHtml(email);
-    const safeSubject = escapeHtml(subject);
-    const safeMessage = escapeHtml(message);
-
-    const supportInbox = process.env.SUPPORT_EMAIL || process.env.EMAIL_USER;
-
-    await getTransporter().sendMail({
-      from: `"Relstone Support Form" <${process.env.EMAIL_USER}>`,
-      to: supportInbox,
-      replyTo: email,
-      subject: `[Contact Support] ${subject}`,
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:650px;padding:20px;border:1px solid #e5e7eb;border-radius:12px;">
-          <h2 style="margin-top:0;color:#0f2d44;">New Contact Support Request</h2>
-          <p><strong>Name:</strong> ${safeName}</p>
-          <p><strong>Email:</strong> ${safeEmail}</p>
-          <p><strong>Subject:</strong> ${safeSubject}</p>
-          <p><strong>Message:</strong></p>
-          <div style="white-space:pre-line;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">${safeMessage}</div>
-        </div>
-      `,
-      text: `New Contact Support Request\n\nName: ${name}\nEmail: ${email}\nSubject: ${subject}\n\nMessage:\n${message}`,
-    });
-
-    await getTransporter().sendMail({
-      from: `"Relstone NMLS" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: 'We received your support request',
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:540px;padding:20px;border:1px solid #e5e7eb;border-radius:12px;">
-          <h2 style="margin-top:0;color:#0f2d44;">Thanks for contacting Relstone Support</h2>
-          <p>Hi ${safeName},</p>
-          <p>We received your request about <strong>${safeSubject}</strong>.</p>
-          <p>Our team will respond during support hours (Monday to Friday, 8:00 AM to 6:00 PM EST).</p>
-          <p style="margin-bottom:0;">Relstone Support Team</p>
-        </div>
-      `,
-      text: `Hi ${name},\n\nWe received your support request about "${subject}".\nOur team will respond during support hours.\n\nRelstone Support Team`,
-    });
-
-    return res.status(200).json({ message: 'Support request sent successfully.' });
+    const tickets = await Ticket.find({ user_id: req.user.id })
+      .sort({ updatedAt: -1 })
+      .lean();
+    res.json({ tickets, total: tickets.length });
   } catch (err) {
-    console.error('Support contact error:', err);
-    return res.status(500).json({ message: 'Unable to send support request right now.' });
+    console.error('[support GET /mine]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/* ── GET /api/support/admin/all ────────────────────────────────────── */
+router.get('/admin/all', async (req, res) => {
+  try {
+    if (!['instructor', 'admin'].includes(req.user.role))
+      return res.status(403).json({ message: 'Instructors only' });
+
+    const filter = {};
+    const { status, priority, category } = req.query;
+    if (status   && status   !== 'all') filter.status   = status;
+    if (priority && priority !== 'all') filter.priority = priority;
+    if (category && category !== 'all') filter.category = category;
+
+    const tickets = await Ticket.find(filter).sort({ createdAt: -1 }).lean();
+    res.json({ tickets, total: tickets.length });
+  } catch (err) {
+    console.error('[support GET /admin/all]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/* ── GET /api/support/:ticketId ────────────────────────────────────── */
+router.get('/:ticketId', async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.ticketId).lean();
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+    const isInstructor = ['instructor', 'admin'].includes(req.user.role);
+    if (!isInstructor && String(ticket.user_id) !== String(req.user.id))
+      return res.status(403).json({ message: 'Access denied' });
+
+    res.json({ ticket });
+  } catch (err) {
+    console.error('[support GET /:ticketId]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/* ── POST /api/support/:ticketId/reply ─────────────────────────────── */
+router.post('/:ticketId/reply', async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ message: 'Message is required' });
+
+    const ticket = await Ticket.findById(req.params.ticketId);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+    const isInstructor = ['instructor', 'admin'].includes(req.user.role);
+    if (!isInstructor && String(ticket.user_id) !== String(req.user.id))
+      return res.status(403).json({ message: 'Access denied' });
+
+    const User = require('../models/User');
+    const user = await User.findById(req.user.id).select('name role').lean();
+
+    ticket.replies.push({
+      sender_id:   req.user.id,
+      sender_name: user?.name || 'User',
+      sender_role: user?.role || 'student',
+      message:     message.trim(),
+    });
+
+    if (isInstructor && ticket.status === 'open') ticket.status = 'in_progress';
+
+    await ticket.save();
+    res.json({ ticket, message: 'Reply added' });
+  } catch (err) {
+    console.error('[support POST /:ticketId/reply]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/* ── PUT /api/support/:ticketId/status ─────────────────────────────── */
+router.put('/:ticketId/status', async (req, res) => {
+  try {
+    if (!['instructor', 'admin'].includes(req.user.role))
+      return res.status(403).json({ message: 'Instructors only' });
+
+    const { status, priority } = req.body;
+    const ticket = await Ticket.findById(req.params.ticketId);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+    if (status) {
+      ticket.status = status;
+      if (status === 'resolved') ticket.resolved_at = new Date();
+      if (status === 'closed')   ticket.closed_at   = new Date();
+    }
+    if (priority) ticket.priority = priority;
+
+    await ticket.save();
+    res.json({ ticket, message: 'Ticket updated' });
+  } catch (err) {
+    console.error('[support PUT /:ticketId/status]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
