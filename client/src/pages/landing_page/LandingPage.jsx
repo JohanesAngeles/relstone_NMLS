@@ -307,6 +307,8 @@ const LandingPage = () => {
         </>
       )}
 
+
+
       {/* ── NAV ── */}
       <nav className="lp-nav">
         <div className="lp-container lp-nav-inner">
@@ -327,7 +329,6 @@ const LandingPage = () => {
           <div className="lp-nav-links">
             <a href="#about-relstone" className="lp-nav-link">About</a>
             <a href="#features" className="lp-nav-link">Features</a>
-            <a href="#how-it-works" className="lp-nav-link">How It Works</a>
             <a href="#courses" className="lp-nav-link">Courses</a>
             <a href="#compliance" className="lp-nav-link">Compliance</a>
             <a href="/resources" className="lp-nav-link">Resources</a>
@@ -741,40 +742,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ── */}
-      <section className="lp-process" id="how-it-works">
-        <div className="lp-container">
-          <div className="lp-section-label lp-section-label--light">HOW IT WORKS</div>
-          <div className="lp-process-top">
-            <div>
-              <h2 className="lp-section-h2 lp-section-h2--light">
-                The Full <span className="lp-h2-accent-light">Licensing Journey</span>
-              </h2>
-              <p className="lp-process-sub">
-                A clear 8-step path from account creation to annual renewal, presented in the same guided flow students follow in real life.
-              </p>
-            </div>
-
-            <div className="lp-process-intro-card">
-              <div className="lp-process-intro-label">From first enrollment to renewal</div>
-              <p>
-                Relstone handles the education side cleanly, then guides students through what comes next so the entire licensing process feels ordered instead of fragmented.
-              </p>
-            </div>
-          </div>
-
-          <div className="lp-process-grid">
-            {HOW_IT_WORKS_STEPS.map((step) => (
-              <article key={step.number} className="lp-process-card">
-                <div className="lp-process-step">Step {step.number}</div>
-                <div className="lp-process-num">{step.number}</div>
-                <h3 className="lp-process-title">{step.title}</h3>
-                <p className="lp-process-desc">{step.desc}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+      
 
       {/* ── COMPLIANCE ── */}
       <section className="lp-compliance" id="compliance">
@@ -946,7 +914,10 @@ html { scroll-behavior: smooth; }
 }
 .lp-nav-inner {
   height: 68px;
-  display: flex; align-items: center; gap: 24px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 24px;
 }
 .lp-nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
 .lp-logo-mark {
@@ -967,7 +938,7 @@ html { scroll-behavior: smooth; }
   color: var(--slate); letter-spacing: .3px;
 }
 
-.lp-nav-links { display: flex; gap: 2px; margin-left: auto; }
+.lp-nav-links { display: flex; gap: 2px; justify-content: center; }
 .lp-nav-link {
   padding: 7px 14px;
   font-size: 13.5px; font-weight: 500;
@@ -1847,6 +1818,8 @@ button.lp-cta-login-link {
   background: #34d399;
   box-shadow: 0 0 0 6px rgba(52,211,153,0.16);
 }
+
+
 
 @media (max-width: 560px) {
   .lp-contact-card {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
+import HowItWorksModal from '../components/HowItWorksModal';
 
 // ── Shared Data ───────────────────────────────────────────────────
 const TESTIMONIALS = [
@@ -29,18 +30,44 @@ const HomePage = () => {
   const navigate = useNavigate();
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [openFaq, setOpenFaq] = useState(null);
+  const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
 
   const handleDashboard = () => navigate(user?.role === 'instructor' ? '/instructor/dashboard' : '/dashboard');
+
+  useEffect(() => {
+    const isNewUser = sessionStorage.getItem('isNewUserOnboarding');
+    if (isNewUser) {
+      setShowHowItWorksModal(true);
+      sessionStorage.removeItem('isNewUserOnboarding');
+    }
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setActiveTestimonial(p => (p + 1) % TESTIMONIALS.length), 5000);
     return () => clearInterval(t);
   }, []);
 
+  const handleHowItWorksClose = () => {
+    setShowHowItWorksModal(false);
+  };
+
+  const handleHowItWorksGetStarted = () => {
+    setShowHowItWorksModal(false);
+    navigate('/dashboard');
+  };
+
   return (
     <Layout>
       <div className="hp-root">
         <style>{css}</style>
+
+        {/* How It Works Modal for new users */}
+        {showHowItWorksModal && (
+          <HowItWorksModal
+            onClose={handleHowItWorksClose}
+            onGetStarted={handleHowItWorksGetStarted}
+          />
+        )}
 
         {/* ── HERO ── */}
         <section className="hp-hero">

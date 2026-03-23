@@ -540,6 +540,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     setLoading(true); setError('');
     try {
       const res = await API.post('/auth/verify-otp', { email: pendingEmail, otp });
+      sessionStorage.setItem('isNewUserOnboarding', '1');
       login(res.data.user, res.data.token); onClose(); navigate('/home');
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
