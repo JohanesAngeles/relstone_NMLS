@@ -1,133 +1,28 @@
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Home, GraduationCap, Award, Users } from 'lucide-react';
-import logo from '../assets/images/Left Side Logo.png';
+import { useLocation } from 'react-router-dom';
+import Navbar from './Navbar';
 import InnerBreadcrumbs from './InnerBreadcrumbs';
-import GlobalSearchBar from './GlobalSearchBar';
 
-/* ─── Logout Confirm Dialog ─────────────────────────────────────── */
-const LogoutConfirm = ({ onConfirm, onCancel }) => (
-  <>
-    <div onClick={onCancel} style={D.backdrop} />
-    <div style={D.dialog}>
-      <div style={D.dialogIcon}>
-        <LogOut size={22} color="rgba(220,38,38,0.85)" />
-      </div>
-      <div style={D.dialogTitle}>Sign out?</div>
-      <div style={D.dialogSub}>Are you sure you want to sign out of your account?</div>
-      <div style={D.dialogBtns}>
-        <button style={D.cancelBtn} onClick={onCancel} type="button">No, stay</button>
-        <button style={D.confirmBtn} onClick={onConfirm} type="button">Yes, sign out</button>
-      </div>
-    </div>
-  </>
-);
-
-/* ─── Layout ─────────────────────────────────────────────────────── */
+/* ─── Layout ─────────────────────────────────────────────────── */
 const Layout = ({ children, title, subtitle, actions }) => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
-  const [showLogout, setShowLogout] = useState(false);
-
-  const handleLogout = () => { logout(); window.location.href = '/'; };
-
-  const role = String(user?.role || 'student').toLowerCase();
-  const isAdminView = role === 'admin' || role === 'instructor';
-
-  const navLinks = isAdminView
-    ? [
-        { path: '/instructor/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
-        { path: '/instructor/students', label: 'Students', icon: <Users size={15} /> },
-        { path: '/courses', label: 'Courses', icon: <BookOpen size={15} /> },
-      ]
-    : [
-        { path: '/home', label: 'Home', icon: <Home size={15} /> },
-        { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={15} /> },
-        { path: '/my-courses', label: 'My Courses', icon: <GraduationCap size={15} /> },
-        { path: '/courses', label: 'Courses', icon: <BookOpen size={15} /> },
-        { path: '/certificates', label: 'Certificates', icon: <Award size={15} /> },
-        { path: '/checkout', label: 'Checkout', icon: <ShoppingCart size={15} /> },
-      ];
-
-  const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   return (
     <div style={S.page}>
       <style>{css}</style>
 
-      {showLogout && (
-        <LogoutConfirm
-          onConfirm={handleLogout}
-          onCancel={() => setShowLogout(false)}
-        />
-      )}
+      {/* Navbar Component */}
+      <Navbar actions={actions} />
 
-      {/* ── Sticky Navbar ───────────────────────────────────────── */}
-      <header style={S.topbar}>
-        <div style={S.topbarInner}>
-
-          {/* Left — Logo + Nav */}
-          <div style={S.navLeft}>
-            <div style={S.brand} onClick={() => navigate('/home')} role="button" tabIndex={0}>
-              <img src={logo} alt="Relstone" style={S.logo} />
-              <div style={S.brandText}>
-                <span style={S.brandName}>Relstone</span>
-                <span style={S.brandTag}>NMLS</span>
-              </div>
-            </div>
-
-            <nav style={S.nav}>
-              {navLinks.map(link => (
-                <button
-                  key={link.path}
-                  type="button"
-                  style={{ ...S.navLink, ...(isActive(link.path) ? S.navLinkActive : {}) }}
-                  onClick={() => navigate(link.path)}
-                >
-                  {link.icon}
-                  <span>{link.label}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
-
-          {/* Right — Actions + User */}
-          <div style={S.navRight}>
-            {actions}
-
-            <GlobalSearchBar minWidth={280} />
-
-            <button
-              style={S.userBtn}
-              onClick={() => navigate('/profile')}
-              type="button"
-              title="My Profile"
-            >
-              <div style={S.userAvatar}>
-                <User size={14} color="#2EABFE" />
-              </div>
-              <span style={S.userName}>{user?.name || 'Student'}</span>
-            </button>
-
-            <button style={S.logoutBtn} onClick={() => setShowLogout(true)} type="button" title="Logout">
-              <LogOut size={15} />
-            </button>
+      {/* Page title bar */}
+      {(title || subtitle || location.pathname !== '/home') && (
+        <div style={S.titleBar}>
+          <div style={S.titleBarInner}>
+            <InnerBreadcrumbs />
+            {title    && <div style={S.pageTitle}>{title}</div>}
+            {subtitle && <div style={S.pageSub}>{subtitle}</div>}
           </div>
         </div>
-
-        {/* Page title bar */}
-        {(title || subtitle || location.pathname !== '/home') && (
-          <div style={S.titleBar}>
-            <div style={S.titleBarInner}>
-              <InnerBreadcrumbs />
-              {title    && <div style={S.pageTitle}>{title}</div>}
-              {subtitle && <div style={S.pageSub}>{subtitle}</div>}
-            </div>
-          </div>
-        )}
-      </header>
+      )}
 
       {/* ── Page Content ────────────────────────────────────────── */}
       <main>
