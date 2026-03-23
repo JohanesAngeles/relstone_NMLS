@@ -21,6 +21,10 @@ import AccountSetup from './pages/auth_page/AccountSetupStep';
 import Testimonials from './pages/testimonials/Testimonial';
 import TestimonialApproval from './pages/instructor_page/TestimonialApproval';
 import CourseDetail from './pages/instructor_page/CourseDetail';
+import StudentDetail from './pages/instructor_page/StudentDetail';
+import ContactSupport from './pages/dashboard/ContactSupport';
+import SupportInbox   from './pages/instructor_page/SupportInbox';
+
 /* ─── Role helpers ───────────────────────────────────────────────── */
 const isInstructor = (user) =>
   user?.role === 'instructor' || user?.role === 'admin';
@@ -146,6 +150,12 @@ function App() {
           <Route path="/instructor/course/:courseId" element={
   <InstructorRoute><CourseDetail /></InstructorRoute>
 } />
+<Route path="/instructor/students/:studentId" element={
+  <InstructorRoute><StudentDetail /></InstructorRoute>
+} />
+<Route path="/support" element={<StudentRoute><ContactSupport /></StudentRoute>} />
+
+<Route path="/instructor/support" element={<InstructorRoute><SupportInbox /></InstructorRoute>} />
         </Routes>
       </Router>
     </AuthProvider>

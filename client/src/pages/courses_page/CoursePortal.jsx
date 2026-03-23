@@ -36,7 +36,11 @@ const buildContent = (course) => {
         pdf_url: modPdf, video_url: mod.video_url || null, sections: mod.sections || [],
       });
       if (mod.show_pdf_before_quiz && modPdf) {
-        content.push({ id: `pdf-gate-mod-${mod.order}`, type: "pdf_gate", title: `Study Material: ${mod.title}`, pdf_url: modPdf, moduleOrder: mod.order });
+        content.push({
+          id: `pdf-gate-mod-${mod.order}`, type: "pdf_gate",
+          title: `Study Material: ${mod.title}`,
+          pdf_url: modPdf, moduleOrder: mod.order,
+        });
       }
       if (mod.quiz?.length) {
         const isFundamentals = mod.show_pdf_before_quiz && mod.quiz.length > 10;
@@ -45,7 +49,12 @@ const buildContent = (course) => {
           type: isFundamentals ? "quiz_fundamentals" : "checkpoint",
           title: isFundamentals ? `${mod.title} — Fundamentals Exam` : `Checkpoint: ${mod.title}`,
           moduleOrder: mod.order,
-          questions: mod.quiz.map((q, i) => ({ id: `mod${mod.order}-q${i}`, text: q.question, options: q.options, correct: q.correct_index })),
+          questions: mod.quiz.map((q, i) => ({
+            id: `mod${mod.order}-q${i}`,
+            text: q.question,
+            options: q.options,
+            correct: q.correct_index,
+          })),
           passingScore: 70, timeLimitMin: 120,
         });
       }
@@ -58,13 +67,17 @@ const buildContent = (course) => {
       passingScore: course.final_exam.passing_score || 70,
       timeLimitMin: course.final_exam.time_limit_minutes || 90,
       moduleOrder: 999,
-      questions: course.final_exam.questions.map((q, i) => ({ id: `fq${i}`, text: q.question, options: q.options, correct: q.correct_index })),
+      questions: course.final_exam.questions.map((q, i) => ({
+        id: `fq${i}`,
+        text: q.question,
+        options: q.options,
+        correct: q.correct_index,
+      })),
     });
   }
   return content;
 };
 
-// Review version — appends a summary step at the end
 const buildReviewContent = (course) => {
   const base = buildContent(course);
   base.push({ id: "review-summary", type: "review_summary", title: "Course Summary", moduleOrder: 9999 });
@@ -126,7 +139,12 @@ const CoursePortal = () => {
   });
 
   const refreshAttempts = useCallback(async () => {
-    try { const res = await API.get(`/quiz-attempts/${id}`); setQuizAttempts(res.data?.attempts || {}); } catch { }
+    try {
+      const res = await API.get(`/quiz-attempts/${id}`);
+      setQuizAttempts(res.data?.attempts || {});
+    } catch (err) {
+      console.error('[CoursePortal] refreshAttempts failed:', err.message);
+    }
   }, [id]);
 
   useEffect(() => {
@@ -140,8 +158,10 @@ const CoursePortal = () => {
 
         const data = courseRes.data?.data || courseRes.data;
         setCourse(data);
-        // Use review content (with summary step) if already completed
-        const isAlreadyCompleted = transcriptRes.data?.transcript?.some((t) => String(t.course_id?._id || t.course_id) === String(id));
+
+        const isAlreadyCompleted = transcriptRes.data?.transcript?.some(
+          (t) => String(t.course_id?._id || t.course_id) === String(id)
+        );
         const built = isAlreadyCompleted ? buildReviewContent(data) : buildContent(data);
         setContent(built);
 
@@ -158,7 +178,9 @@ const CoursePortal = () => {
         setBioSigVerified(false); setShowBioSig(true);
 
         const transcript = transcriptRes.data?.transcript || [];
-        const entry = transcript.find((t) => String(t.course_id?._id || t.course_id) === String(id));
+        const entry = transcript.find(
+          (t) => String(t.course_id?._id || t.course_id) === String(id)
+        );
 
         if (entry) {
           setTranscriptEntry(entry);
@@ -166,6 +188,7 @@ const CoursePortal = () => {
           const allIdxs = new Set(built.map((_, i) => i));
           setCompleted(allIdxs);
           setReviewMode(true);
+          await refreshAttempts();
           setLoading(false);
           return;
         }
@@ -175,14 +198,19 @@ const CoursePortal = () => {
         const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
         const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
         const safeIdx = Math.max(0, Math.min(idx, built.length > 0 ? built.length - 1 : 0));
-        const nextCompleted = new Set(completed_idxs.filter((n) => Number.isFinite(n) && n >= 0 && n < built.length));
+        const nextCompleted = new Set(
+          completed_idxs.filter((n) => Number.isFinite(n) && n >= 0 && n < built.length)
+        );
         setCompleted(nextCompleted); setCurrentIdx(safeIdx);
-        if ((prog.total_steps || 0) !== built.length) saveProgress({ nextCompletedSet: nextCompleted, nextIdx: safeIdx, totalSteps: built.length });
+        if ((prog.total_steps || 0) !== built.length)
+          saveProgress({ nextCompletedSet: nextCompleted, nextIdx: safeIdx, totalSteps: built.length });
         await refreshAttempts();
       } catch (err) {
         console.error("Failed to load course:", err);
         setError("Could not load course content.");
-      } finally { setLoading(false); }
+      } finally {
+        setLoading(false);
+      }
     };
     load();
   }, [id, saveProgress, refreshAttempts]);
@@ -216,8 +244,12 @@ const CoursePortal = () => {
 
   const handleFinish = async () => {
     markComplete(currentIdx); flushSeatTime();
-    try { await Promise.all([API.post("/dashboard/complete", { courseId: id }), API.post(`/enrollment/${id}/complete`)]); }
-    catch (err) { console.warn("Could not save completion:", err.message); }
+    try {
+      await Promise.all([
+        API.post("/dashboard/complete", { courseId: id }),
+        API.post(`/enrollment/${id}/complete`),
+      ]);
+    } catch (err) { console.warn("Could not save completion:", err.message); }
     setFinished(true);
     const allIdxs = new Set(content.map((_, i) => i));
     setCompleted(allIdxs);
@@ -241,11 +273,15 @@ const CoursePortal = () => {
 
   if (finished && !reviewMode) return (
     <CompletionScreen
-      course={course}
-      transcriptEntry={transcriptEntry}
-      navigate={navigate}
-      courseId={id}
-      onReview={() => { const rc = buildReviewContent(course); setContent(rc); const allIdxs = new Set(rc.map((_, i) => i)); setCompleted(allIdxs); setCurrentIdx(0); setReviewMode(true); }}
+      course={course} transcriptEntry={transcriptEntry}
+      navigate={navigate} courseId={id}
+      onReview={() => {
+        const rc = buildReviewContent(course);
+        setContent(rc);
+        const allIdxs = new Set(rc.map((_, i) => i));
+        setCompleted(allIdxs); setCurrentIdx(0); setReviewMode(true);
+        refreshAttempts();
+      }}
     />
   );
 
@@ -340,11 +376,28 @@ const CoursePortal = () => {
                 const isDone    = reviewMode ? true : completed.has(idx);
                 const isCurrent = idx === currentIdx;
                 const isLocked  = !canNavigateTo(idx);
-                const icon = item.type === "lesson" ? <PlayCircle size={14} /> : item.type === "pdf_gate" ? <FileText size={14} /> : item.type === "checkpoint" ? <ClipboardList size={14} /> : item.type === "quiz_fundamentals" ? <ClipboardList size={14} /> : <Trophy size={14} />;
-                const iconColor = item.type === "checkpoint" ? "rgba(245,158,11,1)" : item.type === "quiz_fundamentals" ? "rgba(245,158,11,1)" : item.type === "pdf_gate" ? "rgba(239,68,68,0.80)" : item.type === "quiz" ? "rgba(34,197,94,1)" : "var(--cp-blue)";
-                const typeLabel = item.type === "lesson" ? "Lesson" : item.type === "pdf_gate" ? "Study Material" : item.type === "checkpoint" ? "Checkpoint" : item.type === "quiz_fundamentals" ? "Fundamentals Exam" : item.type === "review_summary" ? "Summary" : "Final Exam";
+                const icon =
+                  item.type === "lesson"            ? <PlayCircle size={14} /> :
+                  item.type === "pdf_gate"          ? <FileText size={14} /> :
+                  item.type === "checkpoint"        ? <ClipboardList size={14} /> :
+                  item.type === "quiz_fundamentals" ? <ClipboardList size={14} /> :
+                  <Trophy size={14} />;
+                const iconColor =
+                  item.type === "checkpoint"        ? "rgba(245,158,11,1)" :
+                  item.type === "quiz_fundamentals" ? "rgba(245,158,11,1)" :
+                  item.type === "pdf_gate"          ? "rgba(239,68,68,0.80)" :
+                  item.type === "quiz"              ? "rgba(34,197,94,1)" :
+                  "var(--cp-blue)";
+                const typeLabel =
+                  item.type === "lesson"            ? "Lesson" :
+                  item.type === "pdf_gate"          ? "Study Material" :
+                  item.type === "checkpoint"        ? "Checkpoint" :
+                  item.type === "quiz_fundamentals" ? "Fundamentals Exam" :
+                  item.type === "review_summary"    ? "Summary" :
+                  "Final Exam";
                 return (
-                  <button key={item.id} style={{ ...S.sidebarItem, ...(isCurrent ? S.sidebarItemActive : {}), ...(isLocked ? S.sidebarItemLocked : {}) }}
+                  <button key={item.id}
+                    style={{ ...S.sidebarItem, ...(isCurrent ? S.sidebarItemActive : {}), ...(isLocked ? S.sidebarItemLocked : {}) }}
                     onClick={() => !isLocked && navigateTo(idx)} type="button" disabled={isLocked}>
                     <div style={S.sidebarItemLeft}>
                       <div style={{ ...S.sidebarIcon, color: iconColor }}>{icon}</div>
@@ -393,7 +446,11 @@ const CoursePortal = () => {
                 reviewMode={reviewMode} />
             )}
             {current?.type === "review_summary" && (
-              <ReviewSummaryView course={course} courseId={id} content={content} onPrev={goPrev} navigate={navigate} />
+              <ReviewSummaryView
+                course={course} courseId={id} content={content}
+                quizAttempts={quizAttempts}
+                onPrev={goPrev} navigate={navigate}
+              />
             )}
             {current?.type === "quiz" && (
               <QuizView item={current} onFinish={reviewMode ? goNext : handleFinish} onPrev={goPrev}
@@ -474,9 +531,7 @@ const PDFGateView = ({ item, onComplete, onPrev, reviewMode }) => {
 };
 
 /* ─── Lesson View ────────────────────────────────────────────────── */
-// NMLS: 50 seat minutes per clock hour
-// ── TESTING: 10 seconds. Restore to: (creditHours) => Math.round((creditHours || 0) * 50 * 60)
-const calcMinSeatSeconds = (creditHours) => 10;
+const calcMinSeatSeconds = (creditHours) => 10; // TESTING — restore: Math.round((creditHours||0)*50*60)
 
 const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds, reviewMode }) => {
   const minSeatSeconds = reviewMode ? 0 : calcMinSeatSeconds(item.credit_hours);
@@ -536,10 +591,7 @@ const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds, review
       <div style={S.navRow}>
         {showPrev && <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>}
         <button style={{ ...S.nextBtn, ...(!seatMet ? S.nextBtnDim : {}) }} onClick={seatMet ? onComplete : undefined} disabled={!seatMet} type="button">
-          {seatMet
-            ? <>Continue <ArrowRight size={16} /></>
-            : <><Clock size={14} /> {fmt(seatsLeft)} remaining</>
-          }
+          {seatMet ? <>Continue <ArrowRight size={16} /></> : <><Clock size={14} /> {fmt(seatsLeft)} remaining</>}
         </button>
       </div>
     </div>
@@ -556,7 +608,6 @@ const AttemptWarning1st = () => (
     </div>
   </div>
 );
-
 const AttemptWarning2nd = () => (
   <div style={{ ...S.attemptWarning, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.30)", color: "rgba(146,84,0,1)" }}>
     <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
@@ -568,7 +619,6 @@ const AttemptWarning2nd = () => (
     </div>
   </div>
 );
-
 const AttemptWarning3rd = () => (
   <div style={{ ...S.attemptWarning, background: "rgba(185,28,28,0.08)", border: "1px solid rgba(185,28,28,0.35)", color: "rgba(185,28,28,1)" }}>
     <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
@@ -597,31 +647,27 @@ const InstructorLockScreen = ({ item, onPrev }) => (
 );
 
 /* ─── Review Answers Panel ───────────────────────────────────────── */
-const ReviewAnswersPanel = ({ item, courseId }) => {
-  const [attempts, setAttempts] = useState([]);
-  const [loading,  setLoading]  = useState(true);
+const ReviewAnswersPanel = ({ item, attemptInfo }) => {
   const [selected, setSelected] = useState(0);
 
-  useEffect(() => {
-    const fetch = async () => {
-      try {
-        const res = await API.get(`/quiz-attempts/${courseId}/${item.id}`);
-        const sorted = (res.data?.attempts || []).sort((a, b) => b.score_pct - a.score_pct);
-        setAttempts(sorted);
-      } catch { }
-      finally { setLoading(false); }
-    };
-    fetch();
-  }, [item.id, courseId]);
+  const attempts = useMemo(() => {
+    const raw = attemptInfo?.attempts || [];
+    return [...raw].sort((a, b) => b.score_pct - a.score_pct);
+  }, [attemptInfo]);
 
-  if (loading) return <div style={{ textAlign: "center", padding: 24, color: "rgba(10,22,40,0.45)", fontSize: 13 }}>Loading past answers…</div>;
   if (attempts.length === 0) return (
     <div style={{ padding: "16px 18px", borderRadius: 14, background: "rgba(2,8,23,0.03)", border: "1px solid rgba(2,8,23,0.08)", fontSize: 13, color: "rgba(10,22,40,0.55)", fontWeight: 700 }}>
       No recorded attempts found for this quiz.
     </div>
   );
 
-  const attempt = attempts[selected];
+  const attempt = attempts[selected] || attempts[0];
+
+  const getStudentAnswer = (answers, questionId) => {
+    if (!answers) return undefined;
+    const val = answers[questionId];
+    return val !== undefined ? Number(val) : undefined;
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -639,6 +685,7 @@ const ReviewAnswersPanel = ({ item, courseId }) => {
           ))}
         </div>
       )}
+
       <div style={{ padding: "14px 18px", borderRadius: 14, textAlign: "center",
         background: attempt.passed ? "linear-gradient(135deg,rgba(34,197,94,0.10),rgba(0,180,180,0.10))" : "rgba(239,68,68,0.06)",
         border: `1px solid ${attempt.passed ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.20)"}` }}>
@@ -646,9 +693,21 @@ const ReviewAnswersPanel = ({ item, courseId }) => {
         <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.60)", marginTop: 4 }}>
           {attempt.passed ? "✓ Passed" : "✗ Failed"} · {new Date(attempt.submitted_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
         </div>
+        {attempt.correct !== undefined && (
+          <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(10,22,40,0.45)", marginTop: 4 }}>
+            {attempt.correct} / {attempt.total} correct
+          </div>
+        )}
       </div>
+
+      {!attempt.answers && (
+        <div style={{ padding: "12px 16px", borderRadius: 12, background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.25)", fontSize: 13, fontWeight: 700, color: "rgba(146,84,0,1)" }}>
+          ℹ️ Detailed answer review is only available for attempts taken after the review feature was enabled.
+        </div>
+      )}
+
       {item.questions.map((q, qi) => {
-        const studentAnswer = attempt.answers ? attempt.answers[q.id] : undefined;
+        const studentAnswer = getStudentAnswer(attempt.answers, q.id);
         const hasAnswer = studentAnswer !== undefined;
         return (
           <div key={q.id} style={S.questionCard}>
@@ -660,23 +719,31 @@ const ReviewAnswersPanel = ({ item, courseId }) => {
                 const isStudentPick = hasAnswer && studentAnswer === oi;
                 const isWrong       = isStudentPick && !isCorrect;
                 return (
-                  <div key={oi} style={{ ...S.option, ...(isCorrect ? S.optionCorrect : {}), ...(isWrong ? S.optionWrong : {}), cursor: "default" }}>
+                  <div key={oi} style={{ ...S.option,
+                    ...(isCorrect ? S.optionCorrect : {}),
+                    ...(isWrong   ? S.optionWrong   : {}),
+                    ...(isStudentPick && !isWrong && isCorrect ? S.optionSelected : {}),
+                    cursor: "default" }}>
                     <span style={S.optionLetter}>{String.fromCharCode(65 + oi)}</span>
                     <span style={S.optionText}>{opt}</span>
                     {isCorrect && <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(34,197,94,1)" }} />}
                     {isWrong   && <X size={15} style={{ flexShrink: 0, color: "rgba(239,68,68,1)" }} />}
-                    {isStudentPick && !isWrong && !isCorrect && <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(46,171,254,1)" }}>Your answer</span>}
                   </div>
                 );
               })}
             </div>
             <div style={{ marginTop: 10, display: "flex", gap: 12, flexWrap: "wrap" }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(21,128,61,1)", display: "flex", alignItems: "center", gap: 4 }}>
-                <CheckCircle2 size={12} /> Correct answer
+                <CheckCircle2 size={12} /> Correct: {String.fromCharCode(65 + q.correct)}
               </span>
               {hasAnswer && studentAnswer !== q.correct && (
                 <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(185,28,28,1)", display: "flex", alignItems: "center", gap: 4 }}>
-                  <X size={12} /> Your answer (incorrect)
+                  <X size={12} /> Your answer: {String.fromCharCode(65 + studentAnswer)} (incorrect)
+                </span>
+              )}
+              {!hasAnswer && attempt.answers && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(10,22,40,0.40)", fontStyle: "italic" }}>
+                  Answer not recorded for this question
                 </span>
               )}
             </div>
@@ -711,7 +778,7 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
         </div>
       </div>
       <h1 style={S.lessonTitle}>{item.title}</h1>
-      <ReviewAnswersPanel item={item} courseId={courseId} />
+      <ReviewAnswersPanel item={item} attemptInfo={attemptInfo} />
       <div style={S.navRow}>
         <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
         <button style={S.nextBtn} onClick={onComplete} type="button">Next <ArrowRight size={16} /></button>
@@ -736,7 +803,7 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
         answers,
       });
       await onAttemptLogged();
-    } catch { }
+    } catch (err) { console.error("[CheckpointView]", err); }
   };
 
   const handleRetry = () => { setAnswers({}); setSubmitted(false); setAllCorrect(false); startedAt.current = Date.now(); };
@@ -757,14 +824,16 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
       )}
       <div style={S.questionList}>
         {item.questions.map((q, qi) => {
-          const selected = answers[q.id];
+          const sel = answers[q.id];
           return (
             <div key={q.id} style={S.questionCard}>
               <div style={S.questionNum}>Q{qi + 1} of {item.questions.length}</div>
               <div style={S.questionText}>{q.text}</div>
               <div style={S.optionList}>
                 {q.options.map((opt, oi) => {
-                  const isSelected = selected === oi, showCorrect = submitted && oi === q.correct, showWrong = submitted && isSelected && oi !== q.correct;
+                  const isSelected  = sel === oi;
+                  const showCorrect = submitted && oi === q.correct;
+                  const showWrong   = submitted && isSelected && oi !== q.correct;
                   return (
                     <button key={oi} type="button"
                       style={{ ...S.option, ...(isSelected && !submitted ? S.optionSelected : {}), ...(showCorrect ? S.optionCorrect : {}), ...(showWrong ? S.optionWrong : {}) }}
@@ -799,7 +868,7 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
   );
 };
 
-/* ─── Quiz View — NO TIMER, answer all questions to submit ───────── */
+/* ─── Quiz View ──────────────────────────────────────────────────── */
 const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogged, reviewMode }) => {
   const [answers, setAnswers]     = useState({});
   const [submitted, setSubmitted] = useState(false);
@@ -811,10 +880,7 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   const isLocked     = !reviewMode && attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
 
   useEffect(() => {
-    if (!reviewMode) {
-      setAnswers({}); setSubmitted(false); setScore(0); setPassed(false);
-      startedAt.current = Date.now();
-    }
+    if (!reviewMode) { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); startedAt.current = Date.now(); }
   }, [item.id, reviewMode]);
 
   if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
@@ -822,13 +888,13 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   if (reviewMode) return (
     <div style={S.checkWrap}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-        <div style={S.typePillGreen}><Trophy size={14} /> Final Exam</div>
+        <div style={S.typePillGreen}><Trophy size={14} /> {item.type === "quiz_fundamentals" ? "Fundamentals Exam" : "Final Exam"}</div>
         <div style={{ ...S.typePill, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)" }}>
           <Eye size={12} /> Review
         </div>
       </div>
       <h1 style={S.lessonTitle}>{item.title}</h1>
-      <ReviewAnswersPanel item={item} courseId={courseId} />
+      <ReviewAnswersPanel item={item} attemptInfo={attemptInfo} />
       <div style={S.navRow}>
         <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
         <button style={S.nextBtn} onClick={onFinish} type="button">Next <ArrowRight size={16} /></button>
@@ -844,23 +910,23 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
     const quizType = item.id === "final-exam" ? "final_exam" : "quiz_fundamentals";
     try {
       await API.post("/quiz-attempts", {
-        courseId, quizId: item.id, quizTitle: item.title, quizType, moduleOrder: item.moduleOrder,
-        scorePct: pct, correct, total: item.questions.length,
+        courseId, quizId: item.id, quizTitle: item.title, quizType,
+        moduleOrder: item.moduleOrder, scorePct: pct, correct, total: item.questions.length,
         passed: ok, passingScore: item.passingScore || 70,
         timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
         answers,
       });
       await onAttemptLogged();
-    } catch { }
+    } catch (err) { console.error("[QuizView]", err); }
   };
 
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
   const handleRetry  = () => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); startedAt.current = Date.now(); };
 
-  const allAnswered  = item.questions.every((q) => answers[q.id] !== undefined);
-  const answered     = Object.keys(answers).length;
-  const correctCount = item.questions.filter((q) => answers[q.id] === q.correct).length;
-  const isFundamentals = item.id?.includes("checkpoint-mod-") && !item.id?.includes("final-exam");
+  const allAnswered    = item.questions.every((q) => answers[q.id] !== undefined);
+  const answered       = Object.keys(answers).length;
+  const correctCount   = item.questions.filter((q) => answers[q.id] === q.correct).length;
+  const isFundamentals = item.type === "quiz_fundamentals";
 
   return (
     <div style={S.checkWrap}>
@@ -870,25 +936,19 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
           {isFundamentals ? " Fundamentals Exam" : " Final Exam"}
         </div>
       </div>
-
       <h1 style={S.lessonTitle}>{item.title}</h1>
       <p style={S.checkSubtitle}>
         Score {item.passingScore || 70}% or higher to pass · {item.questions.length} questions
         {!submitted && ` · ${answered}/${item.questions.length} answered`}
       </p>
-
       {attemptCount === 0 && !submitted && <AttemptWarning1st />}
       {attemptCount === 1 && !submitted && <AttemptWarning2nd />}
       {attemptCount === 2 && !submitted && <AttemptWarning3rd />}
-
       {submitted && (
         <div style={passed ? S.scorePassed : S.scoreFailed}>
           <div style={S.scoreNumber}>{score}%</div>
           <div style={S.scoreLabel}>
-            {passed
-              ? `Passed! ${correctCount}/${item.questions.length} correct.`
-              : `Need ${item.passingScore || 70}% — got ${correctCount}/${item.questions.length} correct.`
-            }
+            {passed ? `Passed! ${correctCount}/${item.questions.length} correct.` : `Need ${item.passingScore || 70}% — got ${correctCount}/${item.questions.length} correct.`}
           </div>
           {!passed && attemptCount >= 2 && (
             <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 12, background: "rgba(185,28,28,0.08)", border: "1px solid rgba(185,28,28,0.25)", color: "rgba(185,28,28,1)", fontSize: 13, fontWeight: 700 }}>
@@ -902,30 +962,29 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
           )}
         </div>
       )}
-
       {!submitted && (
         <div style={{ background: "rgba(2,8,23,0.07)", borderRadius: 999, height: 6, overflow: "hidden" }}>
           <div style={{ height: "100%", borderRadius: 999, background: "var(--cp-blue)", width: `${(answered / item.questions.length) * 100}%`, transition: "width 0.3s" }} />
         </div>
       )}
-
       {!submitted && allAnswered && (
         <div style={S.earlySubmitHint}>
           <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(21,128,61,1)" }} />
           All questions answered — you can submit now or continue reviewing your answers.
         </div>
       )}
-
       <div style={S.questionList}>
         {item.questions.map((q, qi) => {
-          const selected = answers[q.id];
+          const sel = answers[q.id];
           return (
             <div key={q.id} style={S.questionCard}>
               <div style={S.questionNum}>Question {qi + 1} of {item.questions.length}</div>
               <div style={S.questionText}>{q.text}</div>
               <div style={S.optionList}>
                 {q.options.map((opt, oi) => {
-                  const isSelected = selected === oi, markCorrect = submitted && oi === q.correct, markWrong = submitted && isSelected && oi !== q.correct;
+                  const isSelected  = sel === oi;
+                  const markCorrect = submitted && oi === q.correct;
+                  const markWrong   = submitted && isSelected && oi !== q.correct;
                   return (
                     <button key={oi} type="button"
                       style={{ ...S.option, ...(isSelected && !submitted ? S.optionSelected : {}), ...(markCorrect ? S.optionCorrect : {}), ...(markWrong ? S.optionWrong : {}) }}
@@ -942,13 +1001,10 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
           );
         })}
       </div>
-
       <div style={S.navRow}>
         {!submitted && <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>}
         {!submitted
-          ? <button style={{ ...S.nextBtn, ...(!allAnswered ? S.nextBtnDim : {}) }} onClick={allAnswered ? doSubmit : undefined} disabled={!allAnswered} type="button">
-              Submit Exam
-            </button>
+          ? <button style={{ ...S.nextBtn, ...(!allAnswered ? S.nextBtnDim : {}) }} onClick={allAnswered ? doSubmit : undefined} disabled={!allAnswered} type="button">Submit Exam</button>
           : passed
             ? <button style={isFundamentals ? S.nextBtn : S.finishBtn} onClick={onFinish} type="button">
                 {isFundamentals ? <>Continue to Final Exam <ArrowRight size={16} /></> : <><Trophy size={16} /> Complete Course</>}
@@ -961,76 +1017,70 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
 };
 
 /* ─── Review Summary View ────────────────────────────────────────── */
-// ✅ FIXED: useMemo stabilises quizItems so the useEffect dependency
-//    is a stable array reference, not a flickering .length integer.
-//    This prevents the fetch from never re-running when content arrives
-//    after the first render, which caused scores to show "No data".
-const ReviewSummaryView = ({ course, courseId, content, onPrev, navigate }) => {
-  const modules = (course?.modules || []).sort((a, b) => a.order - b.order);
+/*
+ * KEY FIX: This component fetches its OWN copy of quiz attempts on mount.
+ * This guarantees scores always display even if:
+ *  - quizAttempts prop is empty (route 404'd earlier, timing issue, etc.)
+ *  - The user navigated directly to the summary step
+ * The prop is used as an initial hint; the fetch is always the source of truth.
+ */
+const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAttempts, onPrev, navigate }) => {
+  const modules          = (course?.modules || []).sort((a, b) => a.order - b.order);
   const totalCreditHours = course?.credit_hours || 0;
 
-  // ── ✅ FIX: stable reference via useMemo instead of inline filter ──
   const quizItems = useMemo(
-    () => content.filter((c) =>
-      c.type === "checkpoint" || c.type === "quiz_fundamentals" || c.type === "quiz"
-    ),
+    () => content.filter((c) => c.type === "checkpoint" || c.type === "quiz_fundamentals" || c.type === "quiz"),
     [content]
   );
 
-  const [allAttempts, setAllAttempts] = useState({});
-  const [loading, setLoading] = useState(true);
+  // ── Own local state — always fetches fresh ──────────────────────
+  const [attempts, setAttempts] = useState(parentAttempts || {});
+  const [loadingScores, setLoadingScores] = useState(true);
+  const [scoreError,    setScoreError]    = useState(null);
 
   useEffect(() => {
-    setAllAttempts({});
-    setLoading(true);
-
-    if (quizItems.length === 0) {
-      setLoading(false);
-      return;
+    // Use parent data immediately if available (avoids flash of "No data")
+    if (parentAttempts && Object.keys(parentAttempts).length > 0) {
+      setAttempts(parentAttempts);
     }
 
-    const fetchAll = async () => {
-      try {
-        // ── Debug: verify IDs match what's stored in the DB ──
-        console.log("[ReviewSummaryView] Fetching attempts for quiz IDs:", quizItems.map((q) => q.id));
+    // Always fetch fresh data regardless — this is the source of truth
+    let cancelled = false;
+    setLoadingScores(true);
+    setScoreError(null);
 
-        const results = await Promise.all(
-          quizItems.map((q) =>
-            API.get(`/quiz-attempts/${courseId}/${q.id}`)
-              .then((r) => ({ id: q.id, attempts: r.data?.attempts || [] }))
-              .catch(() => ({ id: q.id, attempts: [] }))
-          )
-        );
+    API.get(`/quiz-attempts/${courseId}`)
+      .then((res) => {
+        if (!cancelled) {
+          setAttempts(res.data?.attempts || {});
+          setLoadingScores(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error('[ReviewSummaryView] fetch failed:', err.message);
+          // Fall back to parent data if fetch fails
+          setAttempts(parentAttempts || {});
+          setScoreError(Object.keys(parentAttempts || {}).length === 0 ? "Could not load scores." : null);
+          setLoadingScores(false);
+        }
+      });
 
-        // ── Debug: verify what came back ──
-        console.log("[ReviewSummaryView] Fetched results:", results);
+    return () => { cancelled = true; };
+  }, [courseId]); // only re-fetch if courseId changes
 
-        const map = {};
-        results.forEach(({ id, attempts }) => { map[id] = attempts; });
-        setAllAttempts(map);
-      } catch (err) {
-        console.error("[ReviewSummaryView] Failed to fetch quiz attempts:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAll();
-  }, [courseId, quizItems]); // ✅ stable memo ref, not quizItems.length
-
-  // Get best attempt for a quiz
   const getBest = (quizId) => {
-    const attempts = allAttempts[quizId] || [];
-    if (!attempts.length) return null;
-    return attempts.reduce((best, a) => (!best || a.score_pct > best.score_pct ? a : best), null);
+    const list = attempts[quizId]?.attempts || [];
+    if (!list.length) return null;
+    return list.reduce((best, a) => (!best || a.score_pct > best.score_pct ? a : best), null);
   };
 
-  // Overall grade = average of all best scores
   const gradeSummary = quizItems.map((q) => {
     const best = getBest(q.id);
     return { title: q.title, type: q.type, score: best?.score_pct ?? null, passed: best?.passed ?? null };
   });
-  const scoredItems = gradeSummary.filter((g) => g.score !== null);
+
+  const scoredItems  = gradeSummary.filter((g) => g.score !== null);
   const overallGrade = scoredItems.length
     ? Math.round(scoredItems.reduce((sum, g) => sum + g.score, 0) / scoredItems.length)
     : null;
@@ -1043,7 +1093,7 @@ const ReviewSummaryView = ({ course, courseId, content, onPrev, navigate }) => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* Header */}
+      {/* Header pills */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 999, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: "rgba(180,110,0,1)", fontWeight: 800, fontSize: 12 }}>
           <Trophy size={14} /> Course Summary
@@ -1057,13 +1107,12 @@ const ReviewSummaryView = ({ course, courseId, content, onPrev, navigate }) => {
         {course?.title}
       </h1>
 
-      {/* ── Overall Grade Card ── */}
+      {/* Overall Grade */}
       <div style={{ borderRadius: 18, padding: "24px", textAlign: "center",
         background: overallGrade !== null && overallGrade >= 70
-          ? "linear-gradient(135deg,rgba(34,197,94,0.10),rgba(0,180,180,0.10))"
-          : "rgba(2,8,23,0.03)",
+          ? "linear-gradient(135deg,rgba(34,197,94,0.10),rgba(0,180,180,0.10))" : "rgba(2,8,23,0.03)",
         border: `1px solid ${overallGrade !== null && overallGrade >= 70 ? "rgba(34,197,94,0.25)" : "rgba(2,8,23,0.10)"}` }}>
-        {loading ? (
+        {loadingScores ? (
           <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(10,22,40,0.45)" }}>Calculating grades…</div>
         ) : (
           <>
@@ -1074,13 +1123,13 @@ const ReviewSummaryView = ({ course, courseId, content, onPrev, navigate }) => {
             <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.55)", marginTop: 8 }}>
               {overallGrade !== null
                 ? overallGrade >= 70 ? "✓ Passing — All requirements met" : "Below passing threshold"
-                : "No quiz data available"}
+                : "No quiz data found"}
             </div>
           </>
         )}
       </div>
 
-      {/* ── Credit Hours Summary ── */}
+      {/* Credit Hours */}
       <div style={{ background: "#fff", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", overflow: "hidden" }}>
         <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(2,8,23,0.07)", fontWeight: 900, fontSize: 13, color: "rgba(10,22,40,0.55)", letterSpacing: "0.4px", display: "flex", alignItems: "center", gap: 8 }}>
           <Clock size={14} /> Credit Hours by Module
@@ -1108,43 +1157,49 @@ const ReviewSummaryView = ({ course, courseId, content, onPrev, navigate }) => {
         </div>
       </div>
 
-      {/* ── Quiz / Exam Scores ── */}
+      {/* Quiz & Exam Scores */}
       {gradeSummary.length > 0 && (
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", overflow: "hidden" }}>
           <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(2,8,23,0.07)", fontWeight: 900, fontSize: 13, color: "rgba(10,22,40,0.55)", letterSpacing: "0.4px", display: "flex", alignItems: "center", gap: 8 }}>
             <ClipboardList size={14} /> Quiz &amp; Exam Scores (Best Attempt)
           </div>
           <div style={{ padding: "8px 0" }}>
-            {loading ? (
+            {loadingScores ? (
               <div style={{ padding: "18px", textAlign: "center", fontSize: 13, color: "rgba(10,22,40,0.45)", fontWeight: 600 }}>Loading scores…</div>
-            ) : gradeSummary.map((g, i) => {
-              const isFinal = g.type === "quiz";
-              const scoreColor = g.score === null ? "rgba(10,22,40,0.40)"
-                : g.passed ? "rgba(21,128,61,1)"
-                : "rgba(185,28,28,1)";
-              const pill = g.type === "quiz" ? { bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.25)", color: "rgba(21,128,61,1)", label: "Final Exam" }
-                : g.type === "quiz_fundamentals" ? { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)", label: "Fundamentals" }
-                : { bg: "rgba(46,171,254,0.08)", border: "rgba(46,171,254,0.22)", color: "#2EABFE", label: "Checkpoint" };
-              return (
-                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: i < gradeSummary.length - 1 ? "1px solid rgba(2,8,23,0.05)" : "none", ...(isFinal ? { background: "rgba(34,197,94,0.03)" } : {}) }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800, background: pill.bg, border: `1px solid ${pill.border}`, color: pill.color, flexShrink: 0 }}>{pill.label}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.80)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.title}</span>
+            ) : scoreError ? (
+              <div style={{ padding: "18px", textAlign: "center", fontSize: 13, color: "rgba(185,28,28,0.80)", fontWeight: 600 }}>{scoreError}</div>
+            ) : (
+              gradeSummary.map((g, i) => {
+                const isFinal    = g.type === "quiz";
+                const scoreColor = g.score === null ? "rgba(10,22,40,0.40)" : g.passed ? "rgba(21,128,61,1)" : "rgba(185,28,28,1)";
+                const pill =
+                  g.type === "quiz"              ? { bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.25)",  color: "rgba(21,128,61,1)",  label: "Final Exam"   } :
+                  g.type === "quiz_fundamentals" ? { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)",   label: "Fundamentals" } :
+                                                   { bg: "rgba(46,171,254,0.08)", border: "rgba(46,171,254,0.22)", color: "#2EABFE",             label: "Checkpoint"   };
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px",
+                    borderBottom: i < gradeSummary.length - 1 ? "1px solid rgba(2,8,23,0.05)" : "none",
+                    ...(isFinal ? { background: "rgba(34,197,94,0.03)" } : {}) }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800,
+                        background: pill.bg, border: `1px solid ${pill.border}`, color: pill.color, flexShrink: 0 }}>{pill.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.80)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.title}</span>
+                    </div>
+                    <div style={{ flexShrink: 0, marginLeft: 12, textAlign: "right" }}>
+                      {g.score !== null ? (
+                        <>
+                          <span style={{ fontSize: 16, fontWeight: 950, color: scoreColor, fontFamily: "'DM Serif Display',serif" }}>{g.score}%</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 6, color: scoreColor }}>{g.passed ? "✓ Passed" : "✗ Failed"}</span>
+                        </>
+                      ) : (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(10,22,40,0.35)" }}>No data</span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ flexShrink: 0, marginLeft: 12, textAlign: "right" }}>
-                    {g.score !== null ? (
-                      <>
-                        <span style={{ fontSize: 16, fontWeight: 950, color: scoreColor, fontFamily: "'DM Serif Display',serif" }}>{g.score}%</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 6, color: scoreColor }}>{g.passed ? "✓ Passed" : "✗ Failed"}</span>
-                      </>
-                    ) : (
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(10,22,40,0.35)" }}>No data</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {!loading && (
+                );
+              })
+            )}
+            {!loadingScores && (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", background: "rgba(2,8,23,0.03)", borderTop: "2px solid rgba(2,8,23,0.08)" }}>
                 <div style={{ fontSize: 13, fontWeight: 900, color: "rgba(10,22,40,0.85)" }}>Overall Average</div>
                 <div style={{ textAlign: "right" }}>
@@ -1158,7 +1213,7 @@ const ReviewSummaryView = ({ course, courseId, content, onPrev, navigate }) => {
         </div>
       )}
 
-      {/* ── NMLS Completion Info ── */}
+      {/* NMLS Info */}
       <div style={{ borderRadius: 16, padding: "18px 20px", background: "rgba(46,171,254,0.05)", border: "1px solid rgba(46,171,254,0.18)", display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ fontWeight: 900, fontSize: 13, color: "#2EABFE", marginBottom: 4 }}>NMLS Course Requirements Met</div>
         <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.70)", display: "flex", alignItems: "center", gap: 8 }}>
@@ -1177,7 +1232,6 @@ const ReviewSummaryView = ({ course, courseId, content, onPrev, navigate }) => {
         )}
       </div>
 
-      {/* ── Nav row ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
         <button style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 20px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.12)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 14, color: "rgba(10,22,40,0.72)" }}
           onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
@@ -1192,8 +1246,7 @@ const ReviewSummaryView = ({ course, courseId, content, onPrev, navigate }) => {
 
 /* ─── Completion Screen ──────────────────────────────────────────── */
 const CompletionScreen = ({ course, transcriptEntry, navigate, courseId, onReview }) => {
-  const completedAt = transcriptEntry?.completed_at
-    ? new Date(transcriptEntry.completed_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
+  const completedAt  = transcriptEntry?.completed_at ? new Date(transcriptEntry.completed_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
   const certCourseId = transcriptEntry?.course_id?._id || transcriptEntry?.course_id || courseId;
   return (
     <div style={S.page}><style>{css}</style>
@@ -1218,9 +1271,7 @@ const CompletionScreen = ({ course, transcriptEntry, navigate, courseId, onRevie
             )}
             {onReview && (
               <button style={{ ...S.completionPrimary, background: "rgba(46,171,254,1)", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                onClick={onReview} type="button">
-                <Eye size={18} /> Review Course
-              </button>
+                onClick={onReview} type="button"><Eye size={18} /> Review Course</button>
             )}
             <button style={S.completionPrimary} onClick={() => navigate("/dashboard")} type="button">Go to Dashboard</button>
             <button style={S.completionSecondary} onClick={() => navigate("/my-courses")} type="button">My Courses</button>
@@ -1240,18 +1291,14 @@ html,body,#root{height:100%;overflow:hidden;}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--cp-bg);color:#0a1628;}
 .cp-spin{width:38px;height:38px;border-radius:50%;border:3px solid rgba(2,8,23,0.10);border-top-color:var(--cp-blue);animation:cpspin 0.9s linear infinite;}
 @keyframes cpspin{to{transform:rotate(360deg);}}
-@keyframes biosig-spin{to{transform:rotate(360deg);}}
 .cp-sidebar::-webkit-scrollbar{width:4px;}
 .cp-sidebar::-webkit-scrollbar-track{background:transparent;}
 .cp-sidebar::-webkit-scrollbar-thumb{background:rgba(2,8,23,0.12);border-radius:999px;}
-.cp-sidebar::-webkit-scrollbar-thumb:hover{background:rgba(2,8,23,0.22);}
 .cp-main::-webkit-scrollbar{width:6px;}
 .cp-main::-webkit-scrollbar-track{background:transparent;}
 .cp-main::-webkit-scrollbar-thumb{background:rgba(2,8,23,0.10);border-radius:999px;}
-.cp-main::-webkit-scrollbar-thumb:hover{background:rgba(2,8,23,0.18);}
 `;
 
-/* ─── Styles ─────────────────────────────────────────────────────── */
 const S = {
   page:             { height:"100vh",background:"var(--cp-bg)",display:"flex",flexDirection:"column",overflow:"hidden" },
   loadCenter:       { minHeight:"100vh",display:"grid",placeItems:"center" },
@@ -1297,7 +1344,6 @@ const S = {
   typePillAmber: { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(245,158,11,0.10)",border:"1px solid rgba(245,158,11,0.28)",color:"rgba(180,110,0,1)",fontWeight:800,fontSize:12,marginBottom:16 },
   typePillGreen: { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(34,197,94,0.10)",border:"1px solid rgba(34,197,94,0.28)",color:"rgba(21,128,61,1)",fontWeight:800,fontSize:12,marginBottom:16 },
   typePillRed:   { display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:999,background:"rgba(239,68,68,0.10)",border:"1px solid rgba(239,68,68,0.28)",color:"rgba(185,28,28,1)",fontWeight:800,fontSize:12,marginBottom:16 },
-  timerBadge:    { display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:999,fontWeight:900,fontSize:14,letterSpacing:"0.5px" },
   lessonWrap:        { display:"flex",flexDirection:"column",gap:24 },
   lessonTitle:       { fontSize:26,fontWeight:900,color:"var(--cp-dark)",letterSpacing:"-0.4px",lineHeight:1.2,fontFamily:"'DM Serif Display',serif" },
   pdfGateBanner:     { display:"flex",alignItems:"flex-start",gap:10,padding:"14px 18px",borderRadius:14,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.28)",color:"rgba(146,84,0,1)",fontSize:14,fontWeight:700,lineHeight:1.5 },
@@ -1319,7 +1365,6 @@ const S = {
   videoSub:          { color:"rgba(255,255,255,0.45)",fontWeight:600,fontSize:13 },
   lessonText:        { background:"#fff",borderRadius:18,border:"1px solid rgba(2,8,23,0.08)",padding:"28px 32px",lineHeight:1.8 },
   lessonH3:          { fontWeight:800,fontSize:16,color:"var(--cp-dark)",margin:"20px 0 10px",fontFamily:"'DM Serif Display',serif" },
-  lessonP:           { color:"rgba(10,22,40,0.80)",fontSize:15,marginBottom:14,fontWeight:450 },
   lessonUl:          { paddingLeft:22,marginBottom:14 },
   lessonLi:          { color:"rgba(10,22,40,0.78)",fontSize:15,marginBottom:8,fontWeight:450 },
   checkWrap:    { display:"flex",flexDirection:"column",gap:22 },

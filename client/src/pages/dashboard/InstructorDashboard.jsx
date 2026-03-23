@@ -9,6 +9,7 @@ import {
   MoreHorizontal, PlayCircle, AlertCircle, Star,
   Eye, RefreshCw, GraduationCap, FileText,
   MessageSquare, ThumbsUp, ThumbsDown, Trash2,
+  UserCheck, UserX,
 } from "lucide-react";
 
 /* ─── Logout Confirm ─────────────────────────────────────────────── */
@@ -60,15 +61,72 @@ const LogoutConfirm = ({ onConfirm, onCancel }) => (
   </>
 );
 
+/* ─── Confirm Toggle Modal ───────────────────────────────────────── */
+const ConfirmToggleModal = ({ student, onConfirm, onCancel, loading }) => {
+  const willDeactivate = student?.is_active !== false;
+  return (
+    <>
+      <div onClick={onCancel} style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        background: "rgba(9,25,37,0.55)", backdropFilter: "blur(5px)",
+      }} />
+      <div style={{
+        position: "fixed", zIndex: 301,
+        top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+        width: "100%", maxWidth: 400,
+        background: "#fff", borderRadius: 22, padding: "32px 28px 26px",
+        boxShadow: "0 28px 70px rgba(9,25,37,0.20)",
+        textAlign: "center", fontFamily: "Inter, system-ui, sans-serif",
+      }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 18, margin: "0 auto 18px",
+          background: willDeactivate ? "rgba(239,68,68,0.08)" : "rgba(0,180,180,0.08)",
+          border: `1px solid ${willDeactivate ? "rgba(239,68,68,0.18)" : "rgba(0,180,180,0.20)"}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: willDeactivate ? "rgba(220,38,38,0.85)" : "var(--rs-teal)",
+        }}>
+          {willDeactivate ? <UserX size={26} /> : <UserCheck size={26} />}
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 950, color: "rgba(11,18,32,0.88)", marginBottom: 8 }}>
+          {willDeactivate ? "Deactivate Student?" : "Activate Student?"}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.52)", lineHeight: 1.6, marginBottom: 6 }}>
+          <strong>{student?.name}</strong>
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(11,18,32,0.52)", lineHeight: 1.6, marginBottom: 24 }}>
+          {willDeactivate
+            ? "This student will be marked as inactive and will not be able to log in."
+            : "This student will be reactivated and can log in again."}
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} type="button" disabled={loading} style={{
+            flex: 1, height: 44, background: "rgba(2,8,23,0.04)",
+            border: "1px solid rgba(2,8,23,0.10)", borderRadius: 12,
+            cursor: "pointer", fontSize: 14, fontWeight: 900,
+            color: "rgba(11,18,32,0.72)", fontFamily: "inherit",
+          }}>Cancel</button>
+          <button onClick={onConfirm} type="button" disabled={loading} style={{
+            flex: 1, height: 44,
+            background: willDeactivate ? "rgba(220,38,38,0.90)" : "rgba(0,180,180,0.90)",
+            border: "none", borderRadius: 12, cursor: "pointer",
+            fontSize: 14, fontWeight: 900, color: "#fff", fontFamily: "inherit",
+          }}>
+            {loading ? "Saving…" : willDeactivate ? "Yes, Deactivate" : "Yes, Activate"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
+
 /* ─── InstructorDashboard ────────────────────────────────────────── */
 const InstructorDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  // ── State ─────────────────────────────────────────────────────────
   const [data,         setData]         = useState(null);
-  const [allStudents,  setAllStudents]  = useState([]);   // ALL students (admin view)
-  const [allCourses,   setAllCourses]   = useState([]);   // ALL courses
+  const [allStudents,  setAllStudents]  = useState([]);
+  const [allCourses,   setAllCourses]   = useState([]);
   const [activeTab,    setActiveTab]    = useState("overview");
   const [loading,      setLoading]      = useState(true);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -82,7 +140,11 @@ const InstructorDashboard = () => {
   const [testimonialsLoading,  setTestimonialsLoading]  = useState(false);
   const [testimonialFilter,    setTestimonialFilter]    = useState("pending");
 
-  // ── Fetch instructor dashboard data ───────────────────────────────
+  // ── Toggle active state ───────────────────────────────────────────
+  const [toggleTarget,  setToggleTarget]  = useState(null); // student object
+  const [toggleLoading, setToggleLoading] = useState(false);
+  const [statusFilter,  setStatusFilter]  = useState("all"); // "all" | "active" | "inactive"
+
   useEffect(() => {
     const fetchAll = async () => {
       try {
@@ -99,19 +161,16 @@ const InstructorDashboard = () => {
     fetchAll();
   }, []);
 
-  // ── Fetch ALL students when Students tab is opened ────────────────
   useEffect(() => {
     if (activeTab !== "students") return;
-    if (allStudents.length > 0) return; // already loaded
+    if (allStudents.length > 0) return;
     const fetchStudents = async () => {
       setStudentsLoading(true);
       try {
-        // Try instructor endpoint first, fall back to admin endpoint
         const res = await API.get("/instructor/students");
         setAllStudents(res.data?.students || res.data || []);
       } catch {
         try {
-          // If instructor/students doesn't exist, try admin users endpoint
           const res = await API.get("/instructor/dashboard");
           setAllStudents(res.data?.students || []);
         } catch {
@@ -124,18 +183,15 @@ const InstructorDashboard = () => {
     fetchStudents();
   }, [activeTab]);
 
-  // ── Fetch ALL courses when Courses tab is opened ──────────────────
   useEffect(() => {
     if (activeTab !== "courses") return;
-    if (allCourses.length > 0) return; // already loaded
+    if (allCourses.length > 0) return;
     const fetchCourses = async () => {
       setCoursesLoading(true);
       try {
         const res = await API.get("/instructor/courses-stats");
-        const list = res.data?.courses || [];
-        setAllCourses(list);
+        setAllCourses(res.data?.courses || []);
       } catch {
-        // Fall back to instructor dashboard courses
         setAllCourses(data?.courses || []);
       } finally {
         setCoursesLoading(false);
@@ -144,9 +200,36 @@ const InstructorDashboard = () => {
     fetchCourses();
   }, [activeTab, data]);
 
+  // ── Handle toggle confirm ─────────────────────────────────────────
+  const handleToggleActive = async () => {
+    if (!toggleTarget) return;
+    setToggleLoading(true);
+    try {
+      const res = await API.put(`/instructor/students/${toggleTarget._id}/toggle-active`);
+      const newStatus = res.data.is_active;
+
+      // Update both lists
+      const update = (list) => list.map(s =>
+        String(s._id) === String(toggleTarget._id)
+          ? { ...s, is_active: newStatus, deactivated_at: newStatus ? null : new Date().toISOString() }
+          : s
+      );
+      setAllStudents(prev => update(prev));
+      setData(prev => prev ? {
+        ...prev,
+        students: update(prev.students || []),
+      } : prev);
+
+      setToggleTarget(null);
+    } catch (err) {
+      console.error("Toggle failed:", err);
+    } finally {
+      setToggleLoading(false);
+    }
+  };
+
   const handleLogout = () => { logout(); window.location.href = "/"; };
 
-  // ── Derived from instructor dashboard ─────────────────────────────
   const dashCourses      = data?.courses          || [];
   const dashStudents     = data?.students         || [];
   const totalEnrollments = data?.total_enrollments ?? 0;
@@ -154,23 +237,33 @@ const InstructorDashboard = () => {
   const pendingReviews   = data?.pending_reviews    ?? 0;
   const activeCourses    = (allCourses.length > 0 ? allCourses : dashCourses).filter(c => c.active !== false).length;
 
-  // ── Displayed lists — prefer full lists, fall back to dashboard data ──
   const displayStudents = allStudents.length > 0 ? allStudents : dashStudents;
   const displayCourses  = allCourses.length  > 0 ? allCourses  : dashCourses;
 
-  // ── Filtered students ─────────────────────────────────────────────
+  // ── Inactive count for badge ──────────────────────────────────────
+  const inactiveCount = useMemo(
+    () => displayStudents.filter(s => s.is_active === false).length,
+    [displayStudents]
+  );
+
   const filteredStudents = useMemo(() => {
-    if (!q.trim()) return displayStudents;
+    let list = displayStudents;
+
+    // Status filter
+    if (statusFilter === "active")   list = list.filter(s => s.is_active !== false);
+    if (statusFilter === "inactive") list = list.filter(s => s.is_active === false);
+
+    // Search filter
+    if (!q.trim()) return list;
     const needle = q.toLowerCase();
-    return displayStudents.filter(s =>
+    return list.filter(s =>
       String(s.name         || "").toLowerCase().includes(needle) ||
       String(s.email        || "").toLowerCase().includes(needle) ||
       String(s.course_title || "").toLowerCase().includes(needle) ||
       String(s.nmls_id      || "").toLowerCase().includes(needle)
     );
-  }, [displayStudents, q]);
+  }, [displayStudents, q, statusFilter]);
 
-  // ── Filtered courses ──────────────────────────────────────────────
   const filteredCourses = useMemo(() => {
     if (!courseSearch.trim()) return displayCourses;
     const needle = courseSearch.toLowerCase();
@@ -181,7 +274,6 @@ const InstructorDashboard = () => {
     );
   }, [displayCourses, courseSearch]);
 
-  // ── Fetch testimonials when Reviews tab is opened ────────────────
   useEffect(() => {
     if (activeTab !== "reviews") return;
     const fetchTestimonials = async () => {
@@ -199,7 +291,6 @@ const InstructorDashboard = () => {
   }, [activeTab]);
 
   const handleTestimonialAction = async (id, action) => {
-    // action: "approved" | "rejected" | "delete" | "featured"
     try {
       if (action === "delete") {
         await API.delete(`/testimonials/admin/${id}`);
@@ -220,10 +311,8 @@ const InstructorDashboard = () => {
     : testimonials.filter(t => t.status === testimonialFilter);
 
   const pendingCount = testimonials.filter(t => t.status === "pending").length;
+  const recentCourses = useMemo(() => displayCourses.slice(0, 3), [displayCourses]);
 
-    const recentCourses = useMemo(() => displayCourses.slice(0, 3), [displayCourses]);
-
-  // ── Loading ───────────────────────────────────────────────────────
   if (loading) return (
     <div style={S.page}>
       <style>{css}</style>
@@ -249,6 +338,16 @@ const InstructorDashboard = () => {
 
       {showLogout && <LogoutConfirm onConfirm={handleLogout} onCancel={() => setShowLogout(false)} />}
 
+      {/* ── Toggle Active Confirm Modal ──────────────────────────── */}
+      {toggleTarget && (
+        <ConfirmToggleModal
+          student={toggleTarget}
+          loading={toggleLoading}
+          onConfirm={handleToggleActive}
+          onCancel={() => setToggleTarget(null)}
+        />
+      )}
+
       {/* ── Top bar ───────────────────────────────────────────────── */}
       <header style={S.topbar}>
         <div style={S.topbarInner}>
@@ -273,7 +372,6 @@ const InstructorDashboard = () => {
         </div>
       </header>
 
-      {/* ── Main ──────────────────────────────────────────────────── */}
       <div style={S.shell}>
 
         {/* ── Hero ──────────────────────────────────────────────── */}
@@ -296,12 +394,11 @@ const InstructorDashboard = () => {
               </div>
             </div>
 
-            {/* KPI grid */}
             <div style={S.kpiGrid}>
-              <KpiCard icon={<PlayCircle size={20} />}   title="Active Courses"   value={activeCourses}    caption="Published"   tone="teal"  />
-              <KpiCard icon={<Users size={20} />}         title="Total Students"   value={displayStudents.length || totalEnrollments} caption="Enrolled" tone="blue"  />
-              <KpiCard icon={<CheckCircle size={20} />}   title="Completions"      value={totalCompletions} caption="All time"    tone="green" />
-              <KpiCard icon={<AlertCircle size={20} />}   title="Pending Reviews"  value={pendingReviews}   caption="Needs action" tone="amber" />
+              <KpiCard icon={<PlayCircle size={20} />}  title="Active Courses"    value={activeCourses}    caption="Published"    tone="teal"  />
+              <KpiCard icon={<Users size={20} />}        title="Total Students"    value={displayStudents.length || totalEnrollments} caption="Enrolled" tone="blue" />
+              <KpiCard icon={<CheckCircle size={20} />}  title="Completions"       value={totalCompletions} caption="All time"     tone="green" />
+              <KpiCard icon={<UserX size={20} />}        title="Inactive Students" value={inactiveCount}    caption="Deactivated"  tone="amber" />
             </div>
           </div>
         </section>
@@ -310,21 +407,56 @@ const InstructorDashboard = () => {
         <section style={S.card}>
           <div style={S.tabRow}>
             <div style={S.tabs}>
-              <TabButton label="Overview"    active={activeTab === "overview"}  onClick={() => setActiveTab("overview")} />
-              <TabButton label={`Courses (${displayCourses.length})`}  active={activeTab === "courses"}   onClick={() => setActiveTab("courses")} />
-              <TabButton label={`Students (${displayStudents.length})`} active={activeTab === "students"}  onClick={() => setActiveTab("students")} />
+              <TabButton label="Overview"   active={activeTab === "overview"}  onClick={() => setActiveTab("overview")} />
+              <TabButton label={`Courses (${displayCourses.length})`}  active={activeTab === "courses"}  onClick={() => setActiveTab("courses")} />
+              <TabButton
+                label={inactiveCount > 0
+                  ? `Students (${displayStudents.length}) · ${inactiveCount} inactive`
+                  : `Students (${displayStudents.length})`}
+                active={activeTab === "students"}
+                onClick={() => setActiveTab("students")}
+                highlight={inactiveCount > 0}
+              />
               <TabButton
                 label={pendingCount > 0 ? `Reviews (${pendingCount} pending)` : "Reviews"}
                 active={activeTab === "reviews"}
                 onClick={() => setActiveTab("reviews")}
                 highlight={pendingCount > 0}
               />
+              <TabButton
+                label="Support Inbox"
+                active={false}
+                onClick={() => navigate("/instructor/support")}
+              />
             </div>
 
             {activeTab === "students" && (
-              <div style={S.searchWrap}>
-                <Search size={15} style={{ color: "rgba(9,25,37,0.45)" }} />
-                <input style={S.searchInput} value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name, email, course, NMLS ID…" />
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                {/* ── Status filter chips ── */}
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[
+                    { key: "all",      label: "All" },
+                    { key: "active",   label: "Active" },
+                    { key: "inactive", label: "Inactive", highlight: inactiveCount > 0 },
+                  ].map(f => (
+                    <button key={f.key} type="button"
+                      style={{
+                        ...S.filterChip,
+                        ...(statusFilter === f.key ? S.filterChipActive : {}),
+                        ...(f.highlight && statusFilter !== f.key ? { borderColor: "rgba(239,68,68,0.35)", color: "rgba(185,28,28,1)" } : {}),
+                      }}
+                      onClick={() => setStatusFilter(f.key)}>
+                      {f.label}
+                      {f.key === "inactive" && inactiveCount > 0 && (
+                        <span style={{ ...S.pendingDot, background: "rgba(239,68,68,0.85)" }}>{inactiveCount}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div style={S.searchWrap}>
+                  <Search size={15} style={{ color: "rgba(9,25,37,0.45)" }} />
+                  <input style={S.searchInput} value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name, email, course, NMLS ID…" />
+                </div>
               </div>
             )}
             {activeTab === "courses" && (
@@ -373,10 +505,11 @@ const InstructorDashboard = () => {
                 <div style={S.panel}>
                   <div style={S.panelHead}><div style={S.panelTitle}>Quick Actions</div></div>
                   <div style={S.quickActions}>
-                    <ActionCard icon={<BookOpen size={17} />}  title="All Courses"     sub={`${displayCourses.length} courses available`}  onClick={() => setActiveTab("courses")} />
-                    <ActionCard icon={<Users size={17} />}      title="All Students"    sub={`${displayStudents.length} students enrolled`}  onClick={() => setActiveTab("students")} />
-                    <ActionCard icon={<BarChart2 size={17} />}  title="Completions"     sub={`${totalCompletions} completions across all courses`} onClick={() => {}} />
-                    <ActionCard icon={<TrendingUp size={17} />} title="Active Courses"  sub={`${activeCourses} course${activeCourses !== 1 ? "s" : ""} currently running`} onClick={() => {}} />
+                    <ActionCard icon={<BookOpen size={17} />}  title="All Courses"      sub={`${displayCourses.length} courses available`}   onClick={() => setActiveTab("courses")} />
+                    <ActionCard icon={<Users size={17} />}      title="All Students"     sub={`${displayStudents.length} students enrolled`}   onClick={() => setActiveTab("students")} />
+                    <ActionCard icon={<UserX size={17} />}      title="Inactive Students" sub={`${inactiveCount} student${inactiveCount !== 1 ? "s" : ""} deactivated`} onClick={() => { setActiveTab("students"); setStatusFilter("inactive"); }} />
+                    <ActionCard icon={<BarChart2 size={17} />}  title="Completions"      sub={`${totalCompletions} completions across all courses`} onClick={() => {}} />
+                    <ActionCard icon={<MessageSquare size={17} />} title="Support Inbox" sub="View and respond to student tickets" onClick={() => navigate("/instructor/support")} />
                   </div>
                 </div>
               </div>
@@ -419,7 +552,9 @@ const InstructorDashboard = () => {
                     <div style={S.sectionTitle}>All Students</div>
                     <div style={S.sectionSub}>
                       {filteredStudents.length} student{filteredStudents.length !== 1 ? "s" : ""}
-                      {q.trim() ? " matching search" : " enrolled across all courses"}
+                      {q.trim() ? " matching search" : statusFilter !== "all" ? ` · ${statusFilter}` : " enrolled across all courses"}
+                      {inactiveCount > 0 && ` · `}
+                      {inactiveCount > 0 && <span style={{ color: "rgba(185,28,28,0.85)", fontWeight: 800 }}>{inactiveCount} inactive</span>}
                     </div>
                   </div>
                   <button style={S.refreshBtn} type="button" onClick={() => { setAllStudents([]); setQ(""); }}>
@@ -432,10 +567,10 @@ const InstructorDashboard = () => {
                 ) : filteredStudents.length === 0 ? (
                   <EmptyState
                     icon={<Users size={18} />}
-                    title={q.trim() ? "No students found" : "No students yet"}
-                    subtitle={q.trim() ? "Try a different search term." : "Students enrolled in courses will appear here."}
-                    actionLabel={q.trim() ? "Clear search" : "Refresh"}
-                    onAction={() => q.trim() ? setQ("") : setAllStudents([])}
+                    title={q.trim() ? "No students found" : statusFilter === "inactive" ? "No inactive students" : "No students yet"}
+                    subtitle={q.trim() ? "Try a different search term." : statusFilter === "inactive" ? "All students are currently active." : "Students enrolled in courses will appear here."}
+                    actionLabel={q.trim() || statusFilter !== "all" ? "Clear filters" : "Refresh"}
+                    onAction={() => { setQ(""); setStatusFilter("all"); if (!q.trim() && statusFilter === "all") setAllStudents([]); }}
                   />
                 ) : (
                   <div style={S.tableWrap}>
@@ -448,7 +583,7 @@ const InstructorDashboard = () => {
                           <th style={S.th}>Status</th>
                           <th style={S.thRight}>Progress</th>
                           <th style={S.th}>Enrolled</th>
-                          <th style={S.th}>Certificate</th>
+                          <th style={S.th}>Account</th>
                           <th style={S.th}>Actions</th>
                         </tr>
                       </thead>
@@ -461,6 +596,7 @@ const InstructorDashboard = () => {
                             onToggle={() => setExpandedStudent(
                               expandedStudent === (s._id || s.email) ? null : (s._id || s.email)
                             )}
+                            onToggleActive={() => setToggleTarget(s)}
                           />
                         ))}
                       </tbody>
@@ -591,13 +727,9 @@ const CourseCard = ({ course }) => {
   const completed = course?.completion_count  ?? course?.completed ?? 0;
   const active    = course?.active ?? true;
   const passRate  = enrolled > 0 ? `${Math.round((completed / enrolled) * 100)}%` : "—";
-
   return (
-    <div
-      style={{ ...S.courseCard, cursor: "pointer" }}
-      className="rs-course-card"
-      onClick={() => navigate(`/instructor/course/${course._id}`)}
-    >
+    <div style={{ ...S.courseCard, cursor: "pointer" }} className="rs-course-card"
+      onClick={() => navigate(`/instructor/course/${course._id}`)}>
       <div style={S.courseCardTop}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={typeBadge(type)}>{type || "—"}</span>
@@ -605,18 +737,14 @@ const CourseCard = ({ course }) => {
         </div>
         <button style={S.moreBtn} type="button"><MoreHorizontal size={16} /></button>
       </div>
-
       <div style={S.courseCardTitle}>{course?.title || "Course"}</div>
-
       <div style={S.courseCardMeta}>
         <span style={S.metaItem}><Clock size={13} /> {creditHrs} credit hrs</span>
         {course?.nmls_course_id && (
           <span style={S.metaItem}><FileText size={13} /> #{course.nmls_course_id}</span>
         )}
       </div>
-
       <div style={S.courseCardDivider} />
-
       <div style={S.courseStatsRow}>
         <CourseStat icon={<Users size={14} />}       label="Enrolled"  value={enrolled}  color="var(--rs-blue)" />
         <CourseStat icon={<CheckCircle size={14} />} label="Completed" value={completed} color="rgba(0,180,180,1)" />
@@ -634,36 +762,52 @@ const CourseStat = ({ icon, label, value, color }) => (
   </div>
 );
 
-const StudentRow = ({ student, expanded, onToggle }) => {
+/* ─── StudentRow ─────────────────────────────────────────────────── */
+const StudentRow = ({ student, expanded, onToggle, onToggleActive }) => {
+  const navigate = useNavigate();
   const status   = String(student?.status || "enrolled").toLowerCase();
   const progress = student?.progress ?? 0;
+  const isActive = student?.is_active !== false;
   const enrolled = student?.enrolled_at
     ? new Date(student.enrolled_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : "—";
+  const deactivatedAt = student?.deactivated_at
+    ? new Date(student.deactivated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : null;
+  const lastLogin = student?.last_login_at
+    ? new Date(student.last_login_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : null;
 
-  // A student may be enrolled in multiple courses — handle both
   const courses = student?.courses || (student?.course_title ? [{ title: student.course_title, status, progress }] : []);
 
   return (
     <>
-      <tr className="rs-tr">
+      <tr className="rs-tr" style={{ opacity: isActive ? 1 : 0.65 }}>
         <td style={S.td}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={S.studentAvatar}>{(student?.name || "S")[0].toUpperCase()}</div>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+            onClick={() => navigate(`/instructor/students/${student._id}`)}
+            title="View student details"
+          >
+            <div style={{ ...S.studentAvatar, ...(isActive ? {} : { background: "rgba(2,8,23,0.08)", border: "1px solid rgba(2,8,23,0.12)", color: "rgba(11,18,32,0.45)" }) }}>
+              {(student?.name || "S")[0].toUpperCase()}
+            </div>
             <div>
-              <div style={{ fontWeight: 800, color: "rgba(11,18,32,0.88)", fontSize: 13 }}>{student?.name || "Student"}</div>
+              <div style={{ fontWeight: 800, color: "rgba(11,18,32,0.88)", fontSize: 13, textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>
+                {student?.name || "Student"}
+              </div>
               <div style={{ fontSize: 11, color: "rgba(11,18,32,0.50)", fontWeight: 600 }}>{student?.email || "—"}</div>
             </div>
           </div>
         </td>
         <td style={S.td}>
           <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.65)" }}>
-            {student?.nmls_id || student?.nmls_id_number || "—"}
+            {student?.nmls_id || "—"}
           </span>
         </td>
         <td style={S.td}>
           <span style={{ fontWeight: 700, color: "rgba(11,18,32,0.75)", fontSize: 13 }}>
-            {student?.course_title || student?.course || (courses.length > 0 ? `${courses.length} course${courses.length > 1 ? "s" : ""}` : "—")}
+            {student?.course_title || (courses.length > 0 ? `${courses.length} course${courses.length > 1 ? "s" : ""}` : "—")}
           </span>
         </td>
         <td style={S.td}>
@@ -680,24 +824,60 @@ const StudentRow = ({ student, expanded, onToggle }) => {
           </div>
         </td>
         <td style={S.td}>{enrolled}</td>
+
+        {/* ── Account Status Cell ── */}
         <td style={S.td}>
-          {student?.certificate_url ? (
-            <a href={student.certificate_url} target="_blank" rel="noreferrer" className="rs-link"
-              style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13 }}>
-              <Award size={14} /> View
-            </a>
-          ) : (
-            <span style={{ color: "rgba(11,18,32,0.35)" }}>—</span>
-          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "4px 9px", borderRadius: 999, fontSize: 11, fontWeight: 900,
+              border: "1px solid transparent",
+              color:      isActive ? "rgba(22,163,74,1)"    : "rgba(185,28,28,1)",
+              background: isActive ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.08)",
+              borderColor:isActive ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)",
+              width: "fit-content",
+            }}>
+              {isActive ? <UserCheck size={11} /> : <UserX size={11} />}
+              {isActive ? "Active" : "Inactive"}
+            </span>
+            {!isActive && deactivatedAt && (
+              <span style={{ fontSize: 10, color: "rgba(11,18,32,0.42)", fontWeight: 600 }}>
+                Since {deactivatedAt}
+              </span>
+            )}
+            {isActive && lastLogin && (
+              <span style={{ fontSize: 10, color: "rgba(11,18,32,0.42)", fontWeight: 600 }}>
+                Last login: {lastLogin}
+              </span>
+            )}
+          </div>
         </td>
+
         <td style={S.td}>
-          <button style={S.viewBtn} type="button" onClick={onToggle}>
-            <Eye size={13} /> {expanded ? "Hide" : "Details"}
-          </button>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button style={S.viewBtn} type="button" onClick={onToggle}>
+              <Eye size={13} /> {expanded ? "Hide" : "Details"}
+            </button>
+            {/* ── Toggle Active Button ── */}
+            <button
+              type="button"
+              onClick={onToggleActive}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "6px 10px", borderRadius: 8, cursor: "pointer",
+                fontSize: 12, fontWeight: 800,
+                border: isActive ? "1px solid rgba(239,68,68,0.30)" : "1px solid rgba(0,180,180,0.30)",
+                background: isActive ? "rgba(239,68,68,0.06)" : "rgba(0,180,180,0.08)",
+                color:  isActive ? "rgba(185,28,28,1)" : "var(--rs-teal)",
+              }}
+              title={isActive ? "Deactivate student" : "Activate student"}
+            >
+              {isActive ? <><UserX size={13} /> Deactivate</> : <><UserCheck size={13} /> Activate</>}
+            </button>
+          </div>
         </td>
       </tr>
 
-      {/* Expanded row — show all courses for this student */}
       {expanded && courses.length > 1 && (
         <tr>
           <td colSpan={8} style={{ padding: "0 14px 12px 60px", background: "rgba(0,180,180,0.03)" }}>
@@ -748,8 +928,6 @@ const EmptyState = ({ icon, title, subtitle, actionLabel, onAction }) => (
   </div>
 );
 
-
-/* ─── TestimonialCard ─────────────────────────────────────────────── */
 const StarRating = ({ rating }) => (
   <div style={{ display: "flex", gap: 2 }}>
     {[1,2,3,4,5].map(i => (
@@ -767,7 +945,6 @@ const TestimonialCard = ({ testimonial: t, onApprove, onReject, onDelete, onFeat
   const isPending  = t.status === "pending";
   const isApproved = t.status === "approved";
   const isRejected = t.status === "rejected";
-
   const statusStyle = isApproved
     ? { color: "rgba(0,140,140,1)", background: "rgba(0,180,180,0.10)", border: "1px solid rgba(0,180,180,0.22)" }
     : isRejected
@@ -775,16 +952,11 @@ const TestimonialCard = ({ testimonial: t, onApprove, onReject, onDelete, onFeat
     : { color: "rgba(180,120,0,1)", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)" };
 
   return (
-    <div style={{
-      borderRadius: 18, background: "#fff",
+    <div style={{ borderRadius: 18, background: "#fff",
       border: isPending ? "1.5px solid rgba(245,158,11,0.35)" : "1px solid rgba(2,8,23,0.08)",
-      boxShadow: isPending ? "0 4px 20px rgba(245,158,11,0.10)" : "0 2px 10px rgba(2,8,23,0.05)",
-      padding: 18,
-    }}>
-      {/* ── Header row ── */}
+      boxShadow: isPending ? "0 4px 20px rgba(245,158,11,0.10)" : "0 2px 10px rgba(2,8,23,0.05)", padding: 18 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {/* Avatar */}
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.28)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rs-teal)", fontWeight: 900, fontSize: 15, flexShrink: 0 }}>
             {(t.name || "S")[0].toUpperCase()}
           </div>
@@ -793,22 +965,17 @@ const TestimonialCard = ({ testimonial: t, onApprove, onReject, onDelete, onFeat
             <div style={{ fontSize: 12, color: "rgba(11,18,32,0.50)", fontWeight: 600 }}>{t.email || "—"}</div>
           </div>
         </div>
-
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          {/* Featured badge */}
           {t.featured && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 900, color: "#F59E0B", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.30)" }}>
               ★ Featured
             </span>
           )}
-          {/* Status badge */}
           <span style={{ ...statusStyle, display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 900, textTransform: "capitalize" }}>
             {t.status}
           </span>
         </div>
       </div>
-
-      {/* ── Course + rating row ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12, flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.65)", background: "rgba(2,8,23,0.04)", border: "1px solid rgba(2,8,23,0.08)", padding: "3px 10px", borderRadius: 8 }}>
           {t.course_title || "—"}
@@ -823,30 +990,16 @@ const TestimonialCard = ({ testimonial: t, onApprove, onReject, onDelete, onFeat
           </span>
         )}
       </div>
-
-      {/* ── Comment ── */}
       <div style={{ fontSize: 13, fontWeight: 500, color: "rgba(11,18,32,0.78)", lineHeight: 1.65, padding: "12px 14px", borderRadius: 12, background: "rgba(2,8,23,0.025)", border: "1px solid rgba(2,8,23,0.06)", marginBottom: 14 }}>
         "{t.comment}"
       </div>
-
-      {/* ── Action buttons ── */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {!isApproved && (
-          <button type="button" onClick={onApprove} style={S.approveBtn}>
-            <ThumbsUp size={13} /> Approve
-          </button>
-        )}
-        {!isRejected && (
-          <button type="button" onClick={onReject} style={S.rejectBtn}>
-            <ThumbsDown size={13} /> Reject
-          </button>
-        )}
+        {!isApproved && <button type="button" onClick={onApprove} style={S.approveBtn}><ThumbsUp size={13} /> Approve</button>}
+        {!isRejected && <button type="button" onClick={onReject}  style={S.rejectBtn}><ThumbsDown size={13} /> Reject</button>}
         <button type="button" onClick={onFeature} style={{ ...S.featureBtn, ...(t.featured ? S.featureBtnActive : {}) }}>
           <Star size={13} /> {t.featured ? "Unfeature" : "Feature"}
         </button>
-        <button type="button" onClick={onDelete} style={S.deleteBtn}>
-          <Trash2 size={13} /> Delete
-        </button>
+        <button type="button" onClick={onDelete} style={S.deleteBtn}><Trash2 size={13} /> Delete</button>
       </div>
     </div>
   );
@@ -937,6 +1090,7 @@ const S = {
   tabs:        { display: "flex", gap: 8 },
   tabBtn:      { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.65)" },
   tabBtnActive:{ borderColor: "rgba(0,180,180,0.35)", boxShadow: "0 0 0 4px var(--rs-ring)", color: "var(--rs-dark)" },
+  tabBtnHighlight: { borderColor: "rgba(245,158,11,0.45)", color: "rgba(146,84,0,1)", background: "rgba(245,158,11,0.06)" },
   searchWrap:  { display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", minWidth: 280 },
   searchInput: { border: "none", outline: "none", width: "100%", fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.80)", background: "transparent" },
   cardBody:    { padding: 14 },
@@ -973,7 +1127,7 @@ const S = {
   courseStatLabel: { fontSize: 10, fontWeight: 800, color: "rgba(11,18,32,0.50)" },
   moreBtn:     { width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(11,18,32,0.50)" },
   tableWrap:   { overflowX: "auto", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", background: "#fff" },
-  table:       { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 900 },
+  table:       { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 1000 },
   th:          { textAlign: "left", fontSize: 11, fontWeight: 950, color: "rgba(11,18,32,0.55)", padding: "12px 14px", borderBottom: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)" },
   thRight:     { textAlign: "right", fontSize: 11, fontWeight: 950, color: "rgba(11,18,32,0.55)", padding: "12px 14px", borderBottom: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)" },
   td:          { padding: "13px 14px", borderBottom: "1px solid rgba(2,8,23,0.055)", fontSize: 13 },
@@ -989,16 +1143,9 @@ const S = {
   emptyTitle:  { marginTop: 12, fontWeight: 950, color: "rgba(11,18,32,0.84)", fontSize: 14 },
   emptySub:    { marginTop: 6, color: "rgba(11,18,32,0.52)", fontWeight: 700, fontSize: 12, lineHeight: 1.6 },
   primaryBtnSmall:{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 14px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", color: "rgba(11,18,32,0.82)", cursor: "pointer", fontWeight: 900, fontSize: 13 },
-
-  // ── Tab highlight (pending reviews) ──
-  tabBtnHighlight: { borderColor: "rgba(245,158,11,0.45)", color: "rgba(146,84,0,1)", background: "rgba(245,158,11,0.06)" },
-
-  // ── Testimonial filter chips ──
   filterChip:      { padding: "7px 13px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 12, color: "rgba(11,18,32,0.62)", display: "inline-flex", alignItems: "center", gap: 6 },
   filterChipActive:{ borderColor: "rgba(0,180,180,0.38)", color: "var(--rs-dark)", boxShadow: "0 0 0 3px rgba(0,180,180,0.14)" },
   pendingDot:      { minWidth: 18, height: 18, borderRadius: 999, background: "rgba(245,158,11,0.90)", color: "#fff", fontSize: 10, fontWeight: 900, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 4px" },
-
-  // ── Testimonial action buttons ──
   approveBtn:      { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "none", background: "rgba(0,180,180,0.90)", color: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 12 },
   rejectBtn:       { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1px solid rgba(239,68,68,0.30)", background: "rgba(239,68,68,0.06)", color: "rgba(185,28,28,1)", cursor: "pointer", fontWeight: 900, fontSize: 12 },
   featureBtn:      { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1px solid rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.06)", color: "rgba(146,84,0,1)", cursor: "pointer", fontWeight: 900, fontSize: 12 },

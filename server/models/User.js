@@ -9,6 +9,9 @@ const userSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   otp:        { type: String,  default: null },
   otpExpires: { type: Date,    default: null },
+  is_active:       { type: Boolean, default: true },
+deactivated_at:  { type: Date,    default: null  },
+last_login_at:   { type: Date,    default: null  },
 
   // ── Profile ───────────────────────────────────────────────────────
   nmls_id:  { type: String, trim: true, default: null },

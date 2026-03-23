@@ -7,8 +7,6 @@ const authMiddleware = require('../middleware/auth');
 router.use(authMiddleware);
 
 // ── POST /api/rocs/agree ──────────────────────────────────────────────
-// Called when student clicks "I Agree" on the ROCS modal.
-// Logs the agreement and marks enrollment.rocs_agreed = true.
 router.post('/agree', async (req, res) => {
   try {
     const { courseId } = req.body;
@@ -19,7 +17,6 @@ router.post('/agree', async (req, res) => {
             || null;
     const ua = req.headers['user-agent'] || null;
 
-    // Log the ROCS agreement (retained for compliance)
     await RocsLog.create({
       user_id:      req.user.id,
       course_id:    courseId,
@@ -28,7 +25,6 @@ router.post('/agree', async (req, res) => {
       rocs_version: 'V4',
     });
 
-    // Mark enrollment as ROCS-agreed (create enrollment if not exists yet)
     await Enrollment.findOneAndUpdate(
       { user_id: req.user.id, course_id: courseId },
       { $set: { rocs_agreed: true, rocs_agreed_at: new Date(), status: 'in_progress' } },
@@ -42,8 +38,6 @@ router.post('/agree', async (req, res) => {
 });
 
 // ── GET /api/rocs/check/:courseId ─────────────────────────────────────
-// Check if student has already agreed to ROCS for this course.
-// CoursePortal calls this on load to skip modal if already agreed.
 router.get('/check/:courseId', async (req, res) => {
   try {
     const enrollment = await Enrollment.findOne({

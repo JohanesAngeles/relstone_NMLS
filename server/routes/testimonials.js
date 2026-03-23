@@ -18,7 +18,7 @@ const auth = (req, res, next) => {
   }
 };
 const adminOnly = (req, res, next) => {
-  console.log("adminOnly check — role:", req.user?.role); // ← ADD
+  console.log("role check:", req.user?.role); // temp debug
   if (!["admin", "instructor"].includes(req.user?.role))
     return res.status(403).json({ message: "Admin or instructor access required" });
   next();

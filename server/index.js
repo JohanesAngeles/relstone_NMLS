@@ -7,13 +7,18 @@ const cors       = require('cors');
 const path       = require('path');
 
 // ── Route imports ─────────────────────────────────────────────────────────────
-const authRoutes        = require('./routes/auth');
-const courseRoutes      = require('./routes/courses');
-const orderRoutes       = require('./routes/orders');
-const dashboardRoutes   = require('./routes/dashboard');
-const certificateRoutes = require('./routes/certificates');
-const instructorRoutes  = require('./routes/instructor');
-const testimonialRoutes = require('./routes/testimonials');
+const authRoutes         = require('./routes/auth');
+const courseRoutes       = require('./routes/courses');
+const orderRoutes        = require('./routes/orders');
+const dashboardRoutes    = require('./routes/dashboard');
+const certificateRoutes  = require('./routes/certificates');
+const instructorRoutes   = require('./routes/instructor');
+const testimonialRoutes  = require('./routes/testimonials');
+// ── NEW: required for CoursePortal to work ────────────────────────────────────
+const quizAttemptRoutes  = require('./routes/quiz-attempts');   // ← ADD
+const enrollmentRoutes   = require('./routes/enrollment');      // ← ADD
+const rocsRoutes         = require('./routes/rocs');            // ← ADD
+const supportRoutes = require('./routes/support');
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 const authMiddleware = require('./middleware/auth');
@@ -35,13 +40,18 @@ app.use(cors({
 app.use(express.json());
 
 // ── API routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth',         authRoutes);
-app.use('/api/courses',      courseRoutes);
-app.use('/api/orders',       orderRoutes);
-app.use('/api/dashboard',    dashboardRoutes);
-app.use('/api/certificates', certificateRoutes);
-app.use('/api/instructor',   instructorRoutes);
-app.use('/api/testimonials', testimonialRoutes);
+app.use('/api/auth',          authRoutes);
+app.use('/api/courses',       courseRoutes);
+app.use('/api/orders',        orderRoutes);
+app.use('/api/dashboard',     dashboardRoutes);
+app.use('/api/certificates',  certificateRoutes);
+app.use('/api/instructor',    instructorRoutes);
+app.use('/api/testimonials',  testimonialRoutes);
+// ── NEW ───────────────────────────────────────────────────────────────────────
+app.use('/api/quiz-attempts', quizAttemptRoutes);  // ← ADD
+app.use('/api/enrollment',    enrollmentRoutes);   // ← ADD
+app.use('/api/rocs',          rocsRoutes);         // ← ADD
+app.use('/api/support', supportRoutes);
 
 // ── Protected test route ──────────────────────────────────────────────────────
 app.get('/api/protected', authMiddleware, (req, res) => {

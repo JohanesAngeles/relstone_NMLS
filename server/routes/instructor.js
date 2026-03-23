@@ -21,7 +21,7 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
     const courses = await Course.find({ is_active: true }).lean();
 
     const students = await User.find({ role: 'student' })
-      .select('name email nmls_id state completions createdAt')
+      .select('name email nmls_id state completions createdAt is_active deactivated_at last_login_at')
       .populate('completions.course_id', 'title type credit_hours')
       .lean();
 
@@ -41,6 +41,9 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
           completed_at:    null,
           certificate_url: null,
           enrolled_at:     student.createdAt,
+          is_active:       student.is_active !== false,
+          deactivated_at:  student.deactivated_at || null,
+          last_login_at:   student.last_login_at  || null,
         });
       } else {
         student.completions.forEach((c) => {
@@ -56,6 +59,9 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
             completed_at:    c.completed_at,
             certificate_url: c.certificate_url || null,
             enrolled_at:     student.createdAt,
+            is_active:       student.is_active !== false,
+            deactivated_at:  student.deactivated_at || null,
+            last_login_at:   student.last_login_at  || null,
           });
         });
       }
@@ -105,7 +111,6 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
 
 /* ─────────────────────────────────────────────────────────────────
    GET /api/instructor/students
-   Returns ALL students with enrolled courses + progress
 ───────────────────────────────────────────────────────────────── */
 router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -118,7 +123,6 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
     const allOrders = await Order.find({ status: 'completed' })
       .populate('items.course_id', 'title type credit_hours');
 
-    // Build enrollment map: userId → [courses]
     const enrollmentMap = {};
     for (const order of allOrders) {
       const uid = String(order.user_id);
@@ -169,6 +173,10 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
         enrolled_at:     s.createdAt,
         certificate_url: (s.completions || []).find(c => c.certificate_url)?.certificate_url || null,
         createdAt:       s.createdAt,
+        // ── Active/Inactive fields ──
+        is_active:       s.is_active !== false,
+        deactivated_at:  s.deactivated_at || null,
+        last_login_at:   s.last_login_at  || null,
       };
     });
 
@@ -196,8 +204,34 @@ router.get('/students/:id', authMiddleware, instructorOnly, async (req, res) => 
 });
 
 /* ─────────────────────────────────────────────────────────────────
+   PUT /api/instructor/students/:userId/toggle-active   ← NEW
+   Toggle a student's active/inactive status
+───────────────────────────────────────────────────────────────── */
+router.put('/students/:userId/toggle-active', authMiddleware, instructorOnly, async (req, res) => {
+  try {
+    const student = await User.findById(req.params.userId);
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+    if (student.role !== 'student') return res.status(400).json({ message: 'Can only toggle student accounts' });
+
+    // Flip the active flag (default true if field doesn't exist yet)
+    const currentlyActive = student.is_active !== false;
+    student.is_active      = !currentlyActive;
+    student.deactivated_at = student.is_active ? null : new Date();
+    await student.save();
+
+    res.json({
+      success:   true,
+      is_active: student.is_active,
+      message:   `Student ${student.is_active ? 'activated' : 'deactivated'} successfully`,
+    });
+  } catch (err) {
+    console.error('[instructor/students/toggle-active]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────────
    GET /api/instructor/courses-stats
-   All courses with enrollment + completion counts
 ───────────────────────────────────────────────────────────────── */
 router.get('/courses-stats', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -243,7 +277,6 @@ router.get('/courses-stats', authMiddleware, instructorOnly, async (req, res) =>
 
 /* ─────────────────────────────────────────────────────────────────
    POST /api/instructor/assign-course
-   Body: { student_id, course_id }
 ───────────────────────────────────────────────────────────────── */
 router.post('/assign-course', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -276,32 +309,32 @@ router.post('/assign-course', authMiddleware, instructorOnly, async (req, res) =
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
+/* ─────────────────────────────────────────────────────────────────
+   GET /api/instructor/course/:courseId/students
+───────────────────────────────────────────────────────────────── */
 router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (req, res) => {
   try {
     const { courseId } = req.params;
- 
-    // 1. Get the course
+
     const course = await Course.findById(courseId).lean();
     if (!course) return res.status(404).json({ message: 'Course not found' });
- 
-    // 2. Get all paid orders that include this course
+
     const orders = await Order.find({
       status: 'completed',
       'items.course_id': courseId,
     }).lean();
- 
+
     const enrolledUserIds = [...new Set(orders.map(o => String(o.user_id)))];
- 
+
     if (enrolledUserIds.length === 0) {
       return res.json({ students: [], course });
     }
- 
-    // 3. Get all enrolled users with completions
+
     const users = await User.find({ _id: { $in: enrolledUserIds } })
-      .select('name email nmls_id state completions createdAt')
+      .select('name email nmls_id state completions createdAt is_active deactivated_at last_login_at')
       .lean();
- 
-    // 4. Get CourseProgress for each user (if model exists)
+
     let progressDocs = [];
     try {
       const CourseProgress = require('../models/CourseProgress');
@@ -310,11 +343,10 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         user_id:   { $in: enrolledUserIds },
       }).lean();
     } catch { /* CourseProgress model may not exist */ }
- 
+
     const progressMap = {};
     progressDocs.forEach(p => { progressMap[String(p.user_id)] = p; });
- 
-    // 5. Get QuizAttempts for each user in this course (if model exists)
+
     let quizDocs = [];
     try {
       const QuizAttempt = require('../models/QuizAttempt');
@@ -323,8 +355,7 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         user_id:   { $in: enrolledUserIds },
       }).sort({ submitted_at: -1 }).lean();
     } catch { /* QuizAttempt model may not exist */ }
- 
-    // Group quiz attempts by user
+
     const quizMap = {};
     quizDocs.forEach(q => {
       const uid = String(q.user_id);
@@ -342,8 +373,7 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         submitted_at:       q.submitted_at,
       });
     });
- 
-    // 6. Get Enrollment docs for seat time + module progress (if model exists)
+
     let enrollmentDocs = [];
     try {
       const Enrollment = require('../models/Enrollment');
@@ -352,51 +382,44 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         user_id:   { $in: enrolledUserIds },
       }).lean();
     } catch { /* Enrollment model may not exist */ }
- 
+
     const enrollmentMap = {};
     enrollmentDocs.forEach(e => { enrollmentMap[String(e.user_id)] = e; });
- 
-    // 7. Build student result rows
+
     const students = users.map(u => {
       const uid        = String(u._id);
       const progress   = progressMap[uid];
       const enrollment = enrollmentMap[uid];
       const quizzes    = quizMap[uid] || [];
- 
-      // Check if completed this course
+
       const completion = (u.completions || []).find(
         c => String(c.course_id?._id || c.course_id) === String(courseId)
       );
       const isCompleted = !!completion;
- 
-      // Calculate best/final score from quiz attempts
+
       const finalExamAttempts = quizzes.filter(q => q.quiz_type === 'final_exam');
       const bestScore = finalExamAttempts.length > 0
         ? Math.max(...finalExamAttempts.map(q => q.score_pct))
         : quizzes.length > 0
           ? Math.max(...quizzes.map(q => q.score_pct))
           : null;
- 
+
       const isPassed = isCompleted && (
         finalExamAttempts.some(q => q.passed) ||
         (bestScore != null && bestScore >= 70)
       );
- 
-      // Seat hours from enrollment or progress
-      const seatSeconds = enrollment?.total_seat_seconds
-        || (progress?.total_steps ? null : null)
-        || null;
+
+      const seatSeconds = enrollment?.total_seat_seconds || null;
       const seatHours = seatSeconds != null
         ? Math.round((seatSeconds / 3600) * 10) / 10
         : null;
- 
-      // Progress percentage
+
       const progressPct = progress
         ? (progress.total_steps > 0
             ? Math.min(100, Math.round((progress.completed_idxs?.length || 0) / progress.total_steps * 100))
             : isCompleted ? 100 : 0)
         : isCompleted ? 100 : 0;
- 
+
       return {
         _id:             u._id,
         name:            u.name,
@@ -413,19 +436,75 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         enrolled_at:     u.createdAt,
         quiz_attempts:   quizzes,
         module_progress: enrollment?.module_progress || progress?.module_progress || [],
+        // ── Active/Inactive ──
+        is_active:       u.is_active !== false,
+        deactivated_at:  u.deactivated_at || null,
+        last_login_at:   u.last_login_at  || null,
       };
     });
- 
-    // Sort: completed first, then by name
+
     students.sort((a, b) => {
       if (a.completed !== b.completed) return a.completed ? -1 : 1;
       return (a.name || "").localeCompare(b.name || "");
     });
- 
+
     res.json({ students, course, total: students.length });
   } catch (err) {
     console.error('[instructor/course/:courseId/students]', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+router.get('/students/:id/courses', authMiddleware, instructorOnly, async (req, res) => {
+  try {
+    const student = await User.findById(req.params.id)
+      .select('completions')
+      .populate('completions.course_id', 'title type credit_hours nmls_course_id')
+      .lean();
+ 
+    if (!student) return res.status(404).json({ message: 'Student not found' });
+ 
+    // Get paid orders for this student
+    const orders = await Order.find({
+      user_id: req.params.id,
+      status: 'completed',
+    }).populate('items.course_id', 'title type credit_hours nmls_course_id').lean();
+ 
+    const completedIds = new Set(
+      (student.completions || []).map(c => String(c.course_id?._id || c.course_id))
+    );
+ 
+    // Build full course list from orders
+    const seen = new Set();
+    const courses = [];
+ 
+    for (const order of orders) {
+      for (const item of order.items || []) {
+        const cid = String(item.course_id?._id || item.course_id);
+        if (!cid || seen.has(cid)) continue;
+        seen.add(cid);
+ 
+        const completion = (student.completions || []).find(
+          c => String(c.course_id?._id || c.course_id) === cid
+        );
+ 
+        courses.push({
+          _id:              item.course_id?._id || item.course_id,
+          title:            item.course_id?.title,
+          type:             item.course_id?.type,
+          credit_hours:     item.course_id?.credit_hours,
+          nmls_course_id:   item.course_id?.nmls_course_id,
+          status:           completedIds.has(cid) ? 'completed' : 'in_progress',
+          completed_at:     completion?.completed_at || null,
+          certificate_url:  completion?.certificate_url || null,
+        });
+      }
+    }
+ 
+    res.json({ courses, total: courses.length });
+  } catch (err) {
+    console.error('[instructor/students/:id/courses]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;
