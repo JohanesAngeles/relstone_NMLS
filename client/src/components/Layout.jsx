@@ -38,9 +38,7 @@ const Layout = ({ children, title, subtitle, actions }) => {
   const handleClosePopup = () => setShowNotifPopup(false);
 
   const handleTogglePopup = () => {
-    const newState = !showNotifPopup;
-    console.log(`🔔 [Layout] Bell icon clicked - popup ${newState ? 'opened' : 'closed'}`);
-    setShowNotifPopup(newState);
+    setShowNotifPopup(!showNotifPopup);
   };
 
   useEffect(() => {

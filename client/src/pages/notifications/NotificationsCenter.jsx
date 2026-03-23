@@ -35,42 +35,14 @@ const NotificationsCenter = () => {
     markAsRead,
     markAsUnread,
     triggerNotification,
+    triggerEvent,
   } = useNotifications();
   const [activeFilter, setActiveFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [readFilter, setReadFilter] = useState("all");
-
-  const triggerEvent = async (eventType) => {
-    const map = {
-      welcome: { type: 'system', title: 'Welcome to Relstone', body: 'Thanks for joining — your learning path is ready.', sendEmail: true },
-      purchase: { type: 'system', title: 'Purchase confirm', body: 'Your course purchase was successful. Start learning now.', sendEmail: true },
-      completion: { type: 'milestones', title: 'Course completed', body: 'Congratulations! You completed a course and earned a badge.', sendEmail: true },
-      certificate: { type: 'system', title: 'Certificate ready', body: 'Your certificate is ready for download in the certificates page.', sendEmail: true },
-      renewal: { type: 'ce', title: 'Renewal reminder', body: 'Your CE renewal deadline is approaching. Schedule your courses.', sendEmail: true },
-    };
-    const payload = map[eventType];
-    if (!payload) return;
-    await triggerNotification(payload);
-  };
 
   const filteredItems = useMemo(() => {
-    let list = notifications;
-    if (activeFilter !== "all") {
-      list = list.filter((n) => n.type === activeFilter);
-    }
-    if (readFilter === "read") {
-      list = list.filter((n) => n.read);
-    } else if (readFilter === "unread") {
-      list = list.filter((n) => !n.read);
-    }
-    if (searchTerm.trim()) {
-      const q = searchTerm.trim().toLowerCase();
-      list = list.filter((n) =>
-        `${n.title} ${n.body}`.toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [notifications, activeFilter, readFilter, searchTerm]);
+    if (activeFilter === "all") return notifications;
+    return notifications.filter((n) => n.type === activeFilter);
+  }, [notifications, activeFilter]);
 
   return (
     <Layout>
@@ -79,60 +51,40 @@ const NotificationsCenter = () => {
           <div>
             <div style={styles.heading}>Notifications</div>
             <div style={styles.subheading}>
-              You have {unreadCount} unread messages
+              You have {unreadCount} unread message{unreadCount !== 1 ? 's' : ''}
             </div>
           </div>
-          <div style={styles.headerActions}>
-            <button
-              style={styles.markAllBtn}
-              onClick={() => {
-                console.log(
-                  '📋 [NotificationsCenter] "Mark all as read" clicked',
-                );
-                markAllAsRead();
-              }}
-              type="button"
-            >
-              Mark all as read
-            </button>
-          </div>
-        </div>
-
-        <div style={styles.searchRow}>
-          <input
-            style={styles.searchInput}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search notifications..."
-          />
-          <select style={styles.filterSelect} value={readFilter} onChange={(e) => setReadFilter(e.target.value)}>
-            <option value="all">All</option>
-            <option value="unread">Unread</option>
-            <option value="read">Read</option>
-          </select>
           <button
-            style={styles.triggerBtn}
+            style={styles.markAllBtn}
+            onClick={markAllAsRead}
             type="button"
-            onClick={() => {
-              triggerNotification({
-                type: 'milestones',
-                title: 'Milestone reached',
-                body: 'You completed 75% of your course and unlocked a badge.',
-                sendEmail: true,
-              });
-            }}
           >
-            Send quick test
+            Mark all as read
           </button>
         </div>
 
-        <div style={styles.eventRow}>
-          <span style={styles.eventLabel}>Trigger event</span>
-          <button style={styles.eventBtn} onClick={() => triggerEvent('welcome')} type="button">Welcome</button>
-          <button style={styles.eventBtn} onClick={() => triggerEvent('purchase')} type="button">Purchase</button>
-          <button style={styles.eventBtn} onClick={() => triggerEvent('completion')} type="button">Completion</button>
-          <button style={styles.eventBtn} onClick={() => triggerEvent('certificate')} type="button">Certificate</button>
-          <button style={styles.eventBtn} onClick={() => triggerEvent('renewal')} type="button">Renewal</button>
+        <div style={styles.searchRow}>
+          <button
+            style={styles.triggerBtn}
+            type="button"
+            onClick={() => triggerNotification({ type: 'milestones', title: 'Milestone notification', body: 'You reached 75% progress!', sendEmail: true })}
+          >
+            Trigger milestone test
+          </button>
+          <button
+            style={styles.triggerBtn}
+            type="button"
+            onClick={() => triggerEvent('welcome')}
+          >
+            Trigger welcome event
+          </button>
+          <button
+            style={styles.triggerBtn}
+            type="button"
+            onClick={() => triggerEvent('renewal')}
+          >
+            Trigger renewal event
+          </button>
         </div>
 
         <div style={styles.tabs}>
@@ -188,13 +140,7 @@ const NotificationsCenter = () => {
                   {item.read ? (
                     <button
                       style={styles.linkBtn}
-                      onClick={() => {
-                        console.log(
-                          "⭐ [NotificationsCenter] Mark as unread clicked:",
-                          item.title,
-                        );
-                        markAsUnread(id);
-                      }}
+                      onClick={() => markAsUnread(id)}
                       type="button"
                     >
                       Mark as unread
@@ -202,13 +148,7 @@ const NotificationsCenter = () => {
                   ) : (
                     <button
                       style={styles.linkBtn}
-                      onClick={() => {
-                        console.log(
-                          "⭐ [NotificationsCenter] Mark as read clicked:",
-                          item.title,
-                        );
-                        markAsRead(id);
-                      }}
+                      onClick={() => markAsRead(id)}
                       type="button"
                     >
                       Mark as read
