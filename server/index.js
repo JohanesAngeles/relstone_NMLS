@@ -13,6 +13,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const certificateRoutes = require('./routes/certificates');
 const instructorRoutes = require('./routes/instructor');
 const supportRoutes = require('./routes/support');
+const { startCEScheduler } = require('./services/ceScheduler');
 
 dotenv.config();
 
@@ -77,6 +78,8 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log('MongoDB connected');
+    // Start CE renewal scheduler
+    startCEScheduler();
   })
   .catch((err) => {
     console.error('MongoDB connection failed:', err.message);

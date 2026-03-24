@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import API from "../../api/axios";
 import Layout from "../../components/Layout.jsx";
+import StateSubmissionModal from "../../components/StateSubmissionModal.jsx";
 import {
   BookOpen, Clock, CheckCircle, TrendingUp, Calendar,
-  ChevronRight, AlertCircle, Download
+  ChevronRight, AlertCircle, Download, FileText
 } from "lucide-react";
 
 /* ─── CE Tracker ──────────────────────────────────────────────────── */
@@ -16,6 +17,7 @@ const CETracker = () => {
   const [tracker, setTracker] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showStateModal, setShowStateModal] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -171,6 +173,69 @@ const CETracker = () => {
           </div>
         </section>
 
+        {/* ── State Submission Section ── */}
+        {ceRemaining === 0 && (
+          <section style={S.card}>
+            <div style={S.cardHead}>
+              <div>
+                <div style={S.cardTitle}>
+                  <FileText size={20} style={{ color: "rgba(11,18,32,0.7)" }} />
+                  Next: Submit to State
+                </div>
+                <div style={S.cardSub}>Your CE hours are complete. Here's what to do next.</div>
+              </div>
+            </div>
+
+            <div style={S.submissionContent}>
+              <div style={S.submissionSteps}>
+                <div style={S.submissionStep}>
+                  <div style={S.submissionStepNum}>1</div>
+                  <div>
+                    <div style={S.submissionStepTitle}>Download Your Certificates</div>
+                    <div style={S.submissionStepDesc}>Get your CE completion certificates from the table above</div>
+                  </div>
+                </div>
+                <div style={S.submissionStep}>
+                  <div style={S.submissionStepNum}>2</div>
+                  <div>
+                    <div style={S.submissionStepTitle}>Review State Requirements</div>
+                    <div style={S.submissionStepDesc}>Understand your state's specific submission process</div>
+                  </div>
+                </div>
+                <div style={S.submissionStep}>
+                  <div style={S.submissionStepNum}>3</div>
+                  <div>
+                    <div style={S.submissionStepTitle}>Submit to Your State</div>
+                    <div style={S.submissionStepDesc}>Upload certificates to your state's licensing portal</div>
+                  </div>
+                </div>
+                <div style={S.submissionStep}>
+                  <div style={S.submissionStepNum}>4</div>
+                  <div>
+                    <div style={S.submissionStepTitle}>Complete Renewal</div>
+                    <div style={S.submissionStepDesc}>Finish your license renewal through your state's process</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={S.submissionActions}>
+                <button
+                  type="button"
+                  style={S.submissionPrimaryBtn}
+                  onClick={() => setShowStateModal(true)}
+                >
+                  <FileText size={16} />
+                  <span>View Renewal Instructions</span>
+                  <ChevronRight size={16} />
+                </button>
+                <p style={S.submissionHint}>
+                  💡 We've compiled state-specific instructions to make the renewal process easy.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* ── Completed CE Courses ── */}
         <section style={S.card}>
           <div style={S.cardHead}>
@@ -277,6 +342,14 @@ const CETracker = () => {
         </section>
 
       </div>
+
+      {/* ── State Submission Modal ── */}
+      <StateSubmissionModal
+        isOpen={showStateModal}
+        onClose={() => setShowStateModal(false)}
+        state={tracker?.state}
+        hoursRequired={ceRequired}
+      />
     </Layout>
   );
 };
@@ -571,6 +644,74 @@ const S = {
   ctaSub: {
     fontSize: "13px",
     color: "rgba(11,18,32,0.55)",
+  },
+  submissionContent: {
+    padding: "32px",
+    display: "grid",
+    gap: "32px",
+  },
+  submissionSteps: {
+    display: "grid",
+    gap: "16px",
+  },
+  submissionStep: {
+    display: "flex",
+    gap: "16px",
+    padding: "16px",
+    backgroundColor: "rgba(255,255,255,0.5)",
+    borderRadius: "8px",
+    border: "1px solid rgba(11,18,32,0.04)",
+  },
+  submissionStepNum: {
+    width: "44px",
+    height: "44px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: "16px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  submissionStepTitle: {
+    fontSize: "14px",
+    fontWeight: "700",
+    color: "rgba(11,18,32,0.88)",
+    marginBottom: "4px",
+  },
+  submissionStepDesc: {
+    fontSize: "12px",
+    color: "rgba(11,18,32,0.55)",
+  },
+  submissionActions: {
+    display: "grid",
+    gap: "16px",
+    padding: "24px",
+    background: "rgba(102,126,234,0.04)",
+    borderRadius: "8px",
+    border: "1px solid rgba(102,126,234,0.1)",
+  },
+  submissionPrimaryBtn: {
+    padding: "12px 20px",
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    color: "#fff",
+    border: "none",
+    borderRadius: "8px",
+    fontWeight: "600",
+    fontSize: "14px",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    transition: "all 0.2s",
+  },
+  submissionHint: {
+    fontSize: "12px",
+    color: "rgba(11,18,32,0.55)",
+    margin: 0,
   },
 };
 
