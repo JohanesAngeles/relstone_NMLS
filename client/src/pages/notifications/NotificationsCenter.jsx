@@ -63,28 +63,31 @@ const NotificationsCenter = () => {
           </button>
         </div>
 
-        <div style={styles.searchRow}>
-          <button
-            style={styles.triggerBtn}
-            type="button"
-            onClick={() => triggerNotification({ type: 'milestones', title: 'Milestone notification', body: 'You reached 75% progress!', sendEmail: true })}
-          >
-            Trigger milestone test
-          </button>
-          <button
-            style={styles.triggerBtn}
-            type="button"
-            onClick={() => triggerEvent('welcome')}
-          >
-            Trigger welcome event
-          </button>
-          <button
-            style={styles.triggerBtn}
-            type="button"
-            onClick={() => triggerEvent('renewal')}
-          >
-            Trigger renewal event
-          </button>
+        {/* QA / dev: exercises POST /notifications/trigger and /trigger/:event (email follows user prefs on server) */}
+        <div style={styles.qaSection} aria-label="Email notification tests">
+          <div style={styles.qaLabel}>Test emails (staging / QA)</div>
+          <div style={styles.qaButtons}>
+            <button
+              style={styles.triggerBtn}
+              type="button"
+              onClick={() =>
+                triggerNotification({
+                  type: 'milestones',
+                  title: 'Milestone notification',
+                  body: 'You reached 75% progress!',
+                  sendEmail: true,
+                })
+              }
+            >
+              Trigger milestone test
+            </button>
+            <button style={styles.triggerBtn} type="button" onClick={() => triggerEvent('welcome')}>
+              Trigger welcome event
+            </button>
+            <button style={styles.triggerBtn} type="button" onClick={() => triggerEvent('renewal')}>
+              Trigger renewal event
+            </button>
+          </div>
         </div>
 
         <div style={styles.tabs}>
@@ -192,6 +195,15 @@ const styles = {
     letterSpacing: "-0.3px",
   },
   subheading: { fontSize: 14, marginTop: 4, color: "#475569", fontWeight: 600 },
+  qaSection: {
+    marginBottom: 12,
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px dashed #93c5fd",
+    background: "#f8fafc",
+  },
+  qaLabel: { fontSize: 12, fontWeight: 800, color: "#475569", marginBottom: 8, letterSpacing: "0.02em" },
+  qaButtons: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" },
   markAllBtn: {
     background: "white",
     border: "1px solid #dbeafe",
@@ -202,13 +214,7 @@ const styles = {
     cursor: "pointer",
     boxShadow: "0 3px 8px rgba(37,99,235,0.15)",
   },
-  searchRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" },
-  searchInput: { flex: 1, border: "1px solid #dbeafe", borderRadius: 10, padding: "8px 10px", fontSize: 13, minWidth: 200 },
-  filterSelect: { border: "1px solid #dbeafe", borderRadius: 10, padding: "8px 10px", fontSize: 13, background: "#fff", color: "#0f172a" },
   triggerBtn: { border: "1px solid #dbeafe", borderRadius: 10, background: "#fff", color: "#1d4ed8", fontWeight: 700, cursor: "pointer", padding: "8px 12px" },
-  eventRow: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 },
-  eventLabel: { fontWeight: 700, color: "#475569", fontSize: 12 },
-  eventBtn: { border: "1px solid #cbd5e1", borderRadius: 8, background: "#fff", color: "#0f172a", fontWeight: 700, cursor: "pointer", fontSize: 11, padding: "6px 9px" },
   tabs: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 },
   tab: {
     border: "1px solid #d1d5db",
@@ -286,25 +292,6 @@ const styles = {
     fontSize: 12,
     cursor: "pointer",
     padding: 0,
-  },
-  details: {
-    borderRadius: 10,
-    border: "1px solid #e2e8f0",
-    background: "#f8fafc",
-    padding: 10,
-    fontSize: 13,
-    color: "#334155",
-    display: "none",
-  },
-  detailsTitle: { fontWeight: 800, marginBottom: 4 },
-  closeDetails: {
-    marginTop: 6,
-    border: "none",
-    background: "none",
-    color: "#334155",
-    textDecoration: "underline",
-    cursor: "pointer",
-    fontWeight: 700,
   },
   quick: {
     color: "#1d4ed8",

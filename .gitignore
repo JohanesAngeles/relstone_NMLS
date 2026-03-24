@@ -5,3 +5,8 @@ QUICK_START_TESTING.md
 node_modules/
 **/node_modules/
 
+# Secrets (never commit)
+.env
+.env.*
+server/.env
+

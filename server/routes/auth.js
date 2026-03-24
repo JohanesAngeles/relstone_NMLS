@@ -22,13 +22,18 @@ const authMiddleware = (req, res, next) => {
 };
 
 // ── Nodemailer transporter ────────────────────────────────────────
-const getTransporter = () => nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const getTransporter = () => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    throw new Error('EMAIL_USER or EMAIL_PASS not configured in .env file');
+  }
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+};
 
 // ── Helpers ───────────────────────────────────────────────────────
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -150,10 +155,22 @@ router.post('/register', async (req, res) => {
         read: false,
       });
       await createdUser.save();
-      try { await sendWelcomeEmail(email, name); } catch (err) { console.warn('[register] welcome email failed', err.message); }
+      try {
+        await sendWelcomeEmail(email, name);
+        console.log(`[register] Welcome email sent to ${email}`);
+      } catch (err) {
+        console.error(`[register] Welcome email failed for ${email}:`, err.message);
+      }
     }
 
-    await sendOTPEmail(email, name, otp);
+    try {
+      await sendOTPEmail(email, name, otp);
+      console.log(`[register] OTP email sent to ${email}`);
+    } catch (err) {
+      console.error(`[register] OTP email failed for ${email}:`, err.message);
+      return res.status(500).json({ message: 'Failed to send verification email. Please try again.', error: err.message });
+    }
+
     res.status(200).json({ message: 'OTP sent to your email.', email });
 
   } catch (err) {

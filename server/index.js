@@ -1,10 +1,11 @@
+const path = require('path');
 const dotenv = require('dotenv');
-dotenv.config();
+// Load server/.env regardless of cwd (npm start runs from repo root)
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const express    = require('express');
 const mongoose   = require('mongoose');
 const cors       = require('cors');
-const path       = require('path');
 
 // ── Route imports ─────────────────────────────────────────────────────────────
 const authRoutes        = require('./routes/auth');

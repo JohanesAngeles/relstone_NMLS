@@ -1,14 +1,15 @@
 /**
- * TESTING: Seed test notifications
- * Run with: node seedNotifications.js
- * Adds mock notifications to a test user for testing the notification system
+ * Dev script: seeds sample rows into User.notifications.
+ * Run from repo root: node server/seedNotifications.js
+ * Requires MONGO_URI in server/.env (see server/index.js dotenv path).
  */
 
+const path = require('path');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const User = require('./models/User');
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const TEST_NOTIFICATIONS = [
   {

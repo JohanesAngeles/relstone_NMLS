@@ -3,6 +3,9 @@ import API from '../api/axios';
 
 const NotificationContext = createContext();
 
+/**
+ * Server: GET/PATCH /api/notifications, POST /api/notifications/trigger (+ /trigger/:event for QA).
+ */
 export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,45 +33,59 @@ export const NotificationProvider = ({ children }) => {
     }
   }, [fetchNotifications]);
 
-  const markAsRead = useCallback(async (id) => {
-    if (!id) return;
-    try {
-      await API.patch(`/notifications/${id}`, { read: true });
-      await fetchNotifications();
-    } catch (err) {
-      console.error('Failed to mark notification as read:', err.message);
-    }
-  }, [fetchNotifications]);
+  const markAsRead = useCallback(
+    async (id) => {
+      if (!id) return;
+      try {
+        await API.patch(`/notifications/${id}`, { read: true });
+        await fetchNotifications();
+      } catch (err) {
+        console.error('Failed to mark notification as read:', err.message);
+      }
+    },
+    [fetchNotifications]
+  );
 
-  const markAsUnread = useCallback(async (id) => {
-    if (!id) return;
-    try {
-      await API.patch(`/notifications/${id}`, { read: false });
-      await fetchNotifications();
-    } catch (err) {
-      console.error('Failed to mark notification as unread:', err.message);
-    }
-  }, [fetchNotifications]);
+  const markAsUnread = useCallback(
+    async (id) => {
+      if (!id) return;
+      try {
+        await API.patch(`/notifications/${id}`, { read: false });
+        await fetchNotifications();
+      } catch (err) {
+        console.error('Failed to mark notification as unread:', err.message);
+      }
+    },
+    [fetchNotifications]
+  );
 
-  const triggerNotification = useCallback(async (payload) => {
-    if (!payload?.type || !payload?.title || !payload?.body) return;
-    try {
-      await API.post('/notifications/trigger', payload);
-      await fetchNotifications();
-    } catch (err) {
-      console.error('Failed to trigger notification:', err.message);
-    }
-  }, [fetchNotifications]);
+  /** Creates an in-app notification; optional sendEmail is handled on the server (prefs). */
+  const triggerNotification = useCallback(
+    async (payload) => {
+      if (!payload?.type || !payload?.title || !payload?.body) return;
+      try {
+        await API.post('/notifications/trigger', payload);
+        await fetchNotifications();
+      } catch (err) {
+        console.error('Failed to trigger notification:', err.message);
+      }
+    },
+    [fetchNotifications]
+  );
 
-  const triggerEvent = useCallback(async (eventType) => {
-    if (!eventType) return;
-    try {
-      await API.post(`/notifications/trigger/${eventType}`);
-      await fetchNotifications();
-    } catch (err) {
-      console.error('Failed to trigger event:', err.message);
-    }
-  }, [fetchNotifications]);
+  /** Fires a predefined scenario (welcome, purchase, completion, certificate, renewal). */
+  const triggerEvent = useCallback(
+    async (eventType) => {
+      if (!eventType) return;
+      try {
+        await API.post(`/notifications/trigger/${eventType}`);
+        await fetchNotifications();
+      } catch (err) {
+        console.error(`Failed to trigger event ${eventType}:`, err.message);
+      }
+    },
+    [fetchNotifications]
+  );
 
   useEffect(() => {
     fetchNotifications();

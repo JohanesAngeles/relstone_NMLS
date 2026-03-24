@@ -3,11 +3,61 @@ const router  = express.Router();
 const User    = require('../models/User');
 const Course  = require('../models/Course');
 const Order   = require('../models/Order');
+const nodemailer = require('nodemailer');
 const authMiddleware = require('../middleware/auth');
 
-// ─────────────────────────────────────────────────────────────────────────────
+// Helper: Send completion email notification
+const sendCompletionEmail = async (user, courseName) => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error('[sendCompletionEmail] EMAIL_USER or EMAIL_PASS not configured in .env');
+    return false;
+  }
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
+    await transporter.sendMail({
+      from: `"Relstone NMLS" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: `Congratulations! You Completed "${courseName}"`,
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#fff;border-radius:16px;border:1px solid #e5e7eb;">
+          <div style="text-align:center;margin-bottom:28px;">
+            <div style="display:inline-block;background:rgba(46,171,254,0.08);border:1px solid rgba(46,171,254,0.2);border-radius:12px;padding:12px 18px;">
+              <span style="font-size:18px;font-weight:800;color:#091925;">Relstone <span style="color:#2EABFE;">NMLS</span></span>
+            </div>
+          </div>
+          <h2 style="color:#091925;font-size:22px;font-weight:800;margin-bottom:8px;">Congratulations! 🎉</h2>
+          <p style="color:#64748b;font-size:15px;margin-bottom:28px;">You've successfully completed <strong>${courseName}</strong>. Your certificate is now available on your dashboard.</p>
+          <p style="color:#64748b;font-size:15px;">Great job on your progress—keep learning and growing with Relstone NMLS!</p>
+          <p style="color:#94a3b8;font-size:12px;text-align:center;margin-top:28px;">If you have any questions, feel free to contact us.</p>
+        </div>
+      `,
+    });
+    console.log(`[sendCompletionEmail] Email sent to ${user.email} for course: ${courseName}`);
+    return true;
+  } catch (err) {
+    console.error('[sendCompletionEmail] Failed to send email to', user.email, ':', err.message);
+    return false;
+  }
+};
+
+// In-app notification row (same User.notifications schema as server/routes/notifications.js).
+const createNotification = async (user, title, body) => {
+  if (!user.notifications) user.notifications = [];
+  const note = {
+    type: 'completions',
+    title: title,
+    body: body,
+    read: false,
+    createdAt: new Date(),
+  };
+  user.notifications.unshift(note);
+  return note;
+};
+
 // Helper: build enriched transcript from user.completions
-// ─────────────────────────────────────────────────────────────────────────────
 const buildTranscript = async (user) => {
   const completions = user.completions || [];
   if (completions.length === 0) return [];
@@ -47,16 +97,14 @@ const buildTranscript = async (user) => {
   });
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/dashboard
-// ─────────────────────────────────────────────────────────────────────────────
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // ── FIX: query by BOTH user_id field names to be safe,
-    //         and ensure status is exactly 'completed' (lowercase)
+    // FIX: query by BOTH user_id field names to be safe,
+    // ensure status is exactly 'completed'
     const orders = await Order.find({
       user_id: req.user.id,
       status:  'completed',
@@ -108,9 +156,7 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/dashboard/transcript
-// ─────────────────────────────────────────────────────────────────────────────
 router.get('/transcript', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
@@ -124,10 +170,8 @@ router.get('/transcript', authMiddleware, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/dashboard/complete
 // Called by CoursePortal when student passes the final exam.
-// ─────────────────────────────────────────────────────────────────────────────
 router.post('/complete', authMiddleware, async (req, res) => {
   try {
     const { courseId } = req.body;
@@ -159,6 +203,19 @@ router.post('/complete', authMiddleware, async (req, res) => {
       course_id:    courseId,
       completed_at: new Date(),
     });
+
+    // FIX: Create notification record and send email if preferences allow
+    const notificationTitle = `Course Completed: ${course.title}`;
+    const notificationBody = `Congratulations! You completed "${course.title}". Your certificate is ready.`;
+    
+    await createNotification(user, notificationTitle, notificationBody);
+    
+    // Send email notification if user has opted in
+    if (user.notification_prefs?.email_completions) {
+      await sendCompletionEmail(user, course.title);
+    } else {
+      console.log(`[POST /complete] Email completion notification skipped for ${user.email} (preference disabled)`);
+    }
 
     await user.save();
 
