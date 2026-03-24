@@ -19,8 +19,7 @@ const quizAttemptRoutes  = require('./routes/quiz-attempts');   // ← ADD
 const enrollmentRoutes   = require('./routes/enrollment');      // ← ADD
 const rocsRoutes         = require('./routes/rocs');            // ← ADD
 const supportRoutes = require('./routes/support');
-
-// ── Middleware ────────────────────────────────────────────────────────────────
+const biosigRoutes = require('./routes/biosig');// ── Middleware ────────────────────────────────────────────────────────────────
 const authMiddleware = require('./middleware/auth');
 
 const app = express();
@@ -40,20 +39,20 @@ app.use(cors({
 app.use(express.json());
 
 // ── API routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth',          authRoutes);
-app.use('/api/courses',       courseRoutes);
-app.use('/api/orders',        orderRoutes);
-app.use('/api/dashboard',     dashboardRoutes);
-app.use('/api/certificates',  certificateRoutes);
-app.use('/api/instructor',    instructorRoutes);
-app.use('/api/testimonials',  testimonialRoutes);
-// ── NEW ───────────────────────────────────────────────────────────────────────
-app.use('/api/quiz-attempts', quizAttemptRoutes);  // ← ADD
-app.use('/api/enrollment',    enrollmentRoutes);   // ← ADD
-app.use('/api/rocs',          rocsRoutes);         // ← ADD
-app.use('/api/support', supportRoutes);
+app.use('/api/auth',          authRoutes); // Keep public (login/register)
+app.use('/api/courses',       courseRoutes); // Usually public for browsing
 
-// ── Protected test route ──────────────────────────────────────────────────────
+// Apply authMiddleware to protect these specific groups:
+app.use('/api/orders',        authMiddleware, orderRoutes);
+app.use('/api/dashboard',     authMiddleware, dashboardRoutes);
+app.use('/api/certificates',  authMiddleware, certificateRoutes);
+app.use('/api/instructor',    authMiddleware, instructorRoutes);
+app.use('/api/quiz-attempts', authMiddleware, quizAttemptRoutes);
+app.use('/api/enrollment',    authMiddleware, enrollmentRoutes);
+app.use('/api/rocs',          authMiddleware, rocsRoutes);
+app.use('/api/support',       authMiddleware, supportRoutes);
+app.use('/api/testimonials',  testimonialRoutes);  // ← ADD THIS LINE
+app.use('/api/biosig', biosigRoutes);// ── Protected test route ──────────────────────────────────────────────────────
 app.get('/api/protected', authMiddleware, (req, res) => {
   res.json({ message: 'Access granted!', user: req.user });
 });

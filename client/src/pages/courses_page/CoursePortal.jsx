@@ -10,7 +10,7 @@ import API from "../../api/axios";
 import RocsModal from "../../components/RocsModal";
 import useSeatTimer from "../../hooks/useSeatTimer";
 import BioSigModal from "../../components/BioSigModal";
-
+import TestimonialGateModal from "../../components/TempModal";
 /* ─── Build content array from DB course ────────────────────────── */
 const buildPdfUrl = (baseUrl, startPage) => {
   if (!baseUrl) return null;
@@ -1017,13 +1017,6 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
 };
 
 /* ─── Review Summary View ────────────────────────────────────────── */
-/*
- * KEY FIX: This component fetches its OWN copy of quiz attempts on mount.
- * This guarantees scores always display even if:
- *  - quizAttempts prop is empty (route 404'd earlier, timing issue, etc.)
- *  - The user navigated directly to the summary step
- * The prop is used as an initial hint; the fetch is always the source of truth.
- */
 const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAttempts, onPrev, navigate }) => {
   const modules          = (course?.modules || []).sort((a, b) => a.order - b.order);
   const totalCreditHours = course?.credit_hours || 0;
@@ -1033,18 +1026,14 @@ const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAtte
     [content]
   );
 
-  // ── Own local state — always fetches fresh ──────────────────────
   const [attempts, setAttempts] = useState(parentAttempts || {});
   const [loadingScores, setLoadingScores] = useState(true);
   const [scoreError,    setScoreError]    = useState(null);
 
   useEffect(() => {
-    // Use parent data immediately if available (avoids flash of "No data")
     if (parentAttempts && Object.keys(parentAttempts).length > 0) {
       setAttempts(parentAttempts);
     }
-
-    // Always fetch fresh data regardless — this is the source of truth
     let cancelled = false;
     setLoadingScores(true);
     setScoreError(null);
@@ -1059,7 +1048,6 @@ const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAtte
       .catch((err) => {
         if (!cancelled) {
           console.error('[ReviewSummaryView] fetch failed:', err.message);
-          // Fall back to parent data if fetch fails
           setAttempts(parentAttempts || {});
           setScoreError(Object.keys(parentAttempts || {}).length === 0 ? "Could not load scores." : null);
           setLoadingScores(false);
@@ -1067,7 +1055,7 @@ const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAtte
       });
 
     return () => { cancelled = true; };
-  }, [courseId]); // only re-fetch if courseId changes
+  }, [courseId]);
 
   const getBest = (quizId) => {
     const list = attempts[quizId]?.attempts || [];
@@ -1093,7 +1081,6 @@ const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAtte
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      {/* Header pills */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 999, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: "rgba(180,110,0,1)", fontWeight: 800, fontSize: 12 }}>
           <Trophy size={14} /> Course Summary
@@ -1107,7 +1094,6 @@ const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAtte
         {course?.title}
       </h1>
 
-      {/* Overall Grade */}
       <div style={{ borderRadius: 18, padding: "24px", textAlign: "center",
         background: overallGrade !== null && overallGrade >= 70
           ? "linear-gradient(135deg,rgba(34,197,94,0.10),rgba(0,180,180,0.10))" : "rgba(2,8,23,0.03)",
@@ -1129,7 +1115,6 @@ const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAtte
         )}
       </div>
 
-      {/* Credit Hours */}
       <div style={{ background: "#fff", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", overflow: "hidden" }}>
         <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(2,8,23,0.07)", fontWeight: 900, fontSize: 13, color: "rgba(10,22,40,0.55)", letterSpacing: "0.4px", display: "flex", alignItems: "center", gap: 8 }}>
           <Clock size={14} /> Credit Hours by Module
@@ -1157,81 +1142,6 @@ const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAtte
         </div>
       </div>
 
-      {/* Quiz & Exam Scores */}
-      {gradeSummary.length > 0 && (
-        <div style={{ background: "#fff", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", overflow: "hidden" }}>
-          <div style={{ padding: "14px 18px", borderBottom: "1px solid rgba(2,8,23,0.07)", fontWeight: 900, fontSize: 13, color: "rgba(10,22,40,0.55)", letterSpacing: "0.4px", display: "flex", alignItems: "center", gap: 8 }}>
-            <ClipboardList size={14} /> Quiz &amp; Exam Scores (Best Attempt)
-          </div>
-          <div style={{ padding: "8px 0" }}>
-            {loadingScores ? (
-              <div style={{ padding: "18px", textAlign: "center", fontSize: 13, color: "rgba(10,22,40,0.45)", fontWeight: 600 }}>Loading scores…</div>
-            ) : scoreError ? (
-              <div style={{ padding: "18px", textAlign: "center", fontSize: 13, color: "rgba(185,28,28,0.80)", fontWeight: 600 }}>{scoreError}</div>
-            ) : (
-              gradeSummary.map((g, i) => {
-                const isFinal    = g.type === "quiz";
-                const scoreColor = g.score === null ? "rgba(10,22,40,0.40)" : g.passed ? "rgba(21,128,61,1)" : "rgba(185,28,28,1)";
-                const pill =
-                  g.type === "quiz"              ? { bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.25)",  color: "rgba(21,128,61,1)",  label: "Final Exam"   } :
-                  g.type === "quiz_fundamentals" ? { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)",   label: "Fundamentals" } :
-                                                   { bg: "rgba(46,171,254,0.08)", border: "rgba(46,171,254,0.22)", color: "#2EABFE",             label: "Checkpoint"   };
-                return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px",
-                    borderBottom: i < gradeSummary.length - 1 ? "1px solid rgba(2,8,23,0.05)" : "none",
-                    ...(isFinal ? { background: "rgba(34,197,94,0.03)" } : {}) }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800,
-                        background: pill.bg, border: `1px solid ${pill.border}`, color: pill.color, flexShrink: 0 }}>{pill.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.80)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.title}</span>
-                    </div>
-                    <div style={{ flexShrink: 0, marginLeft: 12, textAlign: "right" }}>
-                      {g.score !== null ? (
-                        <>
-                          <span style={{ fontSize: 16, fontWeight: 950, color: scoreColor, fontFamily: "'DM Serif Display',serif" }}>{g.score}%</span>
-                          <span style={{ fontSize: 11, fontWeight: 700, marginLeft: 6, color: scoreColor }}>{g.passed ? "✓ Passed" : "✗ Failed"}</span>
-                        </>
-                      ) : (
-                        <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(10,22,40,0.35)" }}>No data</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            {!loadingScores && (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", background: "rgba(2,8,23,0.03)", borderTop: "2px solid rgba(2,8,23,0.08)" }}>
-                <div style={{ fontSize: 13, fontWeight: 900, color: "rgba(10,22,40,0.85)" }}>Overall Average</div>
-                <div style={{ textAlign: "right" }}>
-                  {overallGrade !== null
-                    ? <span style={{ fontSize: 16, fontWeight: 950, color: gradeColor, fontFamily: "'DM Serif Display',serif" }}>{overallGrade}%</span>
-                    : <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(10,22,40,0.35)" }}>—</span>}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* NMLS Info */}
-      <div style={{ borderRadius: 16, padding: "18px 20px", background: "rgba(46,171,254,0.05)", border: "1px solid rgba(46,171,254,0.18)", display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontWeight: 900, fontSize: 13, color: "#2EABFE", marginBottom: 4 }}>NMLS Course Requirements Met</div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.70)", display: "flex", alignItems: "center", gap: 8 }}>
-          <CheckCircle2 size={14} style={{ color: "rgba(34,197,94,1)", flexShrink: 0 }} />
-          {totalCreditHours} credit hours completed
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.70)", display: "flex", alignItems: "center", gap: 8 }}>
-          <CheckCircle2 size={14} style={{ color: "rgba(34,197,94,1)", flexShrink: 0 }} />
-          Course type: {course?.type === "PE" ? "Pre-Licensing Education (PE)" : course?.type === "CE" ? "Continuing Education (CE)" : course?.type}
-        </div>
-        {course?.nmls_course_id && (
-          <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(10,22,40,0.70)", display: "flex", alignItems: "center", gap: 8 }}>
-            <CheckCircle2 size={14} style={{ color: "rgba(34,197,94,1)", flexShrink: 0 }} />
-            NMLS Course ID: {course.nmls_course_id}
-          </div>
-        )}
-      </div>
-
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
         <button style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "12px 20px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.12)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 14, color: "rgba(10,22,40,0.72)" }}
           onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
@@ -1248,8 +1158,31 @@ const ReviewSummaryView = ({ course, courseId, content, quizAttempts: parentAtte
 const CompletionScreen = ({ course, transcriptEntry, navigate, courseId, onReview }) => {
   const completedAt  = transcriptEntry?.completed_at ? new Date(transcriptEntry.completed_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : null;
   const certCourseId = transcriptEntry?.course_id?._id || transcriptEntry?.course_id || courseId;
+
+  // ── Testimonial gate state ──
+  const [showTestimonialGate, setShowTestimonialGate] = useState(false); //
+
+  const handleViewCertificate = () => {
+    setShowTestimonialGate(true); //
+  };
+
+  const handleGateDone = () => {
+    setShowTestimonialGate(false); //
+    navigate(`/certificate/${certCourseId}`); //
+  };
+
   return (
     <div style={S.page}><style>{css}</style>
+
+      {/* ── Testimonial Gate Modal ── */}
+      {showTestimonialGate && (
+        <TestimonialGateModal
+          courseId={certCourseId}
+          courseName={course?.title || "this course"}
+          onDone={handleGateDone}
+        />
+      )}
+
       <div style={S.completionWrap}>
         <div style={S.completionCard}>
           <div style={S.completionStars}>{[...Array(5)].map((_, i) => <Star key={i} size={28} style={{ color: "#F59E0B", fill: "#F59E0B" }} />)}</div>
@@ -1265,7 +1198,7 @@ const CompletionScreen = ({ course, transcriptEntry, navigate, courseId, onRevie
           </div>
           <div style={S.completionActions}>
             {certCourseId && (
-              <button style={S.completionCertBtn} onClick={() => navigate(`/certificate/${certCourseId}`)} type="button">
+              <button style={S.completionCertBtn} onClick={handleViewCertificate} type="button">
                 <Award size={18} /> View Certificate
               </button>
             )}

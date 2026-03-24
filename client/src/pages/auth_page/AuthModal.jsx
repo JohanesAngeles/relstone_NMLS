@@ -12,18 +12,12 @@ const US_STATES = [
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
 ];
 
-/* ─── Role-based redirect ──────────────────────────────────────────
-   student    → /home
-   instructor → /instructor/dashboard
-   admin      → /instructor/dashboard
-─────────────────────────────────────────────────────────────────── */
 const getRoleRoute = (user) => {
   const role = user?.role;
   if (role === 'instructor' || role === 'admin') return '/instructor/dashboard';
   return '/home';
 };
 
-// ── Icons ──────────────────────────────────────────────────────────────────
 const IconEyeOn = () => (
   <svg width="23" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>
@@ -69,7 +63,6 @@ const IconLock = () => (
   </svg>
 );
 
-// ── Step Progress Dots ─────────────────────────────────────────────────────
 const StepDots = ({ active = 0 }) => (
   <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
     {[0, 1, 2].map(i => (
@@ -82,7 +75,6 @@ const StepDots = ({ active = 0 }) => (
   </div>
 );
 
-// ── Logo ───────────────────────────────────────────────────────────────────
 const ModalLogo = ({ logoSrc }) => (
   <div style={S.logo}>
     <img src={logoSrc} alt="Relstone" style={S.logoImg} />
@@ -94,7 +86,6 @@ const ModalLogo = ({ logoSrc }) => (
   </div>
 );
 
-// ── Error Banner ───────────────────────────────────────────────────────────
 const ErrorBanner = ({ msg }) => !msg ? null : (
   <div style={S.error}>
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -106,7 +97,26 @@ const ErrorBanner = ({ msg }) => !msg ? null : (
   </div>
 );
 
-// ── Input Field ────────────────────────────────────────────────────────────
+// ✅ Distinct deactivated banner — orange, more prominent than a regular error
+const DeactivatedBanner = () => (
+  <div style={S.deactivatedBanner}>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}>
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+    </svg>
+    <div>
+      <div style={{ fontWeight: 700, marginBottom: 3, fontSize: 14 }}>Account Deactivated</div>
+      <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+        Your account has been deactivated. Please contact{' '}
+        <a href="mailto:support@relstone.com" style={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}>
+          support@relstone.com
+        </a>{' '}
+        for assistance.
+      </div>
+    </div>
+  </div>
+);
+
 const Field = ({ placeholder, type = 'text', value, onChange, name, autoComplete, required, style: extra }) => (
   <input
     style={{ ...S.input, ...extra }}
@@ -115,7 +125,6 @@ const Field = ({ placeholder, type = 'text', value, onChange, name, autoComplete
   />
 );
 
-// ── Password Field ─────────────────────────────────────────────────────────
 const PasswordField = ({ placeholder, value, onChange, name }) => {
   const [show, setShow] = useState(false);
   return (
@@ -133,7 +142,6 @@ const PasswordField = ({ placeholder, value, onChange, name }) => {
   );
 };
 
-// ── 6-Box OTP Input ────────────────────────────────────────────────────────
 const OTPBoxes = ({ value, onChange }) => {
   const [focused, setFocused] = useState(false);
   const digits = (value + '      ').slice(0, 6).split('');
@@ -193,7 +201,6 @@ const OTPBoxes = ({ value, onChange }) => {
 const fmtCooldown = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-// ── Forgot Password ────────────────────────────────────────────────────────
 const ForgotPassword = ({ onBack, logoSrc }) => {
   const [step, setStep]         = useState('email');
   const [email, setEmail]       = useState('');
@@ -265,7 +272,6 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
     <div style={S.panel}>
       <ModalLogo logoSrc={logoSrc} />
       <StepDots active={stepIdx} />
-
       {step === 'email' && (
         <>
           <h2 style={{ ...S.fpTitle, color: '#2EABFE' }}>FORGOT PASSWORD?</h2>
@@ -280,7 +286,6 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
           <button style={S.backLink} type="button" onClick={onBack}>{'< Back to Sign In'}</button>
         </>
       )}
-
       {step === 'otp' && (
         <>
           <h2 style={{ ...S.fpTitle, color: '#091925' }}>CHECK YOUR EMAIL</h2>
@@ -304,7 +309,6 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
           <button style={S.backLink} type="button" onClick={() => { setStep('email'); setOtp(''); setError(''); }}>{'< Use a different email'}</button>
         </>
       )}
-
       {step === 'reset' && (
         <>
           <h2 style={{ ...S.fpTitle, color: '#091925' }}>SET NEW PASSWORD</h2>
@@ -337,7 +341,6 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
   );
 };
 
-// ── OTP Screen (post-register) ─────────────────────────────────────────────
 const OTPScreen = ({ email, onVerify, onResend, onBack, loading, error, cooldown, logoSrc }) => {
   const [otp, setOtp] = useState('');
   return (
@@ -365,22 +368,22 @@ const OTPScreen = ({ email, onVerify, onResend, onBack, loading, error, cooldown
   );
 };
 
-// ── Main AuthModal ─────────────────────────────────────────────────────────
 const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => {
   const { login }   = useAuth();
   const navigate    = useNavigate();
 
-  const [tab, setTab]               = useState(mode);
-  const [error, setError]           = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [forgotMode, setForgotMode] = useState(false);
-  const [otpStep, setOtpStep]       = useState(false);
-  const [pendingEmail, setPendingEmail] = useState('');
-  const [cooldown, setCooldown]     = useState(0);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [agreeTerms, setAgreeTerms] = useState(false);
-  const [loginForm, setLoginForm]   = useState({ email: '', password: '' });
-  const [regForm, setRegForm]       = useState({
+  const [tab, setTab]                     = useState(mode);
+  const [error, setError]                 = useState('');
+  const [isDeactivated, setIsDeactivated] = useState(false); // ✅ separate flag
+  const [loading, setLoading]             = useState(false);
+  const [forgotMode, setForgotMode]       = useState(false);
+  const [otpStep, setOtpStep]             = useState(false);
+  const [pendingEmail, setPendingEmail]   = useState('');
+  const [cooldown, setCooldown]           = useState(0);
+  const [rememberMe, setRememberMe]       = useState(false);
+  const [agreeTerms, setAgreeTerms]       = useState(false);
+  const [loginForm, setLoginForm]         = useState({ email: '', password: '' });
+  const [regForm, setRegForm]             = useState({
     firstName: '', lastName: '', email: '',
     phone: '', state: '', password: '', confirm: '',
   });
@@ -395,13 +398,8 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     }), 1000);
   };
 
-  /* ── LOGIN — redirects by role ──────────────────────────────────────
-     student    → /home
-     instructor → /instructor/dashboard
-     admin      → /instructor/dashboard
-  ─────────────────────────────────────────────────────────────────── */
   const handleLogin = async (e) => {
-    e.preventDefault(); setLoading(true); setError('');
+    e.preventDefault(); setLoading(true); setError(''); setIsDeactivated(false);
     try {
       const res = await API.post('/auth/login', {
         email:    loginForm.email,
@@ -415,18 +413,21 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
         setPendingEmail(err.response.data.email);
         setOtpStep(true);
         setError('');
+      } else if (err.response?.data?.isInactive) {
+        // ✅ Stay on modal, show deactivated banner, disable submit button
+        setIsDeactivated(true);
+        setError('');
       } else {
-        setError(err.response?.data?.message || 'Login failed. Please try again.');
+        setError(err.response?.data?.message || 'Login failed.');
       }
     } finally { setLoading(false); }
   };
 
-  /* ── REGISTER ─────────────────────────────────────────────────────── */
   const handleRegister = async (e) => {
     e.preventDefault();
     if (regForm.password !== regForm.confirm) { setError('Passwords do not match.'); return; }
     if (!agreeTerms) { setError('Please agree to the Terms of Service.'); return; }
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setIsDeactivated(false);
     try {
       const res = await API.post('/auth/register', {
         name:     `${regForm.firstName} ${regForm.lastName}`.trim(),
@@ -444,24 +445,25 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     } finally { setLoading(false); }
   };
 
-  /* ── VERIFY OTP — redirects by role ────────────────────────────────
-     New user: clears how-it-works flag so modal shows once on /home.
-     Then redirects by role same as login.
-  ─────────────────────────────────────────────────────────────────── */
   const handleVerifyOTP = async (otp) => {
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setIsDeactivated(false);
     try {
       const res = await API.post('/auth/verify-otp', { email: pendingEmail, otp });
       login(res.data.user, res.data.token);
-
-      // Mark as new user so How It Works modal auto-shows on next page
       localStorage.removeItem('relstone_how_it_works_seen');
       sessionStorage.setItem('relstone_is_new_user', '1');
-
       onClose();
       navigate(getRoleRoute(res.data.user));
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
+      if (err.response?.data?.isInactive) {
+        // ✅ Go back to login tab, show deactivated banner
+        setOtpStep(false);
+        setTab('login');
+        setIsDeactivated(true);
+        setError('');
+      } else {
+        setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
+      }
     } finally { setLoading(false); }
   };
 
@@ -474,9 +476,8 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     }
   };
 
-  const switchTab = (t) => { setTab(t); setError(''); setOtpStep(false); };
+  const switchTab = (t) => { setTab(t); setError(''); setIsDeactivated(false); setOtpStep(false); };
 
-  /* ── Forgot password screen ─────────────────────────────────────── */
   if (forgotMode) return (
     <>
       <style>{CSS}</style>
@@ -488,7 +489,6 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     </>
   );
 
-  /* ── OTP screen ─────────────────────────────────────────────────── */
   if (otpStep) return (
     <>
       <style>{CSS}</style>
@@ -499,14 +499,13 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
           email={pendingEmail}
           onVerify={handleVerifyOTP}
           onResend={handleResend}
-          onBack={() => { setOtpStep(false); setError(''); }}
+          onBack={() => { setOtpStep(false); setError(''); setIsDeactivated(false); }}
           loading={loading} error={error} cooldown={cooldown} logoSrc={logoSrc}
         />
       </div>
     </>
   );
 
-  /* ── Login / Register ───────────────────────────────────────────── */
   return (
     <>
       <style>{CSS}</style>
@@ -514,7 +513,6 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
       <div style={S.modal}>
         <button style={S.closeBtn} onClick={onClose} type="button"><CloseIcon /></button>
 
-        {/* ══════════ LOGIN ══════════ */}
         {tab === 'login' && (
           <div style={S.panel}>
             <ModalLogo logoSrc={logoSrc} />
@@ -523,7 +521,10 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
               <span style={{ color: '#091925' }}>BACK</span>
             </h2>
             <p style={S.loginSub}>Sign In To Access Your Courses, Certificates, And More.</p>
-            <ErrorBanner msg={error} />
+
+            {/* ✅ Show deactivated banner OR regular error banner, never both */}
+            {isDeactivated ? <DeactivatedBanner /> : <ErrorBanner msg={error} />}
+
             <form onSubmit={handleLogin} style={{ ...S.form, marginTop: 20 }}>
               <Field
                 placeholder="Email Address" type="email" name="email"
@@ -545,7 +546,12 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
                 </label>
                 <button type="button" style={S.forgotBtn} onClick={() => setForgotMode(true)}>Forgot Password?</button>
               </div>
-              <button style={S.submitBtn} type="submit" disabled={loading}>
+              {/* ✅ Button is disabled when account is deactivated */}
+              <button
+                style={{ ...S.submitBtn, ...(isDeactivated ? { opacity: 0.45, cursor: 'not-allowed' } : {}) }}
+                type="submit"
+                disabled={loading || isDeactivated}
+              >
                 {loading ? 'SIGNING IN…' : 'SIGN IN TO STUDENT PORTAL'} <IconArrow />
               </button>
             </form>
@@ -556,7 +562,6 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
           </div>
         )}
 
-        {/* ══════════ REGISTER ══════════ */}
         {tab === 'register' && (
           <div style={S.panel}>
             <ModalLogo logoSrc={logoSrc} />
@@ -618,46 +623,47 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
   );
 };
 
-// ── Styles ─────────────────────────────────────────────────────────────────
 const S = {
-  backdrop:      { position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(9,25,37,0.60)', backdropFilter: 'blur(6px)' },
-  modal:         { position: 'fixed', zIndex: 201, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '100%', maxWidth: 565, background: '#FFFFFF', borderRadius: 10, padding: '36px 40px 32px', boxShadow: '0 32px 80px rgba(9,25,37,0.22), 0 0 0 1px rgba(9,25,37,0.06)', maxHeight: '94vh', overflowY: 'auto', fontFamily: "'Poppins', system-ui, sans-serif", boxSizing: 'border-box' },
-  closeBtn:      { position: 'absolute', top: 16, right: 16, width: 35, height: 35, background: 'rgba(91,115,132,0.10)', border: '0.5px solid #5B7384', borderRadius: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5B7384', padding: 0 },
-  panel:         { display: 'flex', flexDirection: 'column' },
-  logo:          { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 },
-  logoImg:       { height: 32, objectFit: 'contain', display: 'block' },
-  logoDivider:   { width: 0.5, height: 35, background: '#2EABFE', flexShrink: 0 },
-  logoRight:     { display: 'flex', flexDirection: 'column', gap: 1 },
-  logoNmls:      { fontSize: 20, fontWeight: 900, color: '#091925', fontFamily: "'Poppins', sans-serif", lineHeight: 1.2, textTransform: 'capitalize' },
-  logoPortal:    { fontSize: 14, color: '#091925', fontWeight: 400, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.2 },
-  fpTitle:       { fontFamily: "'Poppins', sans-serif", fontSize: 38, fontWeight: 700, lineHeight: 1.1, marginBottom: 10, letterSpacing: -0.5, textTransform: 'uppercase' },
-  fpSub:         { fontSize: 16, color: '#7FA8C4', fontFamily: "'Poppins', sans-serif", fontWeight: 400, lineHeight: '18px', marginBottom: 18 },
-  loginTitle:    { fontFamily: "'Poppins', sans-serif", fontSize: 38, fontWeight: 700, lineHeight: 1, marginBottom: 10, letterSpacing: -0.5, textTransform: 'uppercase' },
-  loginSub:      { fontSize: 16, color: '#7FA8C4', marginBottom: 6, lineHeight: 1.5, fontFamily: "'Poppins', sans-serif", fontWeight: 400, textTransform: 'capitalize' },
-  registerTitle: { fontFamily: "'Poppins', sans-serif", fontSize: 36, fontWeight: 700, color: '#091925', lineHeight: 1.1, marginBottom: 8, letterSpacing: -0.5, textTransform: 'uppercase' },
-  form:          { display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 },
-  twoCol:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
-  input:         { width: '100%', height: 50, padding: '0 16px', fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500, color: '#091925', background: 'rgba(127,168,196,0.1)', border: '0.5px solid #7FA8C4', borderRadius: 5, outline: 'none', transition: 'border-color .15s, box-shadow .15s', boxSizing: 'border-box' },
-  pwWrap:        { position: 'relative', display: 'flex', alignItems: 'center' },
-  eyeBtn:        { position: 'absolute', right: 12, width: 32, height: 32, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5B7384', opacity: 0.5, borderRadius: 6, padding: 0, transition: 'opacity .15s' },
-  selectWrap:    { position: 'relative', display: 'flex', alignItems: 'center' },
-  select:        { width: '100%', height: 50, padding: '0 40px 0 16px', fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500, color: '#5B7384', background: 'rgba(127,168,196,0.1)', border: '0.5px solid #7FA8C4', borderRadius: 5, outline: 'none', appearance: 'none', cursor: 'pointer', boxSizing: 'border-box', opacity: 0.75 },
-  selectChevron: { position: 'absolute', right: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7FA8C4', opacity: 0.5, pointerEvents: 'none' },
-  rememberRow:   { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  rememberLabel: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' },
-  rememberText:  { fontSize: 14, color: '#5B7384', fontWeight: 500, fontFamily: "'Poppins', sans-serif" },
-  checkbox:      { width: 20, height: 20, borderRadius: 5, flexShrink: 0, border: '0.5px solid #7FA8C4', background: 'rgba(127,168,196,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s', cursor: 'pointer' },
-  checkboxOn:    { background: '#2EABFE', border: 'none' },
-  forgotBtn:     { background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#2EABFE', fontFamily: "'Poppins', sans-serif", padding: 0 },
-  submitBtn:     { height: 50, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 16, fontWeight: 700, letterSpacing: 0.3, color: '#091925', background: '#2EABFE', border: '0.5px solid #2EABFE', borderRadius: 5, cursor: 'pointer', marginTop: 4, transition: 'all .2s', fontFamily: "'Poppins', sans-serif", textTransform: 'capitalize', padding: 0 },
-  termsLink:     { color: '#2EABFE', textDecoration: 'none', fontWeight: 600 },
-  resendRow:     { display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '17px' },
-  resendBtn:     { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#2EABFE', fontFamily: "'JetBrains Mono', monospace", padding: 0 },
-  backLink:      { marginTop: 18, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", padding: 0, textAlign: 'left', display: 'inline-flex', alignItems: 'center', transition: 'color .15s' },
-  switchText:    { marginTop: 18, textAlign: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 },
-  linkBtn:       { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#2EABFE', fontFamily: "'JetBrains Mono', monospace", padding: 0 },
-  disclaimer:    { marginTop: 14, textAlign: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '15px' },
-  error:         { display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', marginBottom: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, color: '#b91c1c', fontSize: 13 },
+  backdrop:          { position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(9,25,37,0.60)', backdropFilter: 'blur(6px)' },
+  modal:             { position: 'fixed', zIndex: 201, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '100%', maxWidth: 565, background: '#FFFFFF', borderRadius: 10, padding: '36px 40px 32px', boxShadow: '0 32px 80px rgba(9,25,37,0.22), 0 0 0 1px rgba(9,25,37,0.06)', maxHeight: '94vh', overflowY: 'auto', fontFamily: "'Poppins', system-ui, sans-serif", boxSizing: 'border-box' },
+  closeBtn:          { position: 'absolute', top: 16, right: 16, width: 35, height: 35, background: 'rgba(91,115,132,0.10)', border: '0.5px solid #5B7384', borderRadius: 5, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5B7384', padding: 0 },
+  panel:             { display: 'flex', flexDirection: 'column' },
+  logo:              { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 },
+  logoImg:           { height: 32, objectFit: 'contain', display: 'block' },
+  logoDivider:       { width: 0.5, height: 35, background: '#2EABFE', flexShrink: 0 },
+  logoRight:         { display: 'flex', flexDirection: 'column', gap: 1 },
+  logoNmls:          { fontSize: 20, fontWeight: 900, color: '#091925', fontFamily: "'Poppins', sans-serif", lineHeight: 1.2, textTransform: 'capitalize' },
+  logoPortal:        { fontSize: 14, color: '#091925', fontWeight: 400, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.2 },
+  fpTitle:           { fontFamily: "'Poppins', sans-serif", fontSize: 38, fontWeight: 700, lineHeight: 1.1, marginBottom: 10, letterSpacing: -0.5, textTransform: 'uppercase' },
+  fpSub:             { fontSize: 16, color: '#7FA8C4', fontFamily: "'Poppins', sans-serif", fontWeight: 400, lineHeight: '18px', marginBottom: 18 },
+  loginTitle:        { fontFamily: "'Poppins', sans-serif", fontSize: 38, fontWeight: 700, lineHeight: 1, marginBottom: 10, letterSpacing: -0.5, textTransform: 'uppercase' },
+  loginSub:          { fontSize: 16, color: '#7FA8C4', marginBottom: 6, lineHeight: 1.5, fontFamily: "'Poppins', sans-serif", fontWeight: 400, textTransform: 'capitalize' },
+  registerTitle:     { fontFamily: "'Poppins', sans-serif", fontSize: 36, fontWeight: 700, color: '#091925', lineHeight: 1.1, marginBottom: 8, letterSpacing: -0.5, textTransform: 'uppercase' },
+  form:              { display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 },
+  twoCol:            { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  input:             { width: '100%', height: 50, padding: '0 16px', fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500, color: '#091925', background: 'rgba(127,168,196,0.1)', border: '0.5px solid #7FA8C4', borderRadius: 5, outline: 'none', transition: 'border-color .15s, box-shadow .15s', boxSizing: 'border-box' },
+  pwWrap:            { position: 'relative', display: 'flex', alignItems: 'center' },
+  eyeBtn:            { position: 'absolute', right: 12, width: 32, height: 32, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#5B7384', opacity: 0.5, borderRadius: 6, padding: 0, transition: 'opacity .15s' },
+  selectWrap:        { position: 'relative', display: 'flex', alignItems: 'center' },
+  select:            { width: '100%', height: 50, padding: '0 40px 0 16px', fontSize: 16, fontFamily: "'Poppins', sans-serif", fontWeight: 500, color: '#5B7384', background: 'rgba(127,168,196,0.1)', border: '0.5px solid #7FA8C4', borderRadius: 5, outline: 'none', appearance: 'none', cursor: 'pointer', boxSizing: 'border-box', opacity: 0.75 },
+  selectChevron:     { position: 'absolute', right: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7FA8C4', opacity: 0.5, pointerEvents: 'none' },
+  rememberRow:       { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  rememberLabel:     { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' },
+  rememberText:      { fontSize: 14, color: '#5B7384', fontWeight: 500, fontFamily: "'Poppins', sans-serif" },
+  checkbox:          { width: 20, height: 20, borderRadius: 5, flexShrink: 0, border: '0.5px solid #7FA8C4', background: 'rgba(127,168,196,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s', cursor: 'pointer' },
+  checkboxOn:        { background: '#2EABFE', border: 'none' },
+  forgotBtn:         { background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#2EABFE', fontFamily: "'Poppins', sans-serif", padding: 0 },
+  submitBtn:         { height: 50, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 16, fontWeight: 700, letterSpacing: 0.3, color: '#091925', background: '#2EABFE', border: '0.5px solid #2EABFE', borderRadius: 5, cursor: 'pointer', marginTop: 4, transition: 'all .2s', fontFamily: "'Poppins', sans-serif", textTransform: 'capitalize', padding: 0 },
+  termsLink:         { color: '#2EABFE', textDecoration: 'none', fontWeight: 600 },
+  resendRow:         { display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '17px' },
+  resendBtn:         { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#2EABFE', fontFamily: "'JetBrains Mono', monospace", padding: 0 },
+  backLink:          { marginTop: 18, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", padding: 0, textAlign: 'left', display: 'inline-flex', alignItems: 'center', transition: 'color .15s' },
+  switchText:        { marginTop: 18, textAlign: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 },
+  linkBtn:           { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#2EABFE', fontFamily: "'JetBrains Mono', monospace", padding: 0 },
+  disclaimer:        { marginTop: 14, textAlign: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '15px' },
+  error:             { display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', marginBottom: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, color: '#b91c1c', fontSize: 13 },
+  // ✅ Orange deactivated banner — visually distinct from the red error banner
+  deactivatedBanner: { display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px', marginBottom: 14, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, color: '#9a3412', fontSize: 13, fontFamily: "'Poppins', sans-serif", lineHeight: 1.5 },
 };
 
 const CSS = `

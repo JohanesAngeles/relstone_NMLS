@@ -84,7 +84,7 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
       const completedCount = students.filter((s) =>
         s.completions?.some((c) =>
           c.course_id?._id?.toString() === courseId ||
-          c.course_id?.toString()      === courseId
+          c.course_id?.toString()       === courseId
         )
       ).length;
       return {
@@ -97,10 +97,10 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
 
     res.json({
       courses:           enrichedCourses,
-      students:          studentRows,
+      students:           studentRows,
       total_enrollments: students.length,
       total_completions: totalCompletions,
-      active_courses:    courses.filter((c) => c.is_active).length,
+      active_courses:     courses.filter((c) => c.is_active).length,
       pending_reviews:   0,
     });
   } catch (err) {
@@ -131,8 +131,8 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
         if (item.course_id) {
           enrollmentMap[uid].push({
             course_id:    item.course_id._id,
-            title:        item.course_id.title,
-            type:         item.course_id.type,
+            title:         item.course_id.title,
+            type:          item.course_id.type,
             credit_hours: item.course_id.credit_hours,
           });
         }
@@ -173,7 +173,6 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
         enrolled_at:     s.createdAt,
         certificate_url: (s.completions || []).find(c => c.certificate_url)?.certificate_url || null,
         createdAt:       s.createdAt,
-        // ── Active/Inactive fields ──
         is_active:       s.is_active !== false,
         deactivated_at:  s.deactivated_at || null,
         last_login_at:   s.last_login_at  || null,
@@ -204,16 +203,16 @@ router.get('/students/:id', authMiddleware, instructorOnly, async (req, res) => 
 });
 
 /* ─────────────────────────────────────────────────────────────────
-   PUT /api/instructor/students/:userId/toggle-active   ← NEW
-   Toggle a student's active/inactive status
+   PUT /api/instructor/students/:userId/toggle-active
 ───────────────────────────────────────────────────────────────── */
 router.put('/students/:userId/toggle-active', authMiddleware, instructorOnly, async (req, res) => {
   try {
     const student = await User.findById(req.params.userId);
     if (!student) return res.status(404).json({ message: 'Student not found' });
-    if (student.role !== 'student') return res.status(400).json({ message: 'Can only toggle student accounts' });
+    if (student.role !== 'student' && req.user.role !== 'admin') {
+      return res.status(400).json({ message: 'Cannot deactivate non-student accounts without Admin privileges' });
+    }
 
-    // Flip the active flag (default true if field doesn't exist yet)
     const currentlyActive = student.is_active !== false;
     student.is_active      = !currentlyActive;
     student.deactivated_at = student.is_active ? null : new Date();
@@ -258,12 +257,12 @@ router.get('/courses-stats', authMiddleware, instructorOnly, async (req, res) =>
     }
 
     const result = courses.map(c => ({
-      _id:              c._id,
-      title:            c.title,
-      type:             c.type,
-      credit_hours:     c.credit_hours,
-      nmls_course_id:   c.nmls_course_id,
-      active:           c.active ?? c.is_active ?? true,
+      _id:               c._id,
+      title:             c.title,
+      type:              c.type,
+      credit_hours:      c.credit_hours,
+      nmls_course_id:    c.nmls_course_id,
+      active:            c.active ?? c.is_active ?? true,
       enrollment_count: enrollMap[String(c._id)] || 0,
       completion_count: completeMap[String(c._id)] || 0,
     }));
@@ -342,7 +341,7 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         course_id: courseId,
         user_id:   { $in: enrolledUserIds },
       }).lean();
-    } catch { /* CourseProgress model may not exist */ }
+    } catch { }
 
     const progressMap = {};
     progressDocs.forEach(p => { progressMap[String(p.user_id)] = p; });
@@ -354,7 +353,7 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         course_id: courseId,
         user_id:   { $in: enrolledUserIds },
       }).sort({ submitted_at: -1 }).lean();
-    } catch { /* QuizAttempt model may not exist */ }
+    } catch { }
 
     const quizMap = {};
     quizDocs.forEach(q => {
@@ -381,7 +380,7 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         course_id: courseId,
         user_id:   { $in: enrolledUserIds },
       }).lean();
-    } catch { /* Enrollment model may not exist */ }
+    } catch { }
 
     const enrollmentMap = {};
     enrollmentDocs.forEach(e => { enrollmentMap[String(e.user_id)] = e; });
@@ -436,7 +435,6 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         enrolled_at:     u.createdAt,
         quiz_attempts:   quizzes,
         module_progress: enrollment?.module_progress || progress?.module_progress || [],
-        // ── Active/Inactive ──
         is_active:       u.is_active !== false,
         deactivated_at:  u.deactivated_at || null,
         last_login_at:   u.last_login_at  || null,
@@ -454,6 +452,10 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
+/* ─────────────────────────────────────────────────────────────────
+   GET /api/instructor/students/:id/courses
+───────────────────────────────────────────────────────────────── */
 router.get('/students/:id/courses', authMiddleware, instructorOnly, async (req, res) => {
   try {
     const student = await User.findById(req.params.id)
@@ -463,7 +465,6 @@ router.get('/students/:id/courses', authMiddleware, instructorOnly, async (req, 
  
     if (!student) return res.status(404).json({ message: 'Student not found' });
  
-    // Get paid orders for this student
     const orders = await Order.find({
       user_id: req.params.id,
       status: 'completed',
@@ -473,7 +474,6 @@ router.get('/students/:id/courses', authMiddleware, instructorOnly, async (req, 
       (student.completions || []).map(c => String(c.course_id?._id || c.course_id))
     );
  
-    // Build full course list from orders
     const seen = new Set();
     const courses = [];
  
@@ -489,13 +489,13 @@ router.get('/students/:id/courses', authMiddleware, instructorOnly, async (req, 
  
         courses.push({
           _id:              item.course_id?._id || item.course_id,
-          title:            item.course_id?.title,
-          type:             item.course_id?.type,
-          credit_hours:     item.course_id?.credit_hours,
-          nmls_course_id:   item.course_id?.nmls_course_id,
-          status:           completedIds.has(cid) ? 'completed' : 'in_progress',
-          completed_at:     completion?.completed_at || null,
-          certificate_url:  completion?.certificate_url || null,
+          title:             item.course_id?.title,
+          type:              item.course_id?.type,
+          credit_hours:      item.course_id?.credit_hours,
+          nmls_course_id:    item.course_id?.nmls_course_id,
+          status:            completedIds.has(cid) ? 'completed' : 'in_progress',
+          completed_at:      completion?.completed_at || null,
+          certificate_url:   completion?.certificate_url || null,
         });
       }
     }

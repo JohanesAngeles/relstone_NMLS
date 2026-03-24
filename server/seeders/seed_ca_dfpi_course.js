@@ -24,7 +24,7 @@ const mongoose = require('mongoose');
 const dotenv   = require('dotenv');
 dotenv.config();
 
-const Course = require('./models/Course');
+const Course = require('../models/Course');
 
 // ── PDF URLs ──────────────────────────────────────────────────────────
 const CA_TEXTBOOK_PDF = 'https://www.dropbox.com/scl/fi/aqfzku0u6aubysm1qt9ik/8-HOUR-CA-DFPI-SAFE-COMPREHENSIVE-ANNUAL-MLO-FUNDAMENTAL.pdf?rlkey=i3bsqzaemqzq0t282gstjauxh&st=di5zb6lo&raw=1';

@@ -117,6 +117,7 @@ router.post('/register', async (req, res) => {
         nmls_id: nmls_id || null, state: state || null,
         role: role || 'student',
         isVerified: false, otp, otpExpires,
+        is_active: true,
       });
     }
 
@@ -134,10 +135,19 @@ router.post('/verify-otp', async (req, res) => {
   try {
     const { email, otp } = req.body;
     const user = await User.findOne({ email });
+
     if (!user)                         return res.status(404).json({ message: 'User not found' });
     if (user.isVerified)               return res.status(400).json({ message: 'Email already verified' });
     if (!user.otp || user.otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
     if (user.otpExpires < new Date())  return res.status(400).json({ message: 'OTP expired. Please register again.' });
+
+    // ✅ FIX: Block deactivated accounts from completing OTP verification
+    if (user.is_active === false) {
+      return res.status(403).json({
+        message: 'Your account has been deactivated. Please contact support.',
+        isInactive: true,
+      });
+    }
 
     user.isVerified = true;
     user.otp        = null;
@@ -197,6 +207,7 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
 
+    // ✅ FIX STEP 1: Check email verification first
     if (!user.isVerified) {
       return res.status(403).json({
         message: 'Email not verified.',
@@ -205,8 +216,21 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    // ✅ FIX STEP 2: Check active status AFTER verification (single check, no duplicate)
+    if (user.is_active === false) {
+      return res.status(403).json({
+        message: 'Your account has been deactivated. Please contact support.',
+        isInactive: true,
+      });
+    }
+
+    // ✅ FIX STEP 3: Then check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
+
+    // ── Update last login ──
+    user.last_login_at = new Date();
+    await user.save();
 
     const token = jwt.sign(
       { id: user._id, role: user.role },

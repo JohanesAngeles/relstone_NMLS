@@ -20,7 +20,7 @@ const mongoose = require('mongoose');
 const dotenv   = require('dotenv');
 dotenv.config();
 
-const Course = require('./models/Course');
+const Course = require('../models/Course');
 
 // ── PDF URLs ──────────────────────────────────────────────────────────
 const RI_TEXTBOOK_PDF = 'https://www.dropbox.com/scl/fi/xucqzwcxqmyf3j0cuo7an/8-Hour-RI-SAFE-Comprehensive-Annual-MLO-Fundamentals.pdf?rlkey=ap35y87grw6g6rzy537y8mc92&st=jrqj1jvm&raw=1';
