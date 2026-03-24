@@ -255,13 +255,13 @@ const Dashboard = () => {
             <TabBtn label="Overview"   active={activeTab==="overview"}   onClick={() => setActiveTab("overview")}/>
             <TabBtn label="Transcript" active={activeTab==="transcript"} onClick={() => setActiveTab("transcript")}/>
             <TabBtn label="Orders"     active={activeTab==="orders"}     onClick={() => setActiveTab("orders")}/>
+            <button style={S.backBtn} onClick={() => navigate("/my-courses")} type="button">My Courses ›</button>
             {activeTab === "transcript" && (
               <div style={S.tabSearch}>
                 <Search size={13} style={{color:"rgba(9,25,37,0.55)"}}/>
                 <input style={S.tabSearchInput} value={q} onChange={e => setQ(e.target.value)} placeholder="Search transcript…"/>
               </div>
             )}
-            <button style={S.backBtn} onClick={() => navigate("/my-courses")} type="button">My Courses ›</button>
           </div>
 
           {activeTab === "overview" && (
@@ -554,7 +554,7 @@ const S = {
   ctaAmber: {display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:7,border:"none",background:"#F59E0B",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"'Poppins',sans-serif",marginTop:10},
   tabsCard:      {background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 2px 8px rgba(2,8,23,0.06)",border:"0.5px solid rgba(2,8,23,0.07)"},
   tabBar:        {display:"flex",alignItems:"center",borderBottom:"0.5px solid rgba(2,8,23,0.08)"},
-  tabSearch:     {display:"flex",alignItems:"center",gap:7,padding:"0 11px",height:46,borderLeft:"0.5px solid rgba(2,8,23,0.08)",flex:1},
+  tabSearch:     {display:"flex",alignItems:"right",gap:7,padding:"0 11px",height:46,borderLeft:"0.5px solid rgba(2,8,23,0.08)",maxWidth:300},
   tabSearchInput:{flex:1,border:"none",outline:"none",fontSize:12,fontFamily:"'Poppins',sans-serif",background:"transparent",color:"#091925"},
   backBtn:       {marginLeft:"auto",padding:"0 16px",height:46,border:"none",borderLeft:"0.5px solid rgba(2,8,23,0.08)",background:"transparent",color:"#5B7384",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Poppins',sans-serif"},
   tabBody:       {padding:"14px"},

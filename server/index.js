@@ -5,6 +5,14 @@ const express    = require('express');
 const mongoose   = require('mongoose');
 const cors       = require('cors');
 const path       = require('path');
+const dns        = require('dns');
+
+// ── Configure custom DNS servers if provided ──────────────────────────────────
+if (process.env.DNS_SERVERS) {
+  const dnsServers = process.env.DNS_SERVERS.split(',').map(s => s.trim());
+  dns.setServers(dnsServers);
+  console.log('DNS servers configured:', dnsServers);
+}
 
 // ── Route imports ─────────────────────────────────────────────────────────────
 const authRoutes         = require('./routes/auth');

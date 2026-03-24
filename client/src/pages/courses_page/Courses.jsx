@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from '../../context/AuthContext';
 import {
   BookOpen, Clock, MapPin, ShoppingCart, Filter,
-  ArrowLeft, X, Search, CheckCircle2, ChevronDown, ChevronUp,
+  ArrowLeft, X, Search, CheckCircle2,
 } from "lucide-react";
 import API from "../../api/axios";
 import Layout from "../../components/Layout";
@@ -16,11 +16,10 @@ const Courses = () => {
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState("");
   const [cart, setCart]                 = useState([]);
-  const [filters, setFilters]           = useState({ type: "", state: user?.state || "" });
+  const [filters, setFilters]           = useState({ type: "", state: "", hours: "" });
   const [q, setQ]                       = useState("");
   const [showCart, setShowCart]         = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
-  const [openModules, setOpenModules]   = useState({});
 
   useEffect(() => { fetchCourses(); }, [filters]);
 
@@ -47,20 +46,35 @@ const Courses = () => {
   };
   const removeFromCart = (id) => setCart((prev) => prev.filter((c) => c._id !== id));
   const toggleTextbook = (id) => setCart((prev) => prev.map((c) => c._id === id ? { ...c, include_textbook: !c.include_textbook } : c));
-  const toggleModules  = (id) => setOpenModules((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const total = useMemo(() =>
     cart.reduce((acc, c) => acc + Number(c.price || 0) + (c.include_textbook ? Number(c.textbook_price || 0) : 0), 0),
   [cart]);
 
+  const availableHours = useMemo(() => {
+    const uniq = new Set(
+      courses
+        .map((c) => Number(c?.credit_hours))
+        .filter((h) => Number.isFinite(h) && h > 0)
+    );
+    return [...uniq].sort((a, b) => a - b);
+  }, [courses]);
+
   const filteredCourses = useMemo(() => {
-    if (!q.trim()) return courses;
+    let list = courses;
+
+    if (filters.hours) {
+      const selectedHours = Number(filters.hours);
+      list = list.filter((c) => Number(c?.credit_hours) === selectedHours);
+    }
+
+    if (!q.trim()) return list;
     const needle = q.toLowerCase();
-    return courses.filter((c) =>
+    return list.filter((c) =>
       String(c.title || "").toLowerCase().includes(needle) ||
       String(c.description || "").toLowerCase().includes(needle)
     );
-  }, [courses, q]);
+  }, [courses, q, filters.hours]);
 
   return (
     <Layout>
@@ -77,8 +91,8 @@ const Courses = () => {
             <div>
               <div style={S.pageTitle}>Course Catalog</div>
               <div style={S.pageSub}>
-                {user?.state
-                  ? `Showing courses approved in ${user.state}`
+                {filters.state
+                  ? `Showing courses approved in ${filters.state}`
                   : "Browse NMLS-approved PE and CE courses"}
               </div>
             </div>
@@ -124,13 +138,23 @@ const Courses = () => {
                 <option value="PE">Pre-Licensing (PE)</option>
                 <option value="CE">Continuing Education (CE)</option>
               </select>
+              <select style={S.select} value={filters.hours} onChange={(e) => setFilters({ ...filters, hours: e.target.value })}>
+                <option value="">All Hours</option>
+                {availableHours.map((h) => (
+                  <option key={h} value={String(h)}>{h} Hours</option>
+                ))}
+              </select>
               {user?.state && (
-                <div style={S.stateLock}>
-                  <MapPin size={13} /><span>{user.state}</span>
-                </div>
+                <button
+                  type="button"
+                  style={filters.state === user.state ? S.stateActiveBtn : S.stateBtn}
+                  onClick={() => setFilters({ ...filters, state: filters.state === user.state ? "" : user.state })}
+                >
+                  <MapPin size={13} /><span>{filters.state === user.state ? `${user.state} only` : `My state: ${user.state}`}</span>
+                </button>
               )}
-              {filters.type && (
-                <button type="button" style={S.clearBtn} onClick={() => setFilters({ ...filters, type: "" })}>
+              {(filters.type || filters.hours || filters.state) && (
+                <button type="button" style={S.clearBtn} onClick={() => setFilters({ ...filters, type: "", hours: "", state: "" })}>
                   Clear
                 </button>
               )}
@@ -152,14 +176,13 @@ const Courses = () => {
               <div style={S.emptyTitle}>No courses found</div>
               <div style={S.emptySub}>
                 {user?.state
-                  ? `No courses are available for your state (${user.state}) yet.`
+                  ? `No courses are available for your state (${filters.state}) yet.`
                   : "No courses match your filters."}
               </div>
             </div>
           ) : (
             filteredCourses.map((course) => {
               const inCart = cart.some((c) => c._id === course._id);
-              const isOpen = !!openModules[course._id];
               return (
                 <div key={course._id} style={S.courseCard}>
 
@@ -191,16 +214,13 @@ const Courses = () => {
                   </div>
 
                   {/* Modules */}
-                  {Array.isArray(course.modules) && course.modules.length > 0 && (
-                    <div style={S.detailsBox}>
-                      <button type="button" style={S.summaryBtn} onClick={() => toggleModules(course._id)}>
-                        <span>View modules ({course.modules.length})</span>
-                        <span style={S.summaryRight}>
-                          <span style={S.summaryHint}>{isOpen ? "hide" : "view"}</span>
-                          {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </span>
-                      </button>
-                      {isOpen && (
+                  <div style={S.detailsBox}>
+                    <div style={S.moduleHeader}>
+                      <span>Modules</span>
+                      <span style={S.moduleCount}>{Array.isArray(course.modules) ? course.modules.length : 0}</span>
+                    </div>
+                    {Array.isArray(course.modules) && course.modules.length > 0 ? (
+                      <div style={S.modulesScroll}>
                         <div style={S.modules}>
                           {course.modules.map((m, i) => (
                             <div key={i} style={S.moduleRow}>
@@ -209,9 +229,11 @@ const Courses = () => {
                             </div>
                           ))}
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    ) : (
+                      <div style={S.moduleEmpty}>No modules listed yet.</div>
+                    )}
+                  </div>
 
                   {/* Footer */}
                   <div style={S.courseFooter}>
@@ -340,12 +362,13 @@ const S = {
   searchInput:      { border:"none", outline:"none", width:"100%", fontSize:13, fontWeight:700, color:"rgba(11,18,32,0.80)", background:"transparent" },
   filterWrap:       { display:"flex", alignItems:"center", gap:8, padding:"9px 12px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff" },
   select:           { border:"none", outline:"none", background:"transparent", fontSize:13, fontWeight:800, color:"rgba(11,18,32,0.78)", cursor:"pointer" },
-  stateLock:        { display:"inline-flex", alignItems:"center", gap:6, padding:"5px 10px", borderRadius:999, background:"rgba(46,171,254,0.10)", border:"1px solid rgba(46,171,254,0.22)", color:"#091925", fontWeight:900, fontSize:12 },
+  stateBtn:         { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 10px", borderRadius:999, background:"#fff", border:"1px solid rgba(2,8,23,0.10)", color:"rgba(11,18,32,0.72)", fontWeight:900, fontSize:12, cursor:"pointer" },
+  stateActiveBtn:   { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 10px", borderRadius:999, background:"rgba(46,171,254,0.10)", border:"1px solid rgba(46,171,254,0.22)", color:"#091925", fontWeight:900, fontSize:12, cursor:"pointer" },
   clearBtn:         { border:"1px solid rgba(2,8,23,0.10)", background:"rgba(2,8,23,0.02)", borderRadius:999, padding:"6px 10px", cursor:"pointer", fontWeight:900, fontSize:12, color:"rgba(11,18,32,0.72)" },
   countPill:        { padding:"9px 12px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", fontWeight:950, fontSize:13, color:"rgba(11,18,32,0.78)", flexShrink:0 },
 
   // Grid
-  grid:             { display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", gap:12, alignItems:"start" },
+  grid:             { display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", gap:12, alignItems:"stretch" },
   centerMsg:        { padding:18, color:"rgba(11,18,32,0.55)", fontWeight:800 },
   centerMsgError:   { padding:18, color:"crimson", fontWeight:900 },
   emptyCard:        { gridColumn:"1 / -1", borderRadius:22, background:"#fff", border:"1px dashed rgba(2,8,23,0.18)", padding:22 },
@@ -353,25 +376,26 @@ const S = {
   emptySub:         { marginTop:6, color:"rgba(11,18,32,0.55)", fontWeight:700, fontSize:12, lineHeight:1.6 },
 
   // Course card
-  courseCard:       { borderRadius:22, background:"rgba(255,255,255,0.92)", border:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 8px 24px rgba(2,8,23,0.07)", padding:16, display:"flex", flexDirection:"column", gap:12, minWidth:0, alignSelf:"start" },
+  courseCard:       { borderRadius:22, background:"rgba(255,255,255,0.92)", border:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 8px 24px rgba(2,8,23,0.07)", padding:16, display:"flex", flexDirection:"column", gap:12, minWidth:0, height:"100%", minHeight:420 },
   courseHead:       { display:"flex", justifyContent:"space-between", gap:10, alignItems:"flex-start" },
   courseTitleRow:   { display:"flex", gap:10, minWidth:0, flex:1 },
   courseTextWrap:   { minWidth:0, flex:1 },
   courseIcon:       { width:40, height:40, borderRadius:16, background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.18)", display:"grid", placeItems:"center", color:"#091925", flexShrink:0 },
   courseTitle:      { fontWeight:950, color:"rgba(11,18,32,0.88)", lineHeight:1.2, overflowWrap:"anywhere" },
-  courseDesc:       { marginTop:4, color:"rgba(11,18,32,0.55)", fontWeight:600, fontSize:12, lineHeight:1.5, overflowWrap:"anywhere" },
+  courseDesc:       { marginTop:4, color:"rgba(11,18,32,0.55)", fontWeight:600, fontSize:12, lineHeight:1.5, overflowWrap:"anywhere", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" },
   metaRow:          { display:"flex", gap:10, flexWrap:"wrap", alignItems:"flex-start" },
   metaItem:         { display:"inline-flex", alignItems:"center", gap:7, padding:"7px 10px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"rgba(2,8,23,0.02)", color:"rgba(11,18,32,0.72)", fontWeight:800, fontSize:12, flexShrink:0 },
   metaItemStates:   { display:"flex", alignItems:"center", gap:7, padding:"7px 10px", borderRadius:16, border:"1px solid rgba(2,8,23,0.10)", background:"rgba(2,8,23,0.02)", color:"rgba(11,18,32,0.72)", fontWeight:800, fontSize:12, flex:"1 1 200px" },
   statesText:       { display:"block", whiteSpace:"normal", wordBreak:"break-word", lineHeight:1.5 },
-  detailsBox:       { borderRadius:16, border:"1px solid rgba(2,8,23,0.08)", background:"rgba(2,8,23,0.02)", padding:10 },
-  summaryBtn:       { width:"100%", cursor:"pointer", fontWeight:900, color:"rgba(11,18,32,0.78)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, border:"none", background:"transparent", padding:0, fontSize:14 },
-  summaryRight:     { display:"inline-flex", alignItems:"center", gap:6, flexShrink:0 },
-  summaryHint:      { fontSize:12, fontWeight:800, color:"rgba(11,18,32,0.45)" },
+  detailsBox:       { borderRadius:16, border:"1px solid rgba(2,8,23,0.08)", background:"rgba(2,8,23,0.02)", padding:10, minHeight:146, display:"flex", flexDirection:"column" },
+  moduleHeader:     { width:"100%", fontWeight:900, color:"rgba(11,18,32,0.78)", display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, fontSize:14 },
+  moduleCount:      { display:"inline-flex", alignItems:"center", justifyContent:"center", minWidth:24, height:24, padding:"0 8px", borderRadius:999, border:"1px solid rgba(46,171,254,0.22)", background:"rgba(46,171,254,0.12)", color:"#091925", fontSize:12, fontWeight:900 },
+  modulesScroll:    { marginTop:10, maxHeight:92, overflowY:"auto", paddingRight:4 },
   modules:          { marginTop:10, display:"grid", gap:8 },
   moduleRow:        { display:"flex", gap:10, alignItems:"flex-start" },
   moduleBadge:      { fontSize:12, fontWeight:950, padding:"4px 10px", borderRadius:999, background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.18)", color:"#091925", flexShrink:0 },
   moduleTitle:      { fontWeight:700, color:"rgba(11,18,32,0.78)", fontSize:13, lineHeight:1.5, overflowWrap:"anywhere" },
+  moduleEmpty:      { marginTop:12, color:"rgba(11,18,32,0.48)", fontWeight:700, fontSize:12 },
   courseFooter:     { display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-end", borderTop:"1px solid rgba(2,8,23,0.06)", paddingTop:12, marginTop:"auto" },
   priceBlock:       { display:"grid", gap:4, flex:1 },
   price:            { fontWeight:950, fontSize:18, color:"rgba(11,18,32,0.88)" },
