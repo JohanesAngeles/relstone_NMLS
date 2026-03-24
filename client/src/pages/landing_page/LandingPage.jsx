@@ -1,1871 +1,882 @@
-import { useState } from 'react';
-import AuthModal from '../auth_page/AuthModal';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import logo from '../../assets/images/RelstoneLogo.png';
+import landingBg from '../../assets/images/landing_page_bg.png';
+import AuthModal from '../../pages/auth_page/AuthModal';
 import API from '../../api/axios';
 
-const HOW_IT_WORKS_STEPS = [
-  {
-    number: '01',
-    title: 'Create account',
-    desc: 'Register your Relstone profile to access approved education, saved progress, and certificate delivery in one place.',
-  },
-  {
-    number: '02',
-    title: 'Enroll in pre-licensing course',
-    desc: 'Choose the required SAFE Act pre-licensing path and start the course package that matches your licensing goals.',
-  },
-  {
-    number: '03',
-    title: 'Complete required hours',
-    desc: 'Work through the required instructional time with tracked engagement and module-by-module progression.',
-  },
-  {
-    number: '04',
-    title: 'Take chapter quizzes and final exam',
-    desc: 'Reinforce each module with quizzes, then complete the final assessment to confirm course readiness.',
-  },
-  {
-    number: '05',
-    title: 'Receive completion certificate',
-    desc: 'Finish the course and receive your completion certificate, with credit reporting handled according to NMLS requirements.',
-  },
-  {
-    number: '06',
-    title: 'Schedule and pass the licensing exam',
-    desc: 'Book your state licensing exam through Pearson VUE or PSI, then pass the exam to move forward with licensure.',
-  },
-  {
-    number: '07',
-    title: 'Apply with your state commission',
-    desc: 'Submit your application and required materials to the appropriate state licensing authority or commission.',
-  },
-  {
-    number: '08',
-    title: 'Complete annual CE for renewal',
-    desc: 'Maintain your license each year by completing the annual continuing education requirement before renewal deadlines.',
-  },
+// ─── Data ──────────────────────────────────────────────────────────────────────
+const FAQS = [
+  { q: 'What is the SAFE Act and why does it require 20 hours of education?', a: 'The SAFE Mortgage Licensing Act (SAFE Act) is a federal law that established minimum standards for the licensing and registration of mortgage loan originators (MLOs). It requires all new MLOs to complete at least 20 hours of NMLS-approved pre-licensing education before sitting for the NMLS exam. This includes 3 hours of federal law, 3 hours of ethics, 2 hours of non-traditional lending, and 12 elective hours.' },
+  { q: 'How long does it take to complete the 20-hour PE course?', a: 'The 20-hour PE course is self-paced, but NMLS requires that it be completed over a minimum of 3 days (you cannot rush through it faster than real time). Most students complete it within 1–2 weeks working a few hours per day. You have 6 months from enrollment to complete the course.' },
+  { q: 'Are you an accredited NMLS-approved education provider?', a: 'Yes. RELSTONE is a fully accredited NMLS-approved education provider. Our Provider ID is listed in the NMLS Course Catalog and all completions are reported automatically to your NMLS record. You can verify our accreditation directly on the NMLS Resource Center website.' },
+  { q: 'What happens after I complete the PE course?', a: "Upon successful completion of the course, you will receive a downloadable certificate of completion that you can access immediately from your student portal. Additionally, your completion is automatically reported to NMLS within 1 business day. You'll receive a confirmation email once your NMLS record has been updated." },
+  { q: "Do I need to complete CE every year even if I haven't originated any loans?", a: 'Yes. NMLS requires 8 hours of CE annually for all licensed MLOs, regardless of production volume. Failure to complete CE by the deadline will result in your license being placed in an "approved-inactive" status, which prevents you from originating loans until the requirement is fulfilled and your license is renewed.' },
+  { q: 'I already completed CE with another provider. Can I retake it with RELSTONE?', a: 'No. NMLS does not allow you to repeat CE coursework that has already been reported and accepted for the current calendar year. Each of the 8 required CE hours can only be counted once per year, regardless of the provider. If you have already fulfilled your CE for the year, no additional courses are needed until the following year.' },
 ];
 
-const WHY_RELSTONE = [
-  {
-    value: '50 States',
-    label: 'Coverage',
-    desc: 'NMLS-approved education tracks with broad state readiness and elective support where required.',
-  },
-  {
-    value: '94%',
-    label: 'First-Try Pass Rate',
-    desc: 'Practice quizzes, exam prep checkpoints, and progress coaching designed around outcomes.',
-  },
-  {
-    value: '24/7',
-    label: 'Learner Support',
-    desc: 'Student help, course guidance, and technical assistance available when learners actually need it.',
-  },
-];
+const Stars = ({ rating = 5 }) => (
+  <div style={{ display: 'flex', gap: 2 }}>
+    {[1, 2, 3, 4, 5].map(i => (
+      <svg key={i} width="16" height="16" viewBox="0 0 24 24"
+        fill={i <= rating ? '#F59E0B' : 'none'}
+        stroke="#F59E0B" strokeWidth="1">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    ))}
+  </div>
+);
 
-const LEADERSHIP_TEAM = [
-  {
-    name: 'Mr. Adrian Zubia',
-    role: 'President / CEO / Director',
-    bio: 'Holds ultimate responsibility for the leadership and strategic direction of RELS, overseeing program development, financial management, and compliance with state and federal regulations.',
-    photo: 'https://placehold.co/600x600/0d2436/60c3ff?text=Photo',
-  },
-  {
-    name: 'Ms. Amina Ahmed',
-    role: 'School Administrator',
-    bio: 'Oversees student services, ensures smooth delivery of educational programs, and maintains compliance with educational standards. Manages course scheduling, student progress, and instructor coordination.',
-    photo: 'https://placehold.co/600x600/0d2436/60c3ff?text=Photo',
-  },
-  {
-    name: 'Ms. Rosa Peralta',
-    role: 'Office Administrator',
-    bio: 'Manages student enrollment, maintains accurate student records, and ensures all courses meet accreditation and certification standards. Facilitates communication between instructors and students.',
-    photo: 'https://placehold.co/600x600/0d2436/60c3ff?text=Photo',
-  },
-  {
-    name: 'Mr. Dean Clayton',
-    role: 'Marketing Director',
-    bio: 'Develops and implements strategic marketing initiatives to increase brand awareness, student enrollment, and market presence through digital campaigns and promotional strategies.',
-    photo: 'https://placehold.co/600x600/0d2436/60c3ff?text=Photo',
-  },
-];
-
-const STATE_APPROVALS = [
-  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut', 'Delaware', 'Florida', 'Georgia',
-  'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa', 'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland',
-  'Massachusetts', 'Michigan', 'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire', 'New Jersey',
-  'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina',
-  'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming',
-];
-
-const ACCREDITATIONS = [
-  'NMLS-approved course provider',
-  'SAFE Act aligned curriculum standards',
-  'BioSig-ID identity verification enabled',
-  'ROCS V4 rules of conduct workflow',
-  '7-day credit banking operations',
-];
-
-const PRESS_AND_AWARDS = [
-  {
-    source: 'Mortgage Industry Today',
-    title: 'Top Digital Licensing Platform to Watch',
-    year: '2025',
-  },
-  {
-    source: 'National Lending Review',
-    title: 'Excellence in Compliance-First Education',
-    year: '2024',
-  },
-  {
-    source: 'FinEd Awards',
-    title: 'Best Learner Experience in Licensing Education',
-    year: '2025',
-  },
-  {
-    source: 'Broker Partner Summit',
-    title: 'Student Support Team of the Year',
-    year: '2024',
-  },
-];
-
-const CONTACT_SUBJECTS = [
-  'General Inquiry',
-  'Course Enrollment',
-  'Technical Support',
-  'Billing and Payments',
-  'Certificate and Credits',
-];
-
+// ─── Main Component ────────────────────────────────────────────────────────────
 const LandingPage = () => {
-  const [modal, setModal] = useState(null); // null | 'login' | 'register'
-  const [showContactCard, setShowContactCard] = useState(false);
-  const [contactStatus, setContactStatus] = useState('');
-  const [contactStatusTone, setContactStatusTone] = useState('success');
-  const [contactSubmitting, setContactSubmitting] = useState(false);
-  const [contactForm, setContactForm] = useState({
-    name: '',
-    email: '',
-    subject: CONTACT_SUBJECTS[0],
-    message: '',
-  });
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
-  const handleContactChange = (event) => {
-    const { name, value } = event.target;
-    setContactForm((prev) => ({ ...prev, [name]: value }));
-  };
+  // modal: null | 'login' | 'register'
+  const [modal, setModal] = useState(null);
+  const [openFaq, setOpenFaq] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+  const [ctaForm, setCtaForm] = useState({ firstName: '', lastName: '', email: '', phone: '', state: '' });
 
-  const handleContactSubmit = (event) => {
-    event.preventDefault();
+  // ── Live testimonials from API ──────────────────────────────────────────────
+  const [testimonials, setTestimonials] = useState([]);
+  const [testimonialsLoading, setTestimonialsLoading] = useState(true);
 
-    const submit = async () => {
-      if (!contactForm.name.trim() || !contactForm.email.trim() || !contactForm.message.trim()) {
-        setContactStatusTone('error');
-        setContactStatus('Please complete all required fields.');
-        return;
-      }
+useEffect(() => {
+  API.get('/testimonials?limit=6')
+    .then(res => setTestimonials(res.data.testimonials || []))
+    .catch(err => console.error('Failed to load testimonials:', err))
+    .finally(() => setTestimonialsLoading(false));
+}, []);
+  // ───────────────────────────────────────────────────────────────────────────
 
-      if (!contactForm.email.includes('@')) {
-        setContactStatusTone('error');
-        setContactStatus('Please enter a valid email address.');
-        return;
-      }
+  const setF = k => e => setCtaForm(f => ({ ...f, [k]: e.target.value }));
 
-      try {
-        setContactSubmitting(true);
-        setContactStatus('');
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
-        const response = await API.post('/support/contact', {
-          name: contactForm.name.trim(),
-          email: contactForm.email.trim(),
-          subject: contactForm.subject,
-          message: contactForm.message.trim(),
-        });
+  const US_STATES = ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming'];
 
-        setContactStatusTone('success');
-        setContactStatus(response?.data?.message || 'Thanks. Support received your message and will reply soon.');
-        setContactForm({
-          name: '',
-          email: '',
-          subject: CONTACT_SUBJECTS[0],
-          message: '',
-        });
-      } catch (error) {
-        setContactStatusTone('error');
-        setContactStatus(error?.response?.data?.message || 'Unable to send support request right now. Please try again.');
-      } finally {
-        setContactSubmitting(false);
-      }
-    };
-
-    submit();
-  };
+  const NAV_LINKS = [
+    { href: '#courses',      label: 'Courses' },
+    { href: '#why',          label: 'Why RELS' },
+    { href: '#requirements', label: 'Requirements' },
+    { href: '#faq',          label: 'FAQ' },
+  ];
 
   return (
     <div className="lp-root">
-      <style>{css}</style>
+      <style>{CSS}</style>
 
-      {/* Auth Modal */}
-      {modal && <AuthModal mode={modal} onClose={() => setModal(null)} />}
-
-      {/* Contact Support Card */}
-      {showContactCard && (
-        <>
-          <div className="lp-contact-overlay" onClick={() => setShowContactCard(false)} />
-          <aside className="lp-contact-card" role="dialog" aria-label="Contact support">
-            <div className="lp-contact-head">
-              <div>
-                <p className="lp-contact-eyebrow">Support</p>
-                <h3>Contact Relstone</h3>
-                <p className="lp-contact-subhead">Fast support for enrollment, billing, and technical issues.</p>
-              </div>
-              <button
-                type="button"
-                className="lp-contact-close"
-                onClick={() => setShowContactCard(false)}
-                aria-label="Close contact form"
-              >
-                x
-              </button>
-            </div>
-
-            <form className="lp-contact-form" onSubmit={handleContactSubmit}>
-              <input
-                type="text"
-                name="name"
-                placeholder="Name"
-                value={contactForm.name}
-                onChange={handleContactChange}
-                required
-              />
-              <input
-                type="email"
-                name="email"
-                placeholder="Email"
-                value={contactForm.email}
-                onChange={handleContactChange}
-                required
-              />
-              <select
-                name="subject"
-                value={contactForm.subject}
-                onChange={handleContactChange}
-              >
-                {CONTACT_SUBJECTS.map((item) => (
-                  <option key={item} value={item}>{item}</option>
-                ))}
-              </select>
-              <textarea
-                name="message"
-                placeholder="How can we help you?"
-                rows={4}
-                value={contactForm.message}
-                onChange={handleContactChange}
-                required
-              />
-              <button type="submit" className="lp-contact-submit" disabled={contactSubmitting}>
-                {contactSubmitting ? 'Sending...' : 'Send Message'}
-              </button>
-            </form>
-
-            {contactStatus && (
-              <p className={`lp-contact-status ${contactStatusTone === 'error' ? 'lp-contact-status--error' : ''}`}>
-                {contactStatus}
-              </p>
-            )}
-
-            <div className="lp-contact-meta">
-              <div className="lp-contact-meta-item">
-                <span className="lp-contact-meta-label">Email</span>
-                <a href="mailto:support@relstone.com">support@relstone.com</a>
-              </div>
-              <div className="lp-contact-meta-item">
-                <span className="lp-contact-meta-label">Phone</span>
-                <a href="tel:+18005550147">+1 (800) 555-0147</a>
-              </div>
-              <div className="lp-contact-meta-item">
-                <span className="lp-contact-meta-label">Support Hours</span>
-                <p>Monday to Friday, 8:00 AM to 6:00 PM (EST)</p>
-              </div>
-              <div className="lp-contact-meta-item lp-live-chat-widget" role="region" aria-label="Live chat widget">
-                <span className="lp-contact-meta-label">Live Chat</span>
-                <a
-                  href="mailto:support@relstone.com?subject=Live%20Chat%20Support"
-                  className="lp-live-chat-link"
-                  aria-label="Start live chat"
-                  title="Live Chat"
-                >
-                  <span className="lp-live-chat-badge-dot" aria-hidden="true" />
-                  <span>Start Live Chat</span>
-                </a>
-              </div>
-              <div className="lp-contact-meta-item lp-contact-meta-item--help">
-                <a href="/resources">Go to Help Center</a>
-              </div>
-            </div>
-          </aside>
-        </>
+      {/* ── Full AuthModal — Sign In or Register ───────────────────────────── */}
+      {modal && (
+        <AuthModal
+          mode={modal}
+          onClose={() => setModal(null)}
+        />
       )}
 
+      {/* ══════════════════════════════════════════════════════
+          HERO WRAPPER — bg image starts here, covers nav too
+      ══════════════════════════════════════════════════════ */}
+      <div className="lp-hero-wrapper" style={{ backgroundImage: `url(${landingBg})` }}>
+        <div className="lp-hero-base" />
+        <div className="lp-hero-gradient" />
 
-
-      {/* ── NAV ── */}
-      <nav className="lp-nav">
-        <div className="lp-container lp-nav-inner">
-          <div className="lp-nav-logo">
-            <div className="lp-logo-mark">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-                <path d="M2 17l10 5 10-5" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-                <path d="M2 12l10 5 10-5" stroke="#60C3FF" strokeWidth="2" strokeLinejoin="round"/>
-              </svg>
+        <header className={`lp-topbar${scrolled ? ' lp-topbar--scrolled' : ''}`}>
+          <div className="lp-topbar-inner">
+            <div className="lp-brand" onClick={() => window.scrollTo(0, 0)} role="button" tabIndex={0}>
+              <img src={logo} alt="Relstone NMLS" className="lp-brand-logo" />
             </div>
-            <div className="lp-logo-text-wrap">
-              <span className="lp-logo-name">Relstone</span>
-              <span className="lp-logo-sub">NMLS Education Platform</span>
+            <nav className="lp-nav">
+              {NAV_LINKS.map((link, i) => (
+                <a key={link.href} href={link.href} className={`lp-nav-link${i === 0 ? ' lp-nav-link--active' : ''}`}>
+                  {link.label}
+                </a>
+              ))}
+            </nav>
+            <div className="lp-nav-right">
+              <button className="lp-nav-ghost" onClick={() => setModal('login')}>Sign In</button>
+              <button className="lp-nav-enroll" onClick={() => setModal('register')}>Enroll Now</button>
+            </div>
+          </div>
+          <div className="lp-topbar-border" />
+        </header>
+
+        {/* ════════ HERO ════════ */}
+        <section className="lp-hero">
+          <div className="lp-container lp-hero-inner">
+            <div className="lp-hero-left">
+              {/* Eyebrow pill */}
+              <div className="lp-hero-eyebrow-wrap">
+                <span className="lp-eyebrow-dot" />
+                <span className="lp-hero-eyebrow-text">NMLS-APPROVED EDUCATION PROVIDER</span>
+              </div>
+
+              <h1 className="lp-hero-h1">YOUR PATH TO<br /><span className="lp-hero-accent">MORTGAGE</span><br />LICENSURE.</h1>
+              <p className="lp-hero-desc">RELSTONE delivers NMLS-approved pre-licensing and continuing education for mortgage professionals. Start your mortgage career compliant and exam-ready from day one.</p>
+
+              <div className="lp-hero-actions">
+                <button className="lp-btn-hero-solid" onClick={() => navigate('/courses')}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#091925" strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                  Browse Courses
+                </button>
+                <button className="lp-btn-hero-outline" onClick={() => setModal('register')}>View Requirements</button>
+              </div>
+
+              {/* Badges row */}
+              <div className="lp-hero-badges">
+                <div className="lp-badge-item">
+                  <svg width="10" height="8" viewBox="0 0 24 20" fill="none" stroke="#00FF09" strokeWidth="3" strokeLinecap="round"><polyline points="2 10 9 17 22 3" /></svg>
+                  NMLS-Approved
+                </div>
+                <div className="lp-badge-sep" />
+                <div className="lp-badge-item">
+                  <svg width="10" height="8" viewBox="0 0 24 20" fill="none" stroke="#00FF09" strokeWidth="3" strokeLinecap="round"><polyline points="2 10 9 17 22 3" /></svg>
+                  All 50 States
+                </div>
+                <div className="lp-badge-sep" />
+                <div className="lp-badge-item">
+                  <svg width="10" height="8" viewBox="0 0 24 20" fill="none" stroke="#00FF09" strokeWidth="3" strokeLinecap="round"><polyline points="2 10 9 17 22 3" /></svg>
+                  Established 1978
+                </div>
+              </div>
+            </div>
+
+            {/* Hero right stats card */}
+            <div className="lp-hero-right">
+              <div className="lp-hero-stats-card">
+                <div className="lp-stats-label">WHY RELSTONE NMLS</div>
+                <div className="lp-stats-grid">
+                  {[['45+', 'Years in Education'], ['98%', 'First-Time Pass Rate'], ['50K+', 'Licensed Graduates'], ['50', 'States Covered']].map(([n, l]) => (
+                    <div key={l} className="lp-stat-box">
+                      <div className="lp-stat-num">{n}</div>
+                      <div className="lp-stat-desc">{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="lp-stats-divider" />
+                <div className="lp-req-label">KEY NMLS REQUIREMENTS COVERED</div>
+                <div className="lp-req-list">
+                  {[
+                    ['SAFE Act Pre-Licensing Education', '20 hrs'],
+                    ['Annual Continuing Education', '8 hrs / yr'],
+                    ['Federal Law & Ethics', 'Included'],
+                    ['State-Specific Law Electives', '50 states'],
+                    ['Non-Traditional Lending Standards', 'Included'],
+                  ].map(([t, b]) => (
+                    <div key={t} className="lp-req-item">
+                      <svg width="10" height="8" viewBox="0 0 24 20" fill="none" stroke="#00FF09" strokeWidth="3" strokeLinecap="round"><polyline points="2 10 9 17 22 3" /></svg>
+                      <span className="lp-req-text">{t}</span>
+                      <span className="lp-req-badge">{b}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="lp-nav-links">
-            <a href="#about-relstone" className="lp-nav-link">About</a>
-            <a href="#features" className="lp-nav-link">Features</a>
-            <a href="#courses" className="lp-nav-link">Courses</a>
-            <a href="#compliance" className="lp-nav-link">Compliance</a>
-            <a href="/resources" className="lp-nav-link">Resources</a>
-          </div>
-
-          <div className="lp-nav-actions">
-            <button onClick={() => setModal('login')} className="lp-btn-ghost">Sign In</button>
-            <button onClick={() => setModal('register')} className="lp-btn-primary">Get Started</button>
-          </div>
-        </div>
-      </nav>
-
-      {/* ── HERO ── */}
-      <section className="lp-hero">
-        <div className="lp-hero-bg-grid" />
-        <div className="lp-hero-glow" />
-
-        <div className="lp-container lp-hero-inner">
-          {/* Left: text */}
-          <div className="lp-hero-text">
-            <div className="lp-hero-eyebrow">
-              <span className="lp-eyebrow-dot" />
-              NMLS-Approved Education Provider
-            </div>
-
-            <h1 className="lp-hero-h1">
-              Your Path to<br />
-              Mortgage<br />
-              <span className="lp-hero-accent">Licensure.</span>
-            </h1>
-
-            <p className="lp-hero-desc">
-              Relstone delivers NMLS-approved pre-licensing and continuing
-              education courses built for mortgage professionals. Study at your
-              own pace, stay compliant, and earn your certificates.
-            </p>
-
-            <div className="lp-hero-actions">
-              <button onClick={() => setModal('register')} className="lp-btn-primary lp-btn-lg">
-                Begin Enrollment
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              </button>
-              <button onClick={() => setModal('login')} className="lp-btn-ghost lp-btn-lg">Sign In</button>
-            </div>
-
-            <div className="lp-hero-badges">
-              <div className="lp-badge-item">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                SAFE Act Compliant
-              </div>
-              <div className="lp-badge-item">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                50+ States Approved
-              </div>
-              <div className="lp-badge-item">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                Instant Certificates
-              </div>
-            </div>
-          </div>
-
-          {/* Right: institutional info card */}
-          <div className="lp-hero-card-wrap">
-            <div className="lp-hero-card">
-              <div className="lp-hcard-header">
-                <span className="lp-hcard-tag">Platform Overview</span>
-              </div>
-
-              <div className="lp-hcard-items">
-                <div className="lp-hcard-item">
-                  <div className="lp-hcard-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8">
-                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="lp-hcard-label">Course Format</div>
-                    <div className="lp-hcard-value">Online Self-Study (OSS)</div>
-                  </div>
+          {/* Stats bar */}
+          <div className="lp-statsbar">
+            <div className="lp-statsbar-line-top" />
+            <div className="lp-container lp-statsbar-inner">
+              {[['45+', 'YEARS EDUCATING PROFESSIONALS'], ['50K+', 'LICENSED GRADUATES'], ['50', 'STATES COVERED'], ['98%', 'EXAM PASS RATE']].map(([n, l], i) => (
+                <div key={l} className="lp-sbar-item">
+                  {i > 0 && <div className="lp-sbar-divider" />}
+                  <div className="lp-sbar-num">{n}</div>
+                  <div className="lp-sbar-lbl">{l}</div>
                 </div>
-
-                <div className="lp-hcard-item">
-                  <div className="lp-hcard-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8">
-                      <rect x="2" y="3" width="20" height="14" rx="2"/>
-                      <line x1="8" y1="21" x2="16" y2="21"/>
-                      <line x1="12" y1="17" x2="12" y2="21"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="lp-hcard-label">Access</div>
-                    <div className="lp-hcard-value">24 / 7 — Any Device</div>
-                  </div>
-                </div>
-
-                <div className="lp-hcard-item">
-                  <div className="lp-hcard-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8">
-                      <circle cx="12" cy="12" r="10"/>
-                      <polyline points="12 6 12 12 16 14"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="lp-hcard-label">Pre-Licensing</div>
-                    <div className="lp-hcard-value">20-Hour SAFE Act PE Course</div>
-                  </div>
-                </div>
-
-                <div className="lp-hcard-item">
-                  <div className="lp-hcard-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="lp-hcard-label">Continuing Education</div>
-                    <div className="lp-hcard-value">8-Hour Annual CE Renewal</div>
-                  </div>
-                </div>
-
-                <div className="lp-hcard-item">
-                  <div className="lp-hcard-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <div className="lp-hcard-label">Certificate</div>
-                    <div className="lp-hcard-value">Issued Instantly on Completion</div>
-                  </div>
-                </div>
-              </div>
-
-              <button onClick={() => setModal('register')} className="lp-hcard-cta">
-                Start Enrollment →
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── ABOUT NMLS BANNER ── */}
-      <div className="lp-about-banner" id="about">
-        <div className="lp-container lp-banner-inner">
-          <p className="lp-banner-text">
-            <strong>What is NMLS?</strong> The Nationwide Multistate Licensing System is the official platform
-            for U.S. mortgage licensing. The SAFE Act requires all Mortgage Loan Originators (MLOs)
-            to complete NMLS-approved education before originating loans.
-          </p>
-          <a href="#courses" className="lp-banner-link">View Courses →</a>
-        </div>
-      </div>
-
-      {/* ── ABOUT RELSTONE ── */}
-      <section className="lp-about-relstone" id="about-relstone">
-        <div className="lp-container">
-          <div className="lp-section-label">ABOUT RELSTONE</div>
-
-          <div className="lp-about-relstone-top">
-            <div className="lp-story-card">
-              <h2 className="lp-section-h2">
-                Mission, Story, and the Team Behind
-                <span className="lp-h2-accent"> Relstone.</span>
-              </h2>
-              <p className="lp-about-para">
-                Relstone was built to make mortgage licensing education more reliable, less fragmented, and more supportive for professionals balancing work and certification requirements.
-              </p>
-              <p className="lp-about-para">
-                Our mission is simple: give learners a compliant, high-clarity path from first enrollment to long-term license renewal, with real instructional support along the way.
-              </p>
-            </div>
-
-            <div className="lp-why-grid">
-              {WHY_RELSTONE.map((item) => (
-                <article key={item.label} className="lp-why-card">
-                  <div className="lp-why-value">{item.value}</div>
-                  <div className="lp-why-label">{item.label}</div>
-                  <p>{item.desc}</p>
-                </article>
               ))}
             </div>
+            <div className="lp-statsbar-line-bottom" />
           </div>
+        </section>
+      </div>{/* end lp-hero-wrapper */}
 
-          <div className="lp-about-block">
-            <h3 className="lp-about-title">Instructor and Leadership Team</h3>
-            <div className="lp-team-grid">
-              {LEADERSHIP_TEAM.map((member) => (
-                <article key={member.name} className="lp-team-card">
-                  <img src={member.photo} alt={`${member.name} portrait`} loading="lazy" className="lp-team-photo" />
-                  <div className="lp-team-content">
-                    <div className="lp-team-name">{member.name}</div>
-                    <div className="lp-team-role">{member.role}</div>
-                    <p>{member.bio}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
+      {/* ════════ ABOUT ════════ */}
+      <section className="lp-about" id="why">
+        <div className="lp-container lp-about-grid">
+          <div>
+            <p className="lp-eyebrow-small">— ABOUT RELSTONE NMLS</p>
+            <h2 className="lp-h2">NMLS–APPROVED EDUCATION<br />BUILT FOR <span className="lp-blue">COMPLIANCE.</span></h2>
+            <p className="lp-body">RELSTONE is a nationally recognized, NMLS-approved education provider with over 45 years of experience training real estate and mortgage professionals. Our curriculum is built to meet every NMLS requirement — out of the box.</p>
+            <p className="lp-body">Whether you're starting your mortgage career with <strong>SAFE Act Pre-Licensing</strong>, maintaining your license with <strong>Annual Continuing Education</strong>, or seeking <strong>state-specific elective hours</strong>, RELSTONE delivers the most current, exam-relevant content available.</p>
+            <p className="lp-body">All courses are fully online, self-paced, and report directly to NMLS upon completion. No scheduling, no classroom, no waiting.</p>
+            <button className="lp-btn-dark" onClick={() => user ? navigate('/courses') : setModal('register')}>
+              {user ? 'Browse Courses →' : 'Create Your Account →'}
+            </button>
           </div>
-
-          <div className="lp-about-block lp-about-block--split">
-            <div className="lp-approval-panel">
-              <h3 className="lp-about-title">State Approvals</h3>
-              <p className="lp-about-note">Approved coverage across all 50 states for applicable federal tracks and supported licensing pathways.</p>
-              <div className="lp-approval-grid">
-                {STATE_APPROVALS.map((state) => (
-                  <span key={state} className="lp-approval-chip">{state}</span>
-                ))}
-              </div>
-            </div>
-
-            <div className="lp-accreditation-panel">
-              <h3 className="lp-about-title">Accreditations and Standards</h3>
-              <div className="lp-accred-list">
-                {ACCREDITATIONS.map((item) => (
-                  <div key={item} className="lp-accred-item">
-                    <span className="lp-accred-dot" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="lp-about-block">
-            <h3 className="lp-about-title">Press Mentions and Awards</h3>
-            <div className="lp-press-grid">
-              {PRESS_AND_AWARDS.map((item) => (
-                <article key={`${item.source}-${item.year}`} className="lp-press-card">
-                  <div className="lp-press-source">{item.source}</div>
-                  <div className="lp-press-title">{item.title}</div>
-                  <div className="lp-press-year">{item.year}</div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── ABOUT SECTION ── */}
-      <section className="lp-about" id="about-full">
-        <div className="lp-container">
-          <div className="lp-section-label">ABOUT THE PLATFORM</div>
-          <div className="lp-about-grid">
-            <div className="lp-about-left">
-              <h2 className="lp-section-h2">
-                NMLS-Approved Education<br />
-                <span className="lp-h2-accent">Built for Compliance.</span>
-              </h2>
-              <p className="lp-about-para">
-                Relstone is an NMLS-approved education provider offering
-                fully online, self-paced mortgage licensing courses. Our
-                platform is designed to meet every technical requirement
-                set by the SAFE Act and NMLS — from identity authentication
-                to time tracking and module sequencing.
-              </p>
-              <p className="lp-about-para">
-                Whether you're a first-time MLO applicant completing your
-                20-hour pre-licensing requirement or a licensed professional
-                renewing with your annual 8-hour CE, Relstone has the course
-                you need — available anytime, from any device.
-              </p>
-              <button onClick={() => setModal('register')} className="lp-btn-primary" style={{marginTop:'8px', display:'inline-flex', alignItems:'center', gap:'8px'}}>
-                Create Your Account
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              </button>
-            </div>
-
-            <div className="lp-about-right">
-              <div className="lp-about-card">
-                <div className="lp-acard-icon">
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.6">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                  </svg>
-                </div>
-                <h3 className="lp-acard-title">Pre-Licensing Education (PE)</h3>
-                <p className="lp-acard-desc">Complete the required 20-hour SAFE Act PE course for first-time MLO applicants. Covers federal law, ethics, and non-traditional mortgage products.</p>
-                <div className="lp-acard-meta">20 Hours Required</div>
-              </div>
-
-              <div className="lp-about-card">
-                <div className="lp-acard-icon">
-                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.6">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                  </svg>
-                </div>
-                <h3 className="lp-acard-title">Continuing Education (CE)</h3>
-                <p className="lp-acard-desc">Renew your MLO license annually with the required 8-hour CE course. Must be completed by December 31st each year per state law.</p>
-                <div className="lp-acard-meta">8 Hours Per Year</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── FEATURES ── */}
-      <section className="lp-features" id="features">
-        <div className="lp-container">
-          <div className="lp-section-label lp-section-label--light">PLATFORM FEATURES</div>
-          <div className="lp-features-top">
-            <h2 className="lp-section-h2 lp-section-h2--light">
-              Every NMLS Requirement,<br />
-              <span className="lp-h2-accent-light">Out of the Box.</span>
-            </h2>
-            <p className="lp-features-sub">
-              Our LMS is engineered to satisfy every technical specification
-              required by the NMLS for online course delivery.
-            </p>
-          </div>
-
-          <div className="lp-feat-grid">
+          <div className="lp-about-cards">
             {[
-              {
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
-                title: 'BioSig-ID Authentication',
-                desc: 'Every Online Self-Study course uses BioSig-ID identity verification as required by NMLS effective August 2017.'
-              },
-              {
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
-                title: 'Engagement Time Tracking',
-                desc: 'The platform tracks active engagement time only. Students are automatically logged out after 6 minutes of inactivity.'
-              },
-              {
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
-                title: 'Locked Module Sequencing',
-                desc: 'Students must advance linearly through course modules. No module can be skipped until all prior activities are completed.'
-              },
-              {
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
-                title: 'Rules of Conduct (ROCS V4)',
-                desc: 'Students must read and digitally agree to NMLS Rules of Conduct before every course. Provider logs are maintained for 5 years.'
-              },
-              {
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
-                title: 'Bookmarking & Resume',
-                desc: 'Students can log out at any time and resume exactly where they left off. Course progress is preserved automatically.'
-              },
-              {
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-                title: 'Instant Completion Certificate',
-                desc: 'NMLS-compliant certificates are issued immediately upon course completion. Credit is reported to NMLS within 7 calendar days.'
-              },
-            ].map((f, i) => (
-              <div key={i} className="lp-feat-card">
-                <div className="lp-feat-num">0{i + 1}</div>
-                <div className="lp-feat-icon">{f.icon}</div>
-                <h3 className="lp-feat-title">{f.title}</h3>
-                <p className="lp-feat-desc">{f.desc}</p>
+              { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>, title: '100% Online, Self-Paced', desc: 'Study from any device, anytime. No classroom required.', border: '#2EABFE' },
+              { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#008000" strokeWidth="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>, title: 'Direct NMLS Reporting', desc: 'Instant NMLS reporting for completed courses.', border: '#008000' },
+              { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>, title: '98% First-Time Pass Rate', desc: 'Exam prep designed specifically for the NMLS exam.', border: '#F59E0B' },
+              { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#091925" strokeWidth="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>, title: 'Dedicated Student Support', desc: 'Live support from licensed professionals, not automated bots.', border: '#091925' },
+            ].map((c, i) => (
+              <div key={i} className="lp-about-card">
+                <div className="lp-about-card-icon" style={{ border: `0.5px solid ${c.border}`, background: `${c.border}18` }}>{c.icon}</div>
+                <div>
+                  <div className="lp-about-card-title">{c.title}</div>
+                  <div className="lp-about-card-desc">{c.desc}</div>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── COURSES ── */}
+      {/* ════════ COURSES ════════ */}
       <section className="lp-courses" id="courses">
         <div className="lp-container">
-          <div className="lp-section-label">AVAILABLE COURSES</div>
-          <div className="lp-courses-top">
-            <h2 className="lp-section-h2">
-              Choose Your <span className="lp-h2-accent">Course</span>
-            </h2>
-            <p className="lp-courses-sub">
-              NMLS-approved courses available 24/7 online, at your own pace.
-            </p>
+          <div className="lp-section-center">
+            <p className="lp-eyebrow-blue">COURSE CATALOG</p>
+            <h2 className="lp-h2">CHOOSE YOUR <span className="lp-blue">COURSE</span></h2>
+            <p className="lp-sub">All courses are NMLS-approved, fully online, and report directly to your NMLS record upon completion.</p>
           </div>
-
-          <div className="lp-course-table">
-            <div className="lp-course-row lp-course-row--featured">
-              <div className="lp-course-badge-wrap">
-                <span className="lp-course-tag">Pre-Licensing</span>
-              </div>
-              <div className="lp-course-info">
-                <h3 className="lp-course-title">SAFE Act Pre-Licensing Education (PE)</h3>
-                <p className="lp-course-desc">Required for all first-time MLO applicants. Covers federal mortgage law, ethics, fraud, non-traditional mortgage products, and state-specific electives.</p>
-                <div className="lp-course-topics-row">
-                  <span className="lp-topic-chip">Federal Law (3 hrs)</span>
-                  <span className="lp-topic-chip">Ethics (3 hrs)</span>
-                  <span className="lp-topic-chip">Non-Traditional (2 hrs)</span>
-                  <span className="lp-topic-chip">Electives (12 hrs)</span>
+          <div className="lp-course-grid">
+            {[
+              {
+                tag: 'CALIFORNIA DFPI',
+                title: '8-Hour CA-DFPI SAFE Comprehensive: Annual MLO Fundamentals',
+                pills: [{ l: 'NMLS Approved', c: 'blue' }, { l: 'California', c: 'green' }, { l: 'Required', c: 'orange' }],
+                hrs: 8,
+                price: '$99',
+                desc: 'Covers federal mortgage law (3 hrs), ethics (2 hrs), non-traditional mortgage lending (2 hrs), and California state law & DFPI regulations (1 hr).',
+                bullets: ['3 Hours Federal Law', '2 Hours Ethics', '2 Hours Non-Traditional Lending', '1 Hour CA-DFPI Law', 'Direct NMLS Reporting'],
+                cta: user ? 'View Course' : 'Enroll Now',
+                action: () => user ? navigate('/courses') : setModal('register'),
+              },
+              {
+                tag: 'FLORIDA DBPR',
+                title: '8-Hour FL SAFE Comprehensive: Annual MLO Fundamentals',
+                pills: [{ l: 'NMLS Approved', c: 'blue' }, { l: 'Florida', c: 'green' }],
+                hrs: 8,
+                price: '$99',
+                desc: 'Covers federal mortgage law (3 hrs), ethics (2 hrs), non-traditional mortgage lending (2 hrs), and Florida state law & regulations (1 hr).',
+                bullets: ['3 Hours Federal Law Updates', '2 Hours Ethics', '2 Hours Non-Traditional Lending', '1 Hour Florida Law', 'Direct NMLS Reporting'],
+                cta: user ? 'View Course' : 'Enroll Now',
+                action: () => user ? navigate('/courses') : setModal('register'),
+              },
+              {
+                tag: 'HAWAII DFI',
+                title: '8-Hour HI SAFE Comprehensive: Annual MLO Fundamentals',
+                pills: [{ l: 'NMLS Approved', c: 'blue' }, { l: 'Hawaii', c: 'teal' }],
+                hrs: 8,
+                price: '$99',
+                desc: 'Covers federal mortgage law (3 hrs), ethics (2 hrs), non-traditional mortgage lending (2 hrs), and Hawaii state law & regulations (1 hr).',
+                bullets: ['3 Hours Federal Law', '2 Hours Ethics', '2 Hours Non-Traditional Lending', '1 Hour Hawaii Law', 'Direct NMLS Reporting'],
+                cta: user ? 'View Course' : 'Enroll Now',
+                action: () => user ? navigate('/courses') : setModal('register'),
+              },
+            ].map((c, i) => (
+              <div key={i} className="lp-course-card">
+                <div className="lp-course-header">
+                  <p className="lp-course-tag">{c.tag}</p>
+                  <h3 className="lp-course-title">{c.title}</h3>
+                  <div className="lp-course-pills">
+                    {c.pills.map(p => <span key={p.l} className={`lp-cpill lp-cpill--${p.c}`}>{p.l}</span>)}
+                  </div>
+                </div>
+                <div className="lp-course-body">
+                  <div className="lp-course-hrs">
+                    <span className="lp-hrs-num">{c.hrs}</span>
+                    <div className="lp-hrs-lbl"><div>NMLS CREDIT</div><div>HOURS</div></div>
+                  </div>
+                  <p className="lp-course-desc">{c.desc}</p>
+                  <ul className="lp-course-bullets">
+                    {c.bullets.map(b => (
+                      <li key={b}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="lp-course-footer">
+                    <span className="lp-course-price">{c.price}<span className="lp-course-unit">/course</span></span>
+                    <button className="lp-btn-blue" onClick={c.action}>{c.cta}</button>
+                  </div>
                 </div>
               </div>
-              <div className="lp-course-meta">
-                <div className="lp-course-hours-badge">20<span>HRS</span></div>
-                <button onClick={() => setModal('register')} className="lp-btn-primary">Enroll Now</button>
-              </div>
-            </div>
-
-            <div className="lp-course-row">
-              <div className="lp-course-badge-wrap">
-                <span className="lp-course-tag lp-course-tag--ce">Continuing Ed</span>
-              </div>
-              <div className="lp-course-info">
-                <h3 className="lp-course-title">Annual Continuing Education (CE)</h3>
-                <p className="lp-course-desc">Required annually for all licensed MLOs to maintain and renew their mortgage license. Must be completed by December 31st each year.</p>
-                <div className="lp-course-topics-row">
-                  <span className="lp-topic-chip">Federal Update (3 hrs)</span>
-                  <span className="lp-topic-chip">Ethics (2 hrs)</span>
-                  <span className="lp-topic-chip">Non-Traditional (2 hrs)</span>
-                  <span className="lp-topic-chip">State Elective (1 hr)</span>
-                </div>
-              </div>
-              <div className="lp-course-meta">
-                <div className="lp-course-hours-badge lp-course-hours-badge--ce">8<span>HRS</span></div>
-                <button onClick={() => setModal('register')} className="lp-btn-outline">Enroll Now</button>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      
-
-      {/* ── COMPLIANCE ── */}
-      <section className="lp-compliance" id="compliance">
+      {/* ════════ FEATURES ════════ */}
+      <section className="lp-features" id="features">
         <div className="lp-container">
-          <div className="lp-section-label">REGULATORY COMPLIANCE</div>
-          <div className="lp-compliance-grid">
-            <div className="lp-compliance-left">
-              <h2 className="lp-section-h2">
-                Built to Meet Every<br />
-                <span className="lp-h2-accent">NMLS Standard.</span>
-              </h2>
-              <p className="lp-comp-para">
-                Our platform is engineered from the ground up to satisfy
-                every technical and regulatory requirement mandated by the
-                NMLS for online course providers — so your education hours
-                are always valid and reportable.
-              </p>
+          <div className="lp-section-center">
+            <p className="lp-eyebrow-sky">WHY CHOOSE RELSTONE</p>
+            <h2 className="lp-h2 lp-h2--light">EVERY NMLS REQUIREMENT,<br /><span className="lp-blue">OUT OF THE BOX.</span></h2>
+            <p className="lp-sub lp-sub--light">Built to comply with all NMLS standards and delivered in a format that works for busy professionals.</p>
+          </div>
+          <div className="lp-feat-grid">
+            {[
+              { bg: 'rgba(46,171,254,0.1)', border: '#2EABFE', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>, title: 'Easy Course Navigation', desc: 'Our platform is designed for ease of use — intuitive navigation, clear progress tracking, and zero technical friction.' },
+              { bg: 'rgba(0,255,9,0.1)', border: '#00FF09', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>, title: 'Regulatory Compliance', desc: 'All courses are continuously updated to reflect the latest CFPB, Dodd-Frank, RESPA, and TILA regulatory changes.' },
+              { bg: 'rgba(245,158,11,0.1)', border: '#F59E0B', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="1.8"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>, title: 'Limited-Time Licensing', desc: 'NMLS enforces deadlines. Our courses keep you on track with built-in deadline reminders and renewal alerts.' },
+              { bg: 'rgba(149,105,247,0.1)', border: '#9569F7', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9569F7" strokeWidth="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16z" /></svg>, title: 'Live Student Support', desc: 'Real humans answer your questions. Our support team includes licensed mortgage professionals who understand the industry.' },
+              { bg: 'rgba(46,171,254,0.1)', border: '#2EABFE', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>, title: 'Instant Certificates', desc: 'Download your certificate of completion immediately upon finishing. Print or share digitally — always available in your student portal.' },
+              { bg: 'rgba(239,68,68,0.1)', border: '#EF4444', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="1.8"><rect x="5" y="2" width="14" height="20" rx="2" /><line x1="12" y1="18" x2="12.01" y2="18" /></svg>, title: 'Mobile-Friendly Platform', desc: "Study on any device — phone, tablet, or desktop. Your progress syncs automatically so you never lose your place." },
+            ].map((f, i) => (
+              <div key={i} className="lp-feat-card">
+                <div className="lp-feat-icon" style={{ background: f.bg, border: `0.5px solid ${f.border}` }}>{f.icon}</div>
+                <div className="lp-feat-title">{f.title}</div>
+                <div className="lp-feat-desc">{f.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════ REQUIREMENTS ════════ */}
+      <section className="lp-requirements" id="requirements">
+        <div className="lp-container">
+          <div className="lp-section-center">
+            <p className="lp-eyebrow-blue">NMLS REQUIREMENTS</p>
+            <h2 className="lp-h2">BUILT TO MEET EVERY<br /><span className="lp-blue">NMLS STANDARD.</span></h2>
+            <p className="lp-sub">Every course is designed with the NMLS requirement checklist in mind so you graduate fully compliant — first time, every time.</p>
+          </div>
+          <div className="lp-req-grid">
+            {[
+              { t: 'Dedicated Student Support', d: 'Federal requirement for all new MLOs. Covers federal law, ethics, non-traditional lending, and 12 elective hours.' },
+              { t: '8-Hour Annual Continuing Education', d: 'Required every year for license renewal. Must include 3 hrs federal law, 2 hrs ethics, 2 hrs non-traditional lending.' },
+              { t: 'State-Specific Law Requirements', d: 'Many states require additional state law hours. We offer state-specific courses for CA, TX, FL, NY, and more.' },
+              { t: 'Background & Credit Check Compliance', d: 'We guide you through the NMLS background check and credit report requirements before licensing.' },
+              { t: '8-Year Waiting Period Guidance', d: 'Certain felonies require a waiting period before licensure. We help you understand your eligibility upfront.' },
+              { t: 'High-Cost Mortgage Loan Training', d: 'Coverage of HOEPA, TILA Section 32, and high-cost mortgage guidelines required for full compliance.' },
+              { t: 'Right of Rescission & RESPA', d: 'Detailed coverage of the three-day right of rescission and RESPA requirements including affiliated business arrangements.' },
+              { t: 'Equal Credit Opportunity Act (ECOA)', d: 'Prohibition of credit discrimination and notification requirements thoroughly covered in our ethics modules.' },
+            ].map((r, i) => (
+              <div key={i} className="lp-req-card">
+                <div className="lp-req-check">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </div>
+                <div>
+                  <div className="lp-req-title">{r.t}</div>
+                  <div className="lp-req-desc">{r.d}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════ TESTIMONIALS — live from API ════════ */}
+      <section className="lp-testimonials">
+        <div className="lp-container">
+          <div className="lp-section-center">
+            <p className="lp-eyebrow-blue">STUDENT SUCCESS STORIES</p>
+            <h2 className="lp-h2">REAL RESULTS FROM<br /><span className="lp-blue">REAL MORTGAGE PROFESSIONALS</span></h2>
+            <p className="lp-sub">Thousands of MLOs have used RELSTONE to get licensed and stay compliant.</p>
+          </div>
+
+          {/* Loading state */}
+          {testimonialsLoading && (
+            <div className="lp-tcard-loading">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="lp-tcard-skeleton" />
+              ))}
             </div>
-            <div className="lp-compliance-right">
-              {[
-                { label: 'SAFE Act Compliance', desc: 'All courses meet federal SAFE Act minimum time and content requirements.' },
-                { label: 'BioSig-ID Integration', desc: 'Biometric identity authentication on every self-study course.' },
-                { label: 'ROCS V4 Agreement', desc: 'Rules of Conduct click-through enforced before every course session.' },
-                { label: '7-Day Credit Reporting', desc: 'Completions reported to NMLS within 7 calendar days of course finish.' },
-                { label: 'Cross-Browser Compatible', desc: 'Works on all modern browsers, PC and Mac, with no plugins required.' },
-                { label: '24/7 Course Access', desc: 'Students can access course materials any time via the internet.' },
-              ].map((c, i) => (
-                <div key={i} className="lp-comp-item">
-                  <div className="lp-comp-check">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  </div>
-                  <div>
-                    <div className="lp-comp-label">{c.label}</div>
-                    <div className="lp-comp-desc">{c.desc}</div>
+          )}
+
+          {/* Empty state */}
+          {!testimonialsLoading && testimonials.length === 0 && (
+            <p className="lp-tcard-empty">No testimonials available yet.</p>
+          )}
+
+          {/* Live testimonials grid */}
+          {!testimonialsLoading && testimonials.length > 0 && (
+            <div className="lp-tcard-grid">
+              {testimonials.map((t) => (
+                <div key={t._id} className="lp-tcard">
+                  <Stars rating={t.rating} />
+                  <p className="lp-tcard-text">"{t.comment}"</p>
+                  <div className="lp-tcard-author">
+                    <div className="lp-tcard-avatar">
+                      {t.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="lp-tcard-name">{t.name}</div>
+                      <div className="lp-tcard-role">{t.course_title}</div>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      </section>
+
+      {/* ════════ FAQ ════════ */}
+      <section className="lp-faq" id="faq">
+        <div className="lp-container lp-faq-wrap">
+          <div className="lp-section-center">
+            <p className="lp-eyebrow-blue">COMMON QUESTIONS</p>
+            <h2 className="lp-h2">COMMON <span className="lp-blue">QUESTIONS</span></h2>
+            <p className="lp-sub">Everything you need to know about NMLS licensing education.</p>
+          </div>
+          <div className="lp-faq-list">
+            {FAQS.map((f, i) => (
+              <div key={i} className={`lp-faq-item${openFaq === i ? ' lp-faq-item--open' : ''}`}>
+                <button className="lp-faq-q" onClick={() => setOpenFaq(openFaq === i ? null : i)}>
+                  <span>{f.q}</span>
+                  <span className={`lp-faq-toggle${openFaq === i ? ' lp-faq-toggle--open' : ''}`}>
+                    {openFaq === i
+                      ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                      : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    }
+                  </span>
+                </button>
+                {openFaq === i && <div className="lp-faq-a">{f.a}</div>}
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ── CTA ── */}
-      <section className="lp-cta">
-        <div className="lp-cta-glow" />
-        <div className="lp-container lp-cta-inner">
-          <div className="lp-cta-eyebrow">NMLS-Approved • SAFE Act Compliant • Online Self-Study</div>
-          <h2 className="lp-cta-h2">Ready to Start Your<br />Mortgage Career?</h2>
-          <p className="lp-cta-p">
-            Create your account today and get immediate access to
-            NMLS-approved pre-licensing and continuing education courses.
-          </p>
-          <div className="lp-cta-btns">
-            <button onClick={() => setModal('register')} className="lp-btn-primary lp-btn-lg">
-              Create Account
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </button>
-            <button onClick={() => setModal('login')} className="lp-cta-login-link">Already have an account? Sign In →</button>
+      {/* ════════ CTA + FORM ════════ */}
+      <section className="lp-cta-section">
+        <div className="lp-container lp-cta-grid">
+          <div>
+            <p className="lp-eyebrow-small">— GET STARTED TODAY</p>
+            <h2 className="lp-cta-h2">READY TO START YOUR<br /><span className="lp-blue">BUILT FOR COMPLIANCE.</span></h2>
+            <p className="lp-body" style={{ marginBottom: 20 }}>Create your free account and get instant access to course previews, state requirements, and enrollment options. No credit card required.</p>
+            <div className="lp-cta-checks">
+              {['Instant access to 100% online courses', 'NMLS completions reported automatically', 'State requirements checked for you', 'Live student support from day one', 'Certificate download upon completion'].map(t => (
+                <div key={t} className="lp-cta-check">
+                  <svg width="10" height="8" viewBox="0 0 24 20" fill="none" stroke="#00FF09" strokeWidth="3" strokeLinecap="round"><polyline points="2 10 9 17 22 3" /></svg>
+                  {t}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="lp-signup-card">
+            <p className="lp-signup-label">CREATE YOUR FREE ACCOUNT</p>
+            <form className="lp-signup-form" onSubmit={e => { e.preventDefault(); setModal('register'); }}>
+              <div className="lp-signup-row">
+                <input className="lp-signup-inp" placeholder="First Name" value={ctaForm.firstName} onChange={setF('firstName')} required />
+                <input className="lp-signup-inp" placeholder="Last Name" value={ctaForm.lastName} onChange={setF('lastName')} required />
+              </div>
+              <input className="lp-signup-inp" placeholder="Email Address" type="email" value={ctaForm.email} onChange={setF('email')} required />
+              <input className="lp-signup-inp" placeholder="Phone Number (Optional)" type="tel" value={ctaForm.phone} onChange={setF('phone')} />
+              <select className="lp-signup-inp lp-signup-sel" value={ctaForm.state} onChange={setF('state')}>
+                <option value="">Select Your State</option>
+                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <button type="submit" className="lp-signup-btn">Create Free Account ——</button>
+              <p className="lp-signup-fine">No credit card required · Instant access · Secure enrollment</p>
+            </form>
           </div>
         </div>
       </section>
 
-      {/* ── FOOTER ── */}
+      {/* ════════ FOOTER CTA BAND ════════ */}
+      <div className="lp-footer-band">
+        <div className="lp-footer-band-overlay" />
+        <div className="lp-container lp-footer-band-inner">
+          <div>
+            <p className="lp-footer-band-eye">— RELSTONE · NMLS — START TODAY</p>
+            <h2 className="lp-footer-band-h2">READY TO START YOUR<br /><span className="lp-blue">MORTGAGE CAREER?</span></h2>
+            <p className="lp-footer-band-sub">Join thousands of licensed mortgage professionals who started with RELSTONE. Enroll today and get your NMLS license faster.</p>
+          </div>
+          <button className="lp-btn-enroll" onClick={() => user ? navigate('/courses') : setModal('register')}>
+            Start Enrollment ——
+          </button>
+        </div>
+      </div>
+
+      {/* ════════ FOOTER ════════ */}
       <footer className="lp-footer">
         <div className="lp-container lp-footer-inner">
-          <div className="lp-footer-brand">
-            <div className="lp-logo-mark">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-                <path d="M2 17l10 5 10-5" stroke="#2EABFE" strokeWidth="2" strokeLinejoin="round"/>
-                <path d="M2 12l10 5 10-5" stroke="#60C3FF" strokeWidth="2" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <div>
-              <div className="lp-footer-name">Relstone</div>
-              <div className="lp-footer-tagline">NMLS Education Platform</div>
-            </div>
-          </div>
-          <div className="lp-footer-mid">
-            <p className="lp-footer-copy">
-              © {new Date().getFullYear()} Relstone. NMLS-approved education provider. All rights reserved.
-            </p>
-            <p className="lp-footer-note">
-              For course approvals and credit banking inquiries, contact NMLS at nmls.ed1@csbs.org
-            </p>
-          </div>
+          <p className="lp-footer-copy">
+            © Copyright {new Date().getFullYear()} <a href="#" className="lp-footer-link-blue">Real Estate License Services, Inc.</a> — A California School Established 1978. All Rights Reserved.
+          </p>
           <div className="lp-footer-links">
-            <a href="#" className="lp-footer-link">Terms of Service</a>
             <a href="#" className="lp-footer-link">Privacy Policy</a>
-            <a href="/resources" className="lp-footer-link">Help Center</a>
-            <button
-              type="button"
-              className="lp-footer-link lp-footer-link-btn"
-              onClick={() => {
-                setContactStatus('');
-                setContactStatusTone('success');
-                setShowContactCard(true);
-              }}
-            >
-              Contact Support
-            </button>
+            <span className="lp-footer-dot">·</span>
+            <a href="#" className="lp-footer-link">Terms of Use</a>
+            <span className="lp-footer-dot">·</span>
+            <a href="#" className="lp-footer-link">NMLS Disclosure</a>
           </div>
         </div>
       </footer>
-
-      <button
-        type="button"
-        className="lp-live-widget-fab"
-        onClick={() => {
-          setContactStatus('');
-          setContactStatusTone('success');
-          setShowContactCard(true);
-        }}
-        aria-label="Open live support widget"
-        title="Contact"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H7l-4 3v-5.5A8.5 8.5 0 1 1 21 11.5z"/>
-        </svg>
-        <span className="lp-live-widget-text">Contact</span>
-        <span className="lp-live-widget-dot" />
-      </button>
     </div>
   );
 };
 
-const css = `
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-
-:root {
-  --midnight:    #091925;
-  --deep-navy:   #0D2436;
-  --steel-night: #163347;
-  --electric:    #2EABFE;
-  --sky:         #60C3FF;
-  --ocean:       #1A7AB8;
-  --ice:         #F0F6FA;
-  --slate:       #7FA8C4;
-  --white:       #ffffff;
-  --text-muted:  #64748b;
-  --border:      rgba(9,25,37,0.09);
-  --font-title:  'Homepage Baukasten', sans-serif;
-  --font-body:   'Poppins', sans-serif;
-}
+// ─── CSS ───────────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;700;800&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
+body { font-family: 'Poppins', system-ui, sans-serif; background: #F2F6F9; }
 
-.lp-root {
-  font-family: var(--font-body);
-  background: var(--white);
-  color: var(--midnight);
-  overflow-x: hidden;
+.lp-root { font-family: 'Poppins', system-ui, sans-serif; color: #091925; overflow-x: hidden; }
+.lp-container { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
+.lp-blue { color: #2EABFE; }
+
+/* ════ HERO WRAPPER ════ */
+.lp-hero-wrapper {
+  position: relative;
+  background-color: #091925;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  padding-top: 71px;
+}
+.lp-hero-base {
+  position: absolute; inset: 0;
+  background: rgba(9, 25, 37, 0.28);
+  z-index: 1; pointer-events: none;
+}
+.lp-hero-gradient {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(9,25,37,0.0) 0%, rgba(46,171,254,0.12) 100%);
+  z-index: 2; pointer-events: none;
 }
 
-/* ══ CONTAINER ══ */
-.lp-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 5%;
-}
-
-/* ══ NAV ══ */
-.lp-nav {
+/* ════ NAV ════ */
+.lp-topbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-  background: rgba(255,255,255,0.97);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
+  background: rgba(9, 25, 37, 0.15);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  transition: background 0.3s ease, backdrop-filter 0.3s ease, box-shadow 0.3s ease;
 }
-.lp-nav-inner {
-  height: 68px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 24px;
+.lp-topbar--scrolled {
+  background: rgba(9, 25, 37, 0.97);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.07);
 }
-.lp-nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
-.lp-logo-mark {
-  width: 36px; height: 36px;
-  background: rgba(46,171,254,0.08);
-  border: 1px solid rgba(46,171,254,0.2);
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
+.lp-topbar-inner {
+  max-width: 1200px; margin: 0 auto; padding: 0 40px;
+  height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 24px;
 }
-.lp-logo-text-wrap { display: flex; flex-direction: column; }
-.lp-logo-name {
-  font-family: var(--font-title);
-  font-size: 16px; font-weight: 800;
-  color: var(--midnight); line-height: 1.1;
-}
-.lp-logo-sub {
-  font-size: 10px; font-weight: 500;
-  color: var(--slate); letter-spacing: .3px;
-}
-
-.lp-nav-links { display: flex; gap: 2px; justify-content: center; }
+.lp-topbar-border { width: 100%; height: 1px; background: rgba(255,255,255,0.5); }
+.lp-brand { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; border: none; background: none; padding: 0; }
+.lp-brand:focus { outline: none; }
+.lp-brand-logo { height: 30px; object-fit: contain; display: block; }
+.lp-nav { display: flex; align-items: center; gap: 2px; }
 .lp-nav-link {
-  padding: 7px 14px;
-  font-size: 13.5px; font-weight: 500;
-  color: #4a5568; text-decoration: none;
-  border-radius: 8px; transition: color .18s, background .18s;
+  padding: 7px 16px; font-size: 13px; font-weight: 500;
+  color: rgba(255,255,255,0.72); text-decoration: none;
+  border-radius: 6px; transition: color .15s;
+  font-family: 'Poppins', sans-serif; white-space: nowrap;
 }
-.lp-nav-link:hover { color: var(--midnight); background: rgba(9,25,37,0.05); }
+.lp-nav-link:hover { color: #fff; }
+.lp-nav-link--active { color: #2EABFE; font-weight: 600; }
+.lp-nav-right { display: flex; align-items: center; gap: 10px; }
+.lp-nav-ghost {
+  padding: 7px 18px; font-size: 13px; font-weight: 600;
+  color: #fff; border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.7);
+  background: transparent; cursor: pointer;
+  font-family: 'Poppins', sans-serif; transition: border-color .15s; white-space: nowrap;
+}
+.lp-nav-ghost:hover { border-color: #fff; }
+.lp-nav-enroll {
+  padding: 8px 20px; font-size: 13px; font-weight: 700;
+  color: #091925; background: #2EABFE; border-radius: 7px;
+  border: 0.5px solid #2EABFE; cursor: pointer;
+  font-family: 'Poppins', sans-serif; transition: background .15s; white-space: nowrap;
+}
+.lp-nav-enroll:hover { background: #1a9ee0; }
 
-.lp-nav-actions { display: flex; gap: 10px; align-items: center; }
-.lp-btn-ghost,
-button.lp-btn-ghost,
-button.lp-btn-primary,
-button.lp-btn-outline,
-button.lp-cta-login-link {
-  font-family: var(--font-body);
-  cursor: pointer;
-}
-.lp-btn-ghost {
-  padding: 8px 18px;
-  font-family: var(--font-body);
-  font-size: 13.5px; font-weight: 600;
-  color: var(--midnight);
-  text-decoration: none; border-radius: 9px;
-  border: 1.5px solid var(--border);
-  transition: all .18s; display: inline-flex; align-items: center; gap: 6px;
-}
-.lp-btn-ghost:hover { border-color: var(--electric); color: var(--electric); }
-.lp-btn-primary {
-  padding: 9px 20px;
-  font-family: var(--font-body);
-  font-size: 13.5px; font-weight: 700;
-  color: #fff; background: var(--midnight);
-  border-radius: 9px; text-decoration: none;
-  border: none; cursor: pointer;
-  transition: all .2s; display: inline-flex; align-items: center; gap: 8px;
-}
-.lp-btn-primary:hover { background: var(--electric); box-shadow: 0 8px 24px rgba(46,171,254,0.3); transform: translateY(-1px); }
-.lp-btn-outline {
-  padding: 9px 20px;
-  font-family: var(--font-body);
-  font-size: 13.5px; font-weight: 700;
-  color: var(--midnight);
-  background: transparent;
-  border: 2px solid var(--midnight);
-  border-radius: 9px; text-decoration: none;
-  transition: all .2s; display: inline-flex; align-items: center; gap: 8px;
-}
-.lp-btn-outline:hover { background: var(--midnight); color: #fff; }
-.lp-btn-lg { padding: 13px 28px; font-size: 15px; border-radius: 10px; }
-
-/* ══ HERO ══ */
+/* ════ HERO ════ */
 .lp-hero {
-  padding-top: 68px;
-  min-height: 100vh;
-  background: var(--midnight);
-  position: relative; overflow: hidden;
-  display: flex; align-items: center;
-}
-.lp-hero-bg-grid {
-  position: absolute; inset: 0; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(46,171,254,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(46,171,254,0.05) 1px, transparent 1px);
-  background-size: 52px 52px;
-}
-.lp-hero-glow {
-  position: absolute; pointer-events: none;
-  width: 700px; height: 700px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(46,171,254,0.14) 0%, transparent 65%);
-  top: -100px; right: -80px;
+  position: relative; background: transparent;
+  display: flex; flex-direction: column;
+  min-height: calc(100vh - 71px); justify-content: center;
 }
 .lp-hero-inner {
-  width: 100%;
-  display: grid; grid-template-columns: 1fr 420px;
-  gap: 60px; align-items: center;
-  padding-top: 60px; padding-bottom: 60px;
-  position: relative; z-index: 1;
+  position: relative; z-index: 3; flex: 1;
+  display: grid; grid-template-columns: 1fr 460px;
+  gap: 40px; align-items: center;
+  padding: 50px 40px 44px;
+  max-width: 1200px; margin: 0 auto; width: 100%;
 }
-
-/* Hero text */
-.lp-hero-eyebrow {
+.lp-hero-eyebrow-wrap {
   display: inline-flex; align-items: center; gap: 8px;
-  padding: 7px 14px;
-  background: rgba(46,171,254,0.1);
-  border: 1px solid rgba(46,171,254,0.22);
-  border-radius: 999px;
-  font-size: 12px; font-weight: 600; color: var(--sky);
-  margin-bottom: 28px;
+  padding: 0 12px; height: 28px;
+  background: rgba(46,171,254,0.1); border: 0.5px solid #2EABFE;
+  border-radius: 100px; margin-bottom: 18px;
 }
 .lp-eyebrow-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--electric);
-  animation: lp-pulse 2s infinite;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #00FF09; box-shadow: 0 0 4px #00FF09; flex-shrink: 0;
+  animation: blink 2s infinite;
 }
-@keyframes lp-pulse {
-  0%,100% { opacity:1; transform:scale(1); }
-  50% { opacity:0.45; transform:scale(0.8); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+.lp-hero-eyebrow-text {
+  font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 700;
+  color: #2EABFE; letter-spacing: 0.5px; text-transform: uppercase;
 }
-
 .lp-hero-h1 {
-  font-family: var(--font-title);
-  font-size: clamp(44px, 5.5vw, 72px);
-  line-height: 1.04; font-weight: 800;
-  color: #fff; letter-spacing: -1px;
-  margin-bottom: 22px;
+  font-family: 'Poppins', sans-serif; font-size: 58px; line-height: 56px;
+  font-weight: 700; color: #fff; text-transform: uppercase; margin-bottom: 18px;
 }
-.lp-hero-accent {
-  background: linear-gradient(90deg, #fff 0%, #cfeeff 30%, #2EABFE 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
+.lp-hero-accent { color: #2EABFE; }
 .lp-hero-desc {
-  font-size: 16px; line-height: 1.75;
-  color: rgba(240,246,250,0.68);
-  max-width: 500px; margin-bottom: 36px;
+  font-family: 'Poppins', sans-serif; font-size: 15px; line-height: 22px; font-weight: 500;
+  color: rgba(255,255,255,0.82); max-width: 480px; margin-bottom: 26px;
 }
-.lp-hero-actions { display: flex; gap: 14px; margin-bottom: 36px; flex-wrap: wrap; }
-
-.lp-hero-badges { display: flex; flex-direction: column; gap: 10px; }
+.lp-hero-actions { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.lp-btn-hero-solid {
+  display: inline-flex; align-items: center; gap: 8px;
+  width: 160px; height: 44px;
+  font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700;
+  color: #091925; background: #2EABFE; border-radius: 5px; border: 0.5px solid #2EABFE;
+  cursor: pointer; justify-content: center; transition: background .15s;
+}
+.lp-btn-hero-solid:hover { background: #60C3FF; }
+.lp-btn-hero-outline {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 160px; height: 44px;
+  font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700;
+  color: #fff; border: 1px solid #fff; border-radius: 5px; background: transparent;
+  cursor: pointer; transition: all .15s;
+}
+.lp-btn-hero-outline:hover { background: rgba(255,255,255,0.08); }
+.lp-hero-badges { display: flex; align-items: center; flex-wrap: wrap; }
 .lp-badge-item {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 13px; font-weight: 500; color: rgba(240,246,250,0.65);
+  display: flex; align-items: center; gap: 5px;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #fff;
 }
+.lp-badge-sep { width: 0; height: 9px; border-left: 0.5px solid #2EABFE; margin: 0 12px; }
+.lp-hero-stats-card {
+  background: rgba(46,171,254,0.1); border: 0.5px solid #2EABFE;
+  border-radius: 8px; padding: 20px;
+}
+.lp-stats-label {
+  font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500;
+  color: #fff; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px;
+}
+.lp-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin-bottom: 0; }
+.lp-stat-box {
+  background: rgba(46,171,254,0.1); border: 0.5px solid #2EABFE;
+  padding: 10px 10px; text-align: center;
+}
+.lp-stat-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 800;
+  color: #2EABFE; line-height: 1.2;
+}
+.lp-stat-desc {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 500;
+  color: #fff; line-height: 1.4; text-align: center;
+}
+.lp-stats-divider { width: 100%; height: 0.5px; background: #2EABFE; margin: 14px 0; }
+.lp-req-label {
+  font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500;
+  color: #fff; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 10px;
+}
+.lp-req-list { display: flex; flex-direction: column; gap: 9px; }
+.lp-req-item { display: flex; align-items: center; gap: 8px; }
+.lp-req-text { flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #fff; }
+.lp-req-badge { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #2EABFE; white-space: nowrap; }
 
-/* Hero card */
-.lp-hero-card-wrap { position: relative; }
-.lp-hero-card {
-  background: rgba(13,36,54,0.75);
-  border: 1px solid rgba(46,171,254,0.18);
-  border-radius: 20px; padding: 28px;
-  backdrop-filter: blur(16px);
+/* Stats bar */
+.lp-statsbar { position: relative; z-index: 10; background: rgba(9,25,37,0.75); }
+.lp-statsbar-line-top, .lp-statsbar-line-bottom { width: 100%; height: 0; border-top: 0.5px solid #2EABFE; }
+.lp-statsbar-inner {
+  display: grid; grid-template-columns: repeat(4,1fr);
+  padding: 16px 40px; max-width: 1200px; margin: 0 auto; position: relative;
 }
-.lp-hcard-header { margin-bottom: 20px; }
-.lp-hcard-tag {
-  font-size: 11px; font-weight: 700; letter-spacing: 1.8px;
-  text-transform: uppercase; color: var(--sky);
-}
-.lp-hcard-items { display: grid; gap: 16px; margin-bottom: 24px; }
-.lp-hcard-item { display: flex; align-items: flex-start; gap: 14px; }
-.lp-hcard-icon {
-  width: 38px; height: 38px; border-radius: 10px;
-  background: rgba(46,171,254,0.1); border: 1px solid rgba(46,171,254,0.2);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.lp-hcard-label {
-  font-size: 11px; font-weight: 600; color: var(--slate);
-  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px;
-}
-.lp-hcard-value { font-size: 14px; font-weight: 600; color: #fff; }
-.lp-hcard-cta {
-  display: flex; align-items: center; justify-content: center;
-  width: 100%; padding: 13px;
-  background: var(--electric); color: #fff;
-  font-family: var(--font-body); font-size: 14px; font-weight: 700;
-  border-radius: 12px; text-decoration: none;
-  transition: all .2s;
-}
-.lp-hcard-cta:hover { background: var(--sky); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(46,171,254,0.35); }
+.lp-sbar-item { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 12px 10px; position: relative; }
+.lp-sbar-divider { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 0; height: 100px; border-left: 0.5px solid #2EABFE; }
+.lp-sbar-num { font-family: 'JetBrains Mono', monospace; font-size: 40px; font-weight: 800; color: #2EABFE; line-height: 1.2; }
+.lp-sbar-lbl { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 700; color: #fff; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-/* ══ ABOUT BANNER ══ */
-.lp-about-banner {
-  background: var(--electric);
-  padding: 18px 0;
-}
-.lp-banner-inner {
-  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
-}
-.lp-banner-text {
-  font-size: 14px; line-height: 1.6; color: #fff;
-  max-width: 780px;
-}
-.lp-banner-text strong { font-weight: 700; }
-.lp-banner-link {
-  font-size: 13px; font-weight: 700; color: #fff;
-  text-decoration: none; white-space: nowrap;
-  padding: 8px 18px;
-  border: 1.5px solid rgba(255,255,255,0.45);
-  border-radius: 8px; transition: all .18s; flex-shrink: 0;
-}
-.lp-banner-link:hover { background: rgba(255,255,255,0.15); }
+/* ════ Shared ════ */
+.lp-eyebrow-small { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 6px; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+.lp-eyebrow-blue { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 6px; text-transform: uppercase; display: inline-block; }
+.lp-eyebrow-sky { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 6px; text-transform: uppercase; display: inline-block; }
+.lp-h2 { font-family: 'Poppins', sans-serif; font-size: 38px; font-weight: 700; line-height: 40px; color: #091925; margin-bottom: 12px; text-transform: uppercase; }
+.lp-h2--light { color: #fff; }
+.lp-sub { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 400; color: #091925; line-height: 22px; }
+.lp-sub--light { color: rgba(255,255,255,0.7); }
+.lp-body { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 400; line-height: 22px; color: #091925; margin-bottom: 12px; }
+.lp-body strong { color: #091925; font-weight: 600; }
+.lp-section-center { text-align: center; margin-bottom: 40px; }
 
-/* ══ ABOUT RELSTONE ══ */
-.lp-about-relstone {
-  padding: 96px 0;
-  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+/* ════ ABOUT ════ */
+.lp-about { padding: 64px 0; background: #fff; min-height: 100vh; display: flex; align-items: center; }
+.lp-about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; width: 100%; }
+.lp-btn-dark {
+  display: inline-flex; align-items: center; padding: 0 20px; height: 44px;
+  font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700;
+  color: #fff; background: #091925; border-radius: 5px; border: 0.5px solid #091925;
+  cursor: pointer; margin-top: 8px; transition: background .15s;
 }
-.lp-about-relstone-top {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
-  gap: 28px;
-  margin-bottom: 28px;
-}
-.lp-story-card {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 30px;
-  box-shadow: 0 14px 34px rgba(9,25,37,0.06);
-}
-.lp-why-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-.lp-why-card {
-  background: linear-gradient(145deg, rgba(46,171,254,0.09), rgba(96,195,255,0.06));
-  border: 1px solid rgba(46,171,254,0.18);
-  border-radius: 16px;
-  padding: 18px;
-}
-.lp-why-value {
-  font-family: var(--font-title);
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--midnight);
-  line-height: 1;
-}
-.lp-why-label {
-  margin-top: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1.3px;
-  color: var(--electric);
-  text-transform: uppercase;
-}
-.lp-why-card p {
-  margin-top: 8px;
-  font-size: 13.5px;
-  line-height: 1.65;
-  color: #4f6474;
-}
-.lp-about-block {
-  margin-top: 30px;
-}
-.lp-about-title {
-  font-family: var(--font-title);
-  font-size: clamp(24px, 2.4vw, 34px);
-  font-weight: 800;
-  color: var(--midnight);
-  margin-bottom: 18px;
-}
-.lp-team-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-.lp-team-card {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 10px 26px rgba(9,25,37,0.06);
-}
-.lp-team-photo {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
-  display: block;
-}
-.lp-team-content {
-  padding: 16px;
-}
-.lp-team-name {
-  font-family: var(--font-title);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--midnight);
-}
-.lp-team-role {
-  margin-top: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--electric);
-}
-.lp-team-content p {
-  margin-top: 10px;
-  font-size: 13.5px;
-  line-height: 1.62;
-  color: var(--text-muted);
-}
-.lp-about-block--split {
-  display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 18px;
-}
-.lp-approval-panel,
-.lp-accreditation-panel {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 24px;
-}
-.lp-about-note {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-muted);
-  margin-bottom: 14px;
-}
-.lp-approval-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.lp-approval-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 11px;
-  border-radius: 999px;
-  background: var(--ice);
-  border: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 600;
-  color: #425a6b;
-}
-.lp-accred-list {
-  display: grid;
-  gap: 12px;
-}
-.lp-accred-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13.5px;
-  color: #405768;
-}
-.lp-accred-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--electric);
-  box-shadow: 0 0 0 4px rgba(46,171,254,0.12);
-  flex-shrink: 0;
-}
-.lp-press-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
-.lp-press-card {
-  background: linear-gradient(140deg, #0f2b3f 0%, #13374f 100%);
-  border: 1px solid rgba(46,171,254,0.2);
-  border-radius: 14px;
-  padding: 16px;
-}
-.lp-press-source {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.3px;
-  text-transform: uppercase;
-  color: var(--sky);
-  margin-bottom: 8px;
-}
-.lp-press-title {
-  font-family: var(--font-title);
-  font-size: 16px;
-  line-height: 1.3;
-  color: #fff;
-  margin-bottom: 12px;
-}
-.lp-press-year {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(96,195,255,0.16);
-  font-size: 12px;
-  font-weight: 700;
-  color: #d7f0ff;
-}
+.lp-btn-dark:hover { background: #1e3a52; }
+.lp-about-cards { display: flex; flex-direction: column; gap: 12px; }
+.lp-about-card { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; border: 0.5px solid #5B7384; border-radius: 5px; background: #fff; transition: box-shadow .2s; }
+.lp-about-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.07); }
+.lp-about-card-icon { width: 48px; height: 48px; min-width: 48px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.lp-about-card-title { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; color: #091925; margin-bottom: 3px; line-height: 18px; }
+.lp-about-card-desc { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 400; color: #091925; line-height: 18px; }
 
-/* ══ ABOUT ══ */
-.lp-about { padding: 96px 0; background: var(--white); }
-.lp-section-label {
-  font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
-  text-transform: uppercase; color: var(--electric);
-  margin-bottom: 16px;
-}
-.lp-section-label--light { color: var(--sky); }
-.lp-section-h2 {
-  font-family: var(--font-title);
-  font-size: clamp(28px, 3.2vw, 40px);
-  line-height: 1.12; font-weight: 800;
-  color: var(--midnight); margin-bottom: 18px;
-}
-.lp-section-h2--light { color: #fff; }
-.lp-h2-accent { color: var(--electric); }
-.lp-h2-accent-light { color: var(--sky); }
+/* ════ COURSES ════ */
+.lp-courses { padding: 64px 0; background: #F2F6F9; min-height: 100vh; display: flex; align-items: center; }
+.lp-courses .lp-container { width: 100%; }
+.lp-course-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.lp-course-card { background: #fff; border: 0.5px solid rgba(46,171,254,0.5); border-radius: 5px; display: flex; flex-direction: column; overflow: hidden; }
+.lp-course-header { background: #091925; position: relative; padding: 18px 20px; min-height: 120px; }
+.lp-course-header::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,25,37,0.05) 0%, rgba(46,171,254,0.3) 100%); pointer-events: none; }
+.lp-course-body { padding: 18px 20px 20px; display: flex; flex-direction: column; flex: 1; }
+.lp-course-tag { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 500; color: #2EABFE; margin-bottom: 5px; text-transform: uppercase; position: relative; z-index: 1; }
+.lp-course-title { font-family: 'Poppins', sans-serif; font-size: 18px; font-weight: 700; color: #fff; line-height: 1.2; margin-bottom: 8px; text-transform: capitalize; position: relative; z-index: 1; }
+.lp-course-pills { display: flex; gap: 5px; flex-wrap: wrap; position: relative; z-index: 1; }
+.lp-cpill { padding: 2px 8px; border-radius: 4px; font-family: 'Poppins', sans-serif; font-size: 10px; font-weight: 700; height: 22px; display: inline-flex; align-items: center; text-transform: capitalize; }
+.lp-cpill--blue   { background: rgba(46,171,254,0.1); color: #2EABFE; border: 0.5px solid #2EABFE; }
+.lp-cpill--green  { background: rgba(0,255,9,0.1);   color: #00FF09; border: 0.5px solid #00FF09; }
+.lp-cpill--orange { background: rgba(245,158,11,0.1); color: #F59E0B; border: 0.5px solid #F59E0B; }
+.lp-cpill--teal   { background: rgba(0,255,9,0.1);   color: #00FF09; border: 0.5px solid #00FF09; }
+.lp-course-hrs { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; margin-top: 2px; }
+.lp-hrs-num { font-family: 'JetBrains Mono', monospace; font-size: 40px; font-weight: 800; color: #2EABFE; line-height: 1; }
+.lp-hrs-lbl { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 500; color: #7FA8C4; line-height: 1.4; text-transform: uppercase; }
+.lp-course-desc { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 400; line-height: 20px; color: #091925; margin-bottom: 12px; }
+.lp-course-bullets { list-style: none; display: flex; flex-direction: column; gap: 5px; flex: 1; margin-bottom: 16px; }
+.lp-course-bullets li { display: flex; align-items: center; gap: 7px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 400; color: #5B7384; line-height: 15px; }
+.lp-course-footer { display: flex; align-items: center; justify-content: space-between; border-top: 0.5px solid rgba(46,171,254,0.5); padding-top: 14px; margin-top: auto; }
+.lp-course-price { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 800; color: #091925; line-height: 1; }
+.lp-course-unit { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 500; color: #7FA8C4; margin-left: 2px; }
+.lp-btn-blue { padding: 0 14px; height: 36px; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; color: #091925; background: #2EABFE; border: 0.5px solid #2EABFE; border-radius: 5px; cursor: pointer; transition: background .15s; white-space: nowrap; min-width: 110px; }
+.lp-btn-blue:hover { background: #1a9ee0; color: #fff; }
 
-.lp-about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
-.lp-about-para { font-size: 15px; line-height: 1.8; color: var(--text-muted); margin-bottom: 16px; }
+/* ════ FEATURES ════ */
+.lp-features { padding: 64px 0; background: #091925; min-height: 100vh; display: flex; align-items: center; position: relative; overflow: hidden; }
+.lp-features::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,25,37,0.05) 0%, rgba(46,171,254,0.3) 100%); pointer-events: none; z-index: 0; }
+.lp-features .lp-container { position: relative; z-index: 1; width: 100%; }
+.lp-feat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.lp-feat-card { padding: 22px 18px; border: 0.5px solid rgba(46,171,254,0.2); border-radius: 5px; background: rgba(46,171,254,0.05); transition: background .2s, border-color .2s; }
+.lp-feat-card:hover { background: rgba(46,171,254,0.1); border-color: rgba(46,171,254,0.3); }
+.lp-feat-icon { width: 52px; height: 52px; border-radius: 5px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+.lp-feat-title { font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 8px; line-height: 22px; }
+.lp-feat-desc { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 400; line-height: 20px; color: rgba(255,255,255,0.65); }
 
-.lp-about-card {
-  background: var(--ice);
-  border: 1px solid var(--border);
-  border-radius: 16px; padding: 26px;
-  margin-bottom: 16px; transition: transform .2s, box-shadow .2s;
-}
-.lp-about-card:last-child { margin-bottom: 0; }
-.lp-about-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(9,25,37,0.07); }
-.lp-acard-icon {
-  width: 48px; height: 48px;
-  background: rgba(46,171,254,0.1); border-radius: 12px;
-  display: flex; align-items: center; justify-content: center; margin-bottom: 14px;
-}
-.lp-acard-title { font-family: var(--font-title); font-size: 17px; font-weight: 700; color: var(--midnight); margin-bottom: 8px; }
-.lp-acard-desc { font-size: 13.5px; line-height: 1.65; color: var(--text-muted); margin-bottom: 12px; }
-.lp-acard-meta {
-  display: inline-flex; align-items: center;
-  padding: 4px 12px;
-  background: rgba(46,171,254,0.1);
-  border: 1px solid rgba(46,171,254,0.2);
-  border-radius: 999px;
-  font-size: 12px; font-weight: 700; color: var(--electric);
-}
+/* ════ REQUIREMENTS ════ */
+.lp-requirements { padding: 64px 0; background: #F2F6F9; min-height: 100vh; display: flex; align-items: center; }
+.lp-requirements .lp-container { width: 100%; }
+.lp-req-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.lp-req-card { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; border: 0.5px solid #5B7384; border-radius: 5px; background: #fff; }
+.lp-req-check { width: 18px; height: 18px; border-radius: 50%; background: #008000; border: 0.25px solid #008000; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+.lp-req-title { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; color: #091925; margin-bottom: 4px; line-height: 18px; }
+.lp-req-desc { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 400; line-height: 16px; color: #091925; }
 
-/* ══ FEATURES ══ */
-.lp-features { padding: 96px 0; background: var(--midnight); }
-.lp-features-top {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 32px; align-items: end; margin-bottom: 56px;
-}
-.lp-features-sub { font-size: 15px; line-height: 1.75; color: var(--slate); padding-top: 8px; }
-.lp-feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.lp-feat-card {
-  background: rgba(13,36,54,0.7);
-  border: 1px solid rgba(46,171,254,0.1);
-  border-radius: 18px; padding: 28px 24px;
-  position: relative; transition: all .22s;
-}
-.lp-feat-card:hover { border-color: rgba(46,171,254,0.3); transform: translateY(-4px); background: var(--steel-night); }
-.lp-feat-num {
-  position: absolute; top: 24px; right: 24px;
-  font-family: var(--font-title); font-size: 28px; font-weight: 800;
-  color: rgba(46,171,254,0.12);
-}
-.lp-feat-icon {
-  width: 46px; height: 46px;
-  background: rgba(46,171,254,0.1); border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--electric); margin-bottom: 18px;
-}
-.lp-feat-title { font-family: var(--font-title); font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 10px; }
-.lp-feat-desc { font-size: 13.5px; line-height: 1.65; color: var(--slate); }
+/* ════ TESTIMONIALS ════ */
+.lp-testimonials { padding: 64px 0; background: #F2F6F9; min-height: 100vh; display: flex; align-items: center; }
+.lp-testimonials .lp-container { width: 100%; }
+.lp-tcard-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.lp-tcard { background: #fff; border: 0.5px solid rgba(46,171,254,0.5); border-radius: 5px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.lp-tcard-text { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 400; line-height: 18px; color: #091925; font-style: italic; flex: 1; }
+.lp-tcard-author { display: flex; align-items: center; gap: 10px; }
+.lp-tcard-avatar { width: 36px; height: 36px; border-radius: 50%; background: #2EABFE; display: flex; align-items: center; justify-content: center; font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; color: #091925; flex-shrink: 0; }
+.lp-tcard-name { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; color: #091925; line-height: 16px; }
+.lp-tcard-role { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 400; color: #5B7384; }
 
-/* ══ COURSES ══ */
-.lp-courses { padding: 96px 0; background: var(--ice); }
-.lp-courses-top { margin-bottom: 44px; }
-.lp-courses-sub { font-size: 15px; color: var(--text-muted); line-height: 1.65; margin-top: 4px; }
+/* Testimonial loading skeleton */
+.lp-tcard-loading { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.lp-tcard-skeleton {
+  height: 200px; border-radius: 5px;
+  background: linear-gradient(90deg, #e8edf0 25%, #d0dae0 50%, #e8edf0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.lp-tcard-empty { text-align: center; font-family: 'Poppins', sans-serif; font-size: 14px; color: #5B7384; padding: 40px 0; }
 
-.lp-course-table { display: grid; gap: 20px; }
-.lp-course-row {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: 18px; padding: 32px;
-  display: grid; grid-template-columns: 120px 1fr auto;
-  gap: 28px; align-items: center;
-  transition: transform .2s, box-shadow .2s;
-}
-.lp-course-row:hover { transform: translateY(-2px); box-shadow: 0 12px 36px rgba(9,25,37,0.09); }
-.lp-course-row--featured { border-color: var(--electric); border-width: 2px; }
+/* ════ FAQ ════ */
+.lp-faq { padding: 64px 0; background: #F2F6F9; min-height: 100vh; display: flex; align-items: center; }
+.lp-faq-wrap { max-width: 700px; margin: 0 auto; padding: 0 18px; width: 100%; }
+.lp-faq-list { display: flex; flex-direction: column; gap: 8px; }
+.lp-faq-item { border: 0.5px solid #5B7384; border-radius: 5px; overflow: hidden; background: #fff; transition: border-color .2s; }
+.lp-faq-item--open { border-color: #5B7384; }
+.lp-faq-q { width: 100%; padding: 15px 18px; display: flex; justify-content: space-between; align-items: center; gap: 14px; background: none; border: none; cursor: pointer; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; color: #091925; text-align: left; line-height: 18px; }
+.lp-faq-item--open .lp-faq-q { background: rgba(46,171,254,0.1); }
+.lp-faq-toggle { width: 28px; height: 28px; border-radius: 5px; border: 0.5px solid #5B7384; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .2s; }
+.lp-faq-toggle--open { background: #2EABFE; border-color: #2EABFE; }
+.lp-faq-a { padding: 12px 18px 16px; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 400; line-height: 20px; color: #091925; background: rgba(46,171,254,0.05); }
 
-.lp-course-tag {
-  display: inline-block; padding: 6px 14px;
-  font-size: 12px; font-weight: 700;
-  background: rgba(46,171,254,0.1);
-  color: var(--electric); border-radius: 8px;
-  text-align: center;
-}
-.lp-course-tag--ce { background: rgba(26,122,184,0.1); color: var(--ocean); }
+/* ════ CTA ════ */
+.lp-cta-section { padding: 64px 0; background: #F2F6F9; min-height: 100vh; display: flex; align-items: center; }
+.lp-cta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; width: 100%; }
+.lp-cta-h2 { font-family: 'Poppins', sans-serif; font-size: 38px; font-weight: 700; line-height: 40px; color: #091925; margin-bottom: 12px; text-transform: uppercase; }
+.lp-cta-checks { display: flex; flex-direction: column; gap: 7px; margin-top: 8px; }
+.lp-cta-check { display: flex; align-items: center; gap: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #5B7384; }
+.lp-signup-card { background: #fff; border: 0.5px solid #5B7384; border-radius: 5px; padding: 24px; }
+.lp-signup-label { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 16px; text-transform: uppercase; }
+.lp-signup-form { display: flex; flex-direction: column; gap: 10px; }
+.lp-signup-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lp-signup-inp { width: 100%; padding: 10px 12px; border: 0.5px solid #7FA8C4; border-radius: 5px; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #091925; outline: none; transition: border-color .15s; background: rgba(127,168,196,0.1); height: 46px; }
+.lp-signup-inp:focus { border-color: #2EABFE; }
+.lp-signup-inp::placeholder { color: rgba(127,168,196,0.5); }
+.lp-signup-sel { color: rgba(91,115,132,0.75); appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 10px center; background-size: 14px; padding-right: 30px; }
+.lp-signup-btn { padding: 0; height: 46px; background: #091925; color: #fff; border: 0.5px solid #091925; border-radius: 5px; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background .15s; }
+.lp-signup-btn:hover { background: #1e3a52; }
+.lp-signup-fine { text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; color: #7FA8C4; }
 
-.lp-course-title { font-family: var(--font-title); font-size: 20px; font-weight: 800; color: var(--midnight); margin-bottom: 8px; }
-.lp-course-desc { font-size: 14px; line-height: 1.65; color: var(--text-muted); margin-bottom: 14px; }
-.lp-course-topics-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.lp-topic-chip {
-  padding: 4px 12px;
-  background: var(--ice); border: 1px solid var(--border);
-  border-radius: 6px; font-size: 12px; font-weight: 500; color: #4a5568;
-}
+/* ════ FOOTER BAND ════ */
+.lp-footer-band { background: #091925; padding: 52px 0; position: relative; overflow: hidden; }
+.lp-footer-band-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,25,37,0.05) 0%, rgba(46,171,254,0.3) 100%); z-index: 0; }
+.lp-footer-band-inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
+.lp-footer-band-eye { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.lp-footer-band-h2 { font-family: 'Poppins', sans-serif; font-size: 40px; font-weight: 700; line-height: 42px; color: #fff; margin-bottom: 12px; text-transform: uppercase; }
+.lp-footer-band-sub { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 400; line-height: 22px; color: rgba(255,255,255,0.65); max-width: 480px; }
+.lp-btn-enroll { display: inline-flex; align-items: center; justify-content: center; padding: 0 32px; height: 58px; background: #2EABFE; color: #091925; font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 700; border-radius: 999px; border: 0.5px solid #2EABFE; cursor: pointer; white-space: nowrap; transition: all .2s; min-width: 240px; }
+.lp-btn-enroll:hover { background: #60C3FF; transform: translateY(-2px); }
 
-.lp-course-meta { display: flex; flex-direction: column; align-items: center; gap: 14px; }
-.lp-course-hours-badge {
-  font-family: var(--font-title);
-  font-size: 42px; font-weight: 800; line-height: 1;
-  color: var(--midnight); text-align: center;
-}
-.lp-course-hours-badge span { font-size: 14px; font-weight: 700; color: var(--electric); display: block; margin-top: -2px; }
-.lp-course-hours-badge--ce .lp-course-hours-badge span { color: var(--ocean); }
+/* ════ FOOTER ════ */
+.lp-footer { background: #091925; border-top: 1px solid rgba(255,255,255,0.07); padding: 16px 0; }
+.lp-footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.lp-footer-copy { font-family: 'Poppins', sans-serif; font-size: 11px; color: rgba(255,255,255,0.42); }
+.lp-footer-link-blue { color: #2EABFE; text-decoration: none; }
+.lp-footer-links { display: flex; align-items: center; gap: 8px; }
+.lp-footer-link { font-family: 'Poppins', sans-serif; font-size: 11px; color: rgba(255,255,255,0.42); text-decoration: none; transition: color .15s; }
+.lp-footer-link:hover { color: #fff; }
+.lp-footer-dot { color: rgba(255,255,255,0.25); font-size: 11px; }
 
-/* ══ HOW IT WORKS ══ */
-.lp-process {
-  padding: 96px 0;
-  background:
-    radial-gradient(circle at top right, rgba(46,171,254,0.12) 0%, transparent 34%),
-    linear-gradient(180deg, var(--midnight) 0%, var(--deep-navy) 100%);
-  position: relative;
-  overflow: hidden;
-}
-.lp-process::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(46,171,254,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(46,171,254,0.05) 1px, transparent 1px);
-  background-size: 48px 48px;
-  opacity: 0.55;
-}
-.lp-process-top {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 28px;
-  align-items: end;
-  margin-bottom: 48px;
-}
-.lp-process-sub {
-  font-size: 15px;
-  line-height: 1.75;
-  color: var(--slate);
-  max-width: 620px;
-}
-.lp-process-intro-card {
-  background: rgba(13,36,54,0.76);
-  border: 1px solid rgba(46,171,254,0.16);
-  border-radius: 18px;
-  padding: 22px;
-  backdrop-filter: blur(16px);
-  box-shadow: 0 18px 44px rgba(9,25,37,0.2);
-}
-.lp-process-intro-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1.6px;
-  text-transform: uppercase;
-  color: var(--sky);
-  margin-bottom: 10px;
-}
-.lp-process-intro-card p {
-  font-size: 13.5px;
-  line-height: 1.7;
-  color: rgba(240,246,250,0.72);
-}
-.lp-process-grid {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 18px;
-}
-.lp-process-card {
-  position: relative;
-  min-height: 250px;
-  padding: 24px;
-  background: rgba(13,36,54,0.72);
-  border: 1px solid rgba(46,171,254,0.14);
-  border-radius: 18px;
-  backdrop-filter: blur(16px);
-  transition: transform .2s, border-color .2s, background .2s;
-}
-.lp-process-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(46,171,254,0.32);
-  background: rgba(22,51,71,0.88);
-}
-.lp-process-step {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(46,171,254,0.12);
-  border: 1px solid rgba(46,171,254,0.18);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-  color: var(--sky);
-  margin-bottom: 16px;
-}
-.lp-process-num {
-  font-family: var(--font-title);
-  font-size: 34px;
-  font-weight: 800;
-  line-height: 1;
-  color: rgba(46,171,254,0.2);
-  margin-bottom: 16px;
-}
-.lp-process-title {
-  font-family: var(--font-title);
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: #fff;
-  margin-bottom: 10px;
-}
-.lp-process-desc {
-  font-size: 13.5px;
-  line-height: 1.72;
-  color: var(--slate);
-}
-
-/* ══ COMPLIANCE ══ */
-.lp-compliance { padding: 96px 0; background: var(--white); }
-.lp-compliance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
-.lp-comp-para { font-size: 15px; line-height: 1.8; color: var(--text-muted); }
-.lp-compliance-right { display: grid; gap: 16px; }
-.lp-comp-item { display: flex; align-items: flex-start; gap: 14px; }
-.lp-comp-check {
-  width: 28px; height: 28px; border-radius: 8px;
-  background: rgba(46,171,254,0.1); border: 1px solid rgba(46,171,254,0.2);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;
-}
-.lp-comp-label { font-size: 14px; font-weight: 700; color: var(--midnight); margin-bottom: 2px; }
-.lp-comp-desc { font-size: 13px; line-height: 1.55; color: var(--text-muted); }
-
-/* ══ CTA ══ */
-.lp-cta { background: var(--midnight); padding: 100px 0; text-align: center; position: relative; overflow: hidden; }
-.lp-cta-glow {
-  position: absolute; width: 600px; height: 600px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(46,171,254,0.13) 0%, transparent 65%);
-  top: 50%; left: 50%; transform: translate(-50%,-50%);
-  pointer-events: none;
-}
-.lp-cta-inner { position: relative; z-index: 1; }
-.lp-cta-eyebrow {
-  font-size: 11px; font-weight: 600; letter-spacing: 2px;
-  color: var(--slate); text-transform: uppercase; margin-bottom: 20px;
-}
-.lp-cta-h2 {
-  font-family: var(--font-title);
-  font-size: clamp(32px, 4vw, 52px);
-  color: #fff; line-height: 1.1; margin-bottom: 20px;
-}
-.lp-cta-p { font-size: 16px; color: var(--slate); max-width: 460px; margin: 0 auto 40px; line-height: 1.75; }
-.lp-cta-btns { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.lp-cta-login-link {
-  font-size: 14px; font-weight: 500; color: var(--slate);
-  text-decoration: none; transition: color .18s;
-}
-.lp-cta-login-link:hover { color: var(--electric); }
-
-/* ══ FOOTER ══ */
-.lp-footer { background: var(--deep-navy); border-top: 1px solid rgba(46,171,254,0.1); padding: 40px 0; }
-.lp-footer-inner { display: grid; grid-template-columns: auto 1fr auto; gap: 40px; align-items: center; }
-.lp-footer-brand { display: flex; align-items: center; gap: 12px; }
-.lp-footer-name { font-family: var(--font-title); font-size: 15px; font-weight: 700; color: #fff; }
-.lp-footer-tagline { font-size: 11px; color: var(--slate); }
-.lp-footer-mid { text-align: center; }
-.lp-footer-copy { font-size: 13px; color: var(--slate); margin-bottom: 4px; }
-.lp-footer-note { font-size: 12px; color: rgba(127,168,196,0.65); }
-.lp-footer-links { display: flex; gap: 20px; justify-content: flex-end; }
-.lp-footer-link { font-size: 13px; color: var(--slate); text-decoration: none; transition: color .18s; white-space: nowrap; }
-.lp-footer-link:hover { color: var(--electric); }
-.lp-footer-link-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-  font-family: inherit;
-}
-
-.lp-contact-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 190;
-  background: rgba(9,25,37,0.65);
-  backdrop-filter: blur(4px);
-}
-.lp-contact-card {
-  position: fixed;
-  z-index: 191;
-  right: 18px;
-  bottom: 18px;
-  width: min(460px, calc(100vw - 26px));
-  background: linear-gradient(160deg, #ffffff 0%, #f7fbff 100%);
-  border: 1px solid rgba(46,171,254,0.2);
-  border-radius: 18px;
-  box-shadow: 0 26px 60px rgba(9,25,37,0.28);
-  padding: 20px;
-  max-height: calc(100vh - 36px);
-  overflow: auto;
-}
-.lp-contact-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.lp-contact-eyebrow {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 1.4px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--electric);
-}
-.lp-contact-head h3 {
-  margin: 4px 0 5px;
-  font-family: var(--font-title);
-  font-size: 24px;
-  color: var(--midnight);
-}
-.lp-contact-subhead {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-.lp-contact-close {
-  border: 1px solid rgba(46,171,254,0.22);
-  border-radius: 10px;
-  width: 32px;
-  height: 32px;
-  background: #f8fbff;
-  cursor: pointer;
-  color: var(--midnight);
-  font-weight: 700;
-}
-.lp-contact-form {
-  display: grid;
-  gap: 10px;
-}
-.lp-contact-form input,
-.lp-contact-form select,
-.lp-contact-form textarea {
-  border: 1px solid rgba(46,171,254,0.2);
-  border-radius: 10px;
-  font-size: 13px;
-  font-family: var(--font-body);
-  padding: 10px 11px;
-  background: #fbfdff;
-  transition: border-color .16s, box-shadow .16s, background .16s;
-}
-.lp-contact-form input:focus,
-.lp-contact-form select:focus,
-.lp-contact-form textarea:focus {
-  outline: none;
-  border-color: rgba(46,171,254,0.7);
-  box-shadow: 0 0 0 3px rgba(46,171,254,0.14);
-  background: #fff;
-}
-.lp-contact-submit {
-  border: none;
-  border-radius: 10px;
-  padding: 11px 14px;
-  font-weight: 700;
-  color: #fff;
-  background: linear-gradient(120deg, #2EABFE, #1A7AB8);
-  cursor: pointer;
-  transition: transform .16s, box-shadow .16s;
-}
-.lp-contact-submit:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 20px rgba(26,122,184,0.24);
-}
-.lp-contact-submit:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-.lp-contact-status {
-  margin: 11px 0 0;
-  font-size: 12px;
-  color: #1A7AB8;
-  font-weight: 700;
-  padding: 8px 10px;
-  border-radius: 9px;
-  background: rgba(46,171,254,0.1);
-  border: 1px solid rgba(46,171,254,0.2);
-}
-.lp-contact-status--error {
-  color: #c2410c;
-  background: rgba(194,65,12,0.08);
-  border-color: rgba(194,65,12,0.2);
-}
-.lp-contact-meta {
-  margin-top: 12px;
-  border-top: 1px solid rgba(46,171,254,0.16);
-  padding-top: 12px;
-  display: grid;
-  gap: 8px;
-}
-.lp-contact-meta p {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.lp-contact-meta a {
-  color: var(--electric);
-  text-decoration: none;
-  font-weight: 700;
-}
-
-.lp-contact-meta-item {
-  border: 1px solid rgba(46,171,254,0.16);
-  background: rgba(255,255,255,0.74);
-  border-radius: 10px;
-  padding: 9px 10px;
-  display: grid;
-  gap: 2px;
-}
-
-.lp-contact-meta-label {
-  font-size: 10px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  font-weight: 800;
-  color: #5f7687;
-}
-
-.lp-contact-meta-item--help {
-  display: flex;
-  justify-content: center;
-}
-
-.lp-live-chat-widget {
-  align-items: start;
-}
-
-.lp-live-chat-badge-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: #10b981;
-  box-shadow: 0 0 0 4px rgba(16,185,129,0.16);
-  flex-shrink: 0;
-}
-
-.lp-live-chat-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: fit-content;
-  color: var(--electric);
-  text-decoration: none;
-  font-size: 12.5px;
-  font-weight: 700;
-}
-
-.lp-live-chat-link:hover {
-  color: var(--ocean);
-}
-
-.lp-live-widget-fab {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 189;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: none;
-  height: 52px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: linear-gradient(120deg, #0D2436, #1A7AB8);
-  color: #fff;
-  cursor: pointer;
-  box-shadow: 0 14px 36px rgba(9,25,37,0.34);
-}
-
-.lp-live-widget-text {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: #fff;
-  white-space: nowrap;
-}
-
-.lp-live-widget-dot {
-  position: absolute;
-  right: 7px;
-  top: 7px;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: #34d399;
-  box-shadow: 0 0 0 6px rgba(52,211,153,0.16);
-}
-
-
-
-@media (max-width: 560px) {
-  .lp-contact-card {
-    right: 12px;
-    bottom: 12px;
-    width: calc(100vw - 24px);
-    padding: 16px;
-  }
-}
-
-/* ══ RESPONSIVE ══ */
+/* ════ RESPONSIVE ════ */
 @media (max-width: 1024px) {
-  .lp-hero-inner { grid-template-columns: 1fr; gap: 48px; }
-  .lp-hero-card-wrap { max-width: 520px; }
-  .lp-about-relstone-top,
-  .lp-about-block--split,
-  .lp-team-grid,
-  .lp-press-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-  .lp-features-top { grid-template-columns: 1fr; }
-  .lp-process-top { grid-template-columns: 1fr; }
-  .lp-process-grid { grid-template-columns: 1fr 1fr; }
-  .lp-about-grid, .lp-compliance-grid { grid-template-columns: 1fr; gap: 48px; }
-  .lp-course-row { grid-template-columns: 1fr; }
-  .lp-course-meta { flex-direction: row; align-items: center; }
+  .lp-container { padding: 0 32px; }
+  .lp-topbar-inner { padding: 0 32px; }
+  .lp-hero-inner { padding: 48px 32px 40px; }
+  .lp-statsbar-inner { padding: 12px 32px; }
 }
-@media (max-width: 768px) {
-  .lp-nav-links { display: none; }
-  .lp-about-relstone-top,
-  .lp-about-block--split,
-  .lp-team-grid,
-  .lp-press-grid {
-    grid-template-columns: 1fr;
-  }
+@media (max-width: 900px) {
+  .lp-hero-inner { grid-template-columns: 1fr; gap: 28px; padding: 40px 24px; }
+  .lp-about-grid { grid-template-columns: 1fr; gap: 32px; }
+  .lp-course-grid { grid-template-columns: 1fr 1fr; }
   .lp-feat-grid { grid-template-columns: 1fr 1fr; }
-  .lp-process { padding: 84px 0; }
-  .lp-footer-inner { grid-template-columns: 1fr; text-align: center; }
-  .lp-footer-links { justify-content: center; }
-  .lp-hero-inner { padding-top: 40px; padding-bottom: 40px; }
+  .lp-req-grid { grid-template-columns: 1fr; }
+  .lp-tcard-grid { grid-template-columns: 1fr 1fr; }
+  .lp-tcard-loading { grid-template-columns: 1fr 1fr; }
+  .lp-cta-grid { grid-template-columns: 1fr; gap: 36px; }
+  .lp-statsbar-inner { grid-template-columns: repeat(2,1fr); padding: 12px 24px; }
+  .lp-hero-h1 { font-size: 46px; line-height: 46px; }
 }
-@media (max-width: 560px) {
+@media (max-width: 640px) {
+  .lp-nav { display: none; }
+  .lp-topbar-inner { padding: 0 16px; }
+  .lp-container { padding: 0 16px; }
+  .lp-hero-inner { padding: 32px 16px; }
+  .lp-hero-h1 { font-size: 34px; line-height: 36px; }
+  .lp-course-grid { grid-template-columns: 1fr; }
   .lp-feat-grid { grid-template-columns: 1fr; }
-  .lp-process-grid { grid-template-columns: 1fr; }
-  .lp-process-card { min-height: auto; }
-  .lp-banner-inner { flex-direction: column; align-items: flex-start; }
+  .lp-tcard-grid { grid-template-columns: 1fr; }
+  .lp-tcard-loading { grid-template-columns: 1fr; }
+  .lp-signup-row { grid-template-columns: 1fr; }
+  .lp-footer-band-inner { flex-direction: column; text-align: center; }
+  .lp-footer-inner { flex-direction: column; text-align: center; }
+  .lp-footer-links { justify-content: center; }
+  .lp-statsbar-inner { grid-template-columns: repeat(2,1fr); padding: 12px 16px; }
+  .lp-h2 { font-size: 28px; line-height: 30px; }
 }
 `;
 

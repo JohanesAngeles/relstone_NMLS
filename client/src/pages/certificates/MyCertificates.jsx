@@ -9,6 +9,9 @@ import {
   CheckCircle, ExternalLink, Copy, Info,
 } from "lucide-react";
 
+const ATTESTATION_TEXT =
+  "By accepting this certificate, I hereby acknowledge receipt of my course completion and authorize the education provider to report my education hours to NMLS. I am the named person on this certificate and have completed this course. I further attest I completed the course in accordance with the Rules of Conduct.";
+
 /* ─── helper: safely extract course data from a transcript entry ─── */
 // The transcript entry can have course_id as either:
 //   - A populated object: { _id, title, type, credit_hours, nmls_course_id, ... }
@@ -298,6 +301,12 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
                 </div>
               </div>
 
+              {/* Attestation (required) */}
+              <div style={M.attestationWrap}>
+                <div style={M.attestationLabel}>Attestation</div>
+                <div style={M.attestationText}>{ATTESTATION_TEXT}</div>
+              </div>
+
               <div style={M.certBottomBar}>
                 <span>Certificate ID: {certId}</span>
                 <span>·</span>
@@ -541,6 +550,11 @@ const M = {
   certSigName:      { fontSize:11, fontWeight:900, color:"rgba(9,25,37,0.80)", marginTop:2 },
   certSealCircle:   { width:60, height:60, borderRadius:999, border:"2px dashed rgba(46,171,254,0.40)", display:"grid", placeItems:"center", flexShrink:0, textAlign:"center" },
   certBottomBar:    { background:"linear-gradient(90deg,#091925,#0d2a4a)", color:"rgba(255,255,255,0.55)", fontSize:9, fontWeight:700, display:"flex", justifyContent:"center", gap:10, padding:"8px 16px", letterSpacing:".04em" },
+
+  // Attestation (10–12pt minimum required by policy)
+  attestationWrap:  { padding:"12px 36px 6px", borderTop:"1px solid rgba(2,8,23,0.06)" },
+  attestationLabel: { fontSize:10, fontWeight:900, color:"rgba(9,25,37,0.50)", textTransform:"uppercase", letterSpacing:".08em", marginBottom:6 },
+  attestationText:  { fontSize:12, lineHeight:1.55, fontWeight:700, color:"rgba(9,25,37,0.78)" },
 
   sidePanel:        { borderLeft:"1px solid rgba(2,8,23,0.08)", overflow:"auto", padding:16, display:"grid", gap:18, alignContent:"start" },
   sideSect:         { display:"grid", gap:8 },
