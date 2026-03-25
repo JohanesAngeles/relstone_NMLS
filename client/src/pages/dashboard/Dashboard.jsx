@@ -5,7 +5,7 @@ import API from "../../api/axios";
 import Layout from "../../components/Layout";
 import {
   FileText, BookOpen, Clock, CheckCircle, Award,
-  ChevronRight, Search, PlayCircle, Lock, User, Download, TrendingUp,
+  ChevronRight, Search, PlayCircle, Lock, User, Download, TrendingUp, MapPin,
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -300,6 +300,11 @@ const Dashboard = () => {
                     <button style={S.actionCard} type="button" onClick={() => setActiveTab("orders")}>
                       <div style={S.actionIcon}><Clock size={18} /></div>
                       <div style={S.actionText}><div style={S.actionTitle}>My orders</div><div style={S.actionSub}>Track payment and status</div></div>
+                      <ChevronRight size={18} />
+                    </button>
+                    <button style={S.actionCard} type="button" onClick={() => navigate("/state-requirements")}>
+                      <div style={S.actionIcon}><MapPin size={18} /></div>
+                      <div style={S.actionText}><div style={S.actionTitle}>State requirements</div><div style={S.actionSub}>View state licensing and CE rules</div></div>
                       <ChevronRight size={18} />
                     </button>
                   </div>
