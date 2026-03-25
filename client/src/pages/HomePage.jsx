@@ -2,519 +2,503 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
+import { HowItWorksModal } from '../components/HowItWorksModal';
 
-// ── Shared Data ───────────────────────────────────────────────────
 const TESTIMONIALS = [
-  { name: 'Sarah M.',  state: 'Texas',      avatar: 'SM', rating: 5, text: 'I passed the SAFE exam on my first try after using Relstone. The course content is organized perfectly and the practice tests are spot-on.' },
-  { name: 'James T.',  state: 'California', avatar: 'JT', rating: 5, text: 'Switched from another provider and the difference is night and day. The platform actually explains WHY regulations exist, not just what they are.' },
-  { name: 'Maria L.',  state: 'Florida',    avatar: 'ML', rating: 5, text: 'Completed my 20-hour pre-license in two weekends. The mobile experience is seamless and I loved being able to study between client meetings.' },
-  { name: 'Derek K.',  state: 'New York',   avatar: 'DK', rating: 5, text: 'The annual CE is so much better than what my broker used to provide. Quick, current, and actually informative. Renewed in under a day.' },
+  { name: 'James R.', role: 'Mortgage Loan Originator — California', avatar: 'JR', rating: 5, text: "RELSTONE helped me get my MLO license the first time around. The course was clear, well-organized, and the NMLS reporting was instant. I'd recommend it to anyone starting in mortgage." },
+  { name: 'Sarah M.', role: 'Senior MLO — Texas',                    avatar: 'SM', rating: 5, text: "I've done my CE renewal with RELSTONE for three years running. The courses are always up to date with the latest regulations, and the platform makes it easy to stay on track so I never miss a deadline." },
+  { name: 'David K.', role: 'Branch Manager — Florida',              avatar: 'DK', rating: 5, text: "The platform is incredibly well-designed and easy to navigate. Everything from enrollment to certificate download was seamless. RELSTONE is the only provider I'll use going forward." },
 ];
 
 const FAQS = [
-  { q: 'What is the NMLS SAFE Act and who needs to comply?',          a: 'The Secure and Fair Enforcement for Mortgage Licensing (SAFE) Act requires all residential mortgage loan originators (MLOs) to be licensed. Most MLOs working for non-bank lenders must complete 20 hours of pre-license education and pass the SAFE MLO Test before obtaining their license.' },
-  { q: 'How long do I have to complete my pre-license education?',    a: 'There is no strict deadline for completing your pre-license education, but your education certificate is valid for 3 years. Most students complete the 20-hour course within 2–4 weeks studying part-time.' },
-  { q: 'Are your courses accepted in all 50 states?',                 a: 'Our 20-hour federal SAFE Act course is accepted in all 50 states. State-specific elective courses are available for states that require additional state-specific content beyond the federal requirements.' },
-  { q: "What happens if I don't pass the SAFE exam on my first try?", a: 'You can retake the SAFE exam after a 30-day waiting period. If you fail three times, you must wait 180 days before retaking. Our course includes comprehensive practice exams to maximize your chances of passing on the first attempt.' },
+  { q: 'What is the SAFE Act and why does it require 20 hours of education?',          a: 'The SAFE Mortgage Licensing Act (SAFE Act) is a federal law that established minimum standards for the licensing and registration of mortgage loan originators (MLOs). It requires all new MLOs to complete at least 20 hours of NMLS-approved pre-licensing education before sitting for the NMLS exam. This includes 3 hours of federal law, 3 hours of ethics, 2 hours of non-traditional lending, and 12 elective hours.' },
+  { q: 'How long does it take to complete the 20-hour PE course?',                     a: 'The 20-hour PE course is self-paced, but NMLS requires that it be completed over a minimum of 3 days. Most students complete it within 1–2 weeks working a few hours per day. You have 6 months from enrollment to complete the course.' },
+  { q: 'Are you an accredited NMLS-approved education provider?',                      a: 'Yes. RELSTONE is a fully accredited NMLS-approved education provider. Our Provider ID is listed in the NMLS Course Catalog and all completions are reported automatically to your NMLS record.' },
+  { q: 'What happens after I complete the PE course?',                                 a: "Upon successful completion, you will receive a downloadable certificate immediately from your student portal. Your completion is also automatically reported to NMLS within 1 business day." },
+  { q: "Do I need to complete CE every year even if I haven't originated any loans?",  a: 'Yes. NMLS requires 8 hours of CE annually for all licensed MLOs, regardless of production volume. Failure to complete CE by the deadline will result in your license being placed in an "approved-inactive" status.' },
+  { q: 'I already completed CE with another provider. Can I retake it with RELSTONE?', a: 'No. NMLS does not allow you to repeat CE coursework that has already been reported and accepted for the current calendar year. Each of the 8 required CE hours can only be counted once per year.' },
 ];
 
-const Stars = ({ n = 5 }) => (
-  <span style={{ color: '#F59E0B', letterSpacing: 1 }}>
-    {'★'.repeat(n)}{'☆'.repeat(5 - n)}
-  </span>
+const Stars = () => (
+  <div style={{ display:'flex', gap:2 }}>
+    {[1,2,3,4,5].map(i => (
+      <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+      </svg>
+    ))}
+  </div>
 );
 
 const HomePage = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
-  const [openFaq, setOpenFaq] = useState(null);
+  const navigate  = useNavigate();
 
-  const handleDashboard = () => navigate(user?.role === 'instructor' ? '/instructor/dashboard' : '/dashboard');
+  const [openFaq, setOpenFaq]               = useState(0);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   useEffect(() => {
-    const t = setInterval(() => setActiveTestimonial(p => (p + 1) % TESTIMONIALS.length), 5000);
-    return () => clearInterval(t);
+    const isNewUser   = sessionStorage.getItem('relstone_is_new_user');
+    const alreadySeen = localStorage.getItem('relstone_how_it_works_seen');
+    if (isNewUser && !alreadySeen) {
+      const t = setTimeout(() => setShowHowItWorks(true), 500);
+      sessionStorage.removeItem('relstone_is_new_user');
+      return () => clearTimeout(t);
+    }
   }, []);
+
+  const handleCloseHowItWorks = () => {
+    localStorage.setItem('relstone_how_it_works_seen', '1');
+    setShowHowItWorks(false);
+  };
+
+  const handleDashboard = () =>
+    navigate(user?.role === 'instructor' ? '/instructor/dashboard' : '/dashboard');
 
   return (
     <Layout>
       <div className="hp-root">
-        <style>{css}</style>
+        <style>{CSS}</style>
 
-        {/* ── HERO ── */}
+        {showHowItWorks && (
+          <HowItWorksModal user={user} onClose={handleCloseHowItWorks} />
+        )}
+
+        {/* ════════ HERO ════════ */}
         <section className="hp-hero">
           <div className="hp-hero-bg-grid" />
           <div className="hp-hero-glow" />
+
           <div className="hp-container hp-hero-inner">
-            <div className="hp-hero-text">
-              <div className="hp-hero-eyebrow">
+            {/* Left */}
+            <div className="hp-hero-left">
+              <div className="hp-hero-eyebrow-wrap">
                 <span className="hp-eyebrow-dot" />
-                NMLS-Approved Education Provider
+                <span className="hp-hero-eyebrow-text">NMLS-APPROVED EDUCATION PROVIDER</span>
               </div>
               <h1 className="hp-hero-h1">
-                Your Path to<br />
-                Mortgage<br />
-                <span className="hp-hero-accent">Licensure.</span>
+                YOUR PATH TO<br />
+                <span className="hp-hero-accent">MORTGAGE</span><br />
+                LICENSURE.
               </h1>
               <p className="hp-hero-desc">
-                Relstone delivers NMLS-approved pre-licensing and continuing
-                education courses built for mortgage professionals. Study at your
-                own pace, stay compliant, and earn your certificates.
+                RELSTONE delivers NMLS-approved pre-licensing and continuing education for mortgage
+                professionals. Stay compliant, study at your own pace, and earn your certificates.
               </p>
               <div className="hp-hero-actions">
-                <button onClick={handleDashboard} className="hp-btn-primary hp-btn-lg">
+                <button className="hp-btn-hero-solid" onClick={handleDashboard}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#091925" strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                   Go to Dashboard
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                 </button>
-                <button onClick={() => navigate('/courses')} className="hp-btn-ghost hp-btn-lg">Browse Courses</button>
+                <button className="hp-btn-hero-outline" onClick={() => navigate('/courses')}>
+                  Browse Courses
+                </button>
               </div>
               <div className="hp-hero-badges">
-                {['SAFE Act Compliant', '50+ States Approved', 'Instant Certificates'].map(b => (
-                  <div key={b} className="hp-badge-item">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    {b}
+                {['NMLS-Approved','All 50 States','Established 1978'].map((b, i) => (
+                  <div key={b} style={{ display:'flex', alignItems:'center' }}>
+                    {i > 0 && <div className="hp-badge-sep" />}
+                    <div className="hp-badge-item">
+                      <svg width="10" height="8" viewBox="0 0 24 20" fill="none" stroke="#00FF09" strokeWidth="3" strokeLinecap="round"><polyline points="2 10 9 17 22 3"/></svg>
+                      {b}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="hp-hero-card-wrap">
-              <div className="hp-hero-card">
-                <div className="hp-hcard-header">
-                  <span className="hp-hcard-tag">Platform Overview</span>
-                </div>
-                <div className="hp-hcard-items">
-                  {[
-                    { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>, label: 'Course Format', value: 'Online Self-Study (OSS)' },
-                    { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>, label: 'Access', value: '24 / 7 — Any Device' },
-                    { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, label: 'Pre-Licensing', value: '20-Hour SAFE Act PE Course' },
-                    { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, label: 'Continuing Education', value: '8-Hour Annual CE Renewal' },
-                    { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, label: 'Certificate', value: 'Issued Instantly on Completion' },
-                  ].map((item, i) => (
-                    <div key={i} className="hp-hcard-item">
-                      <div className="hp-hcard-icon">{item.icon}</div>
-                      <div>
-                        <div className="hp-hcard-label">{item.label}</div>
-                        <div className="hp-hcard-value">{item.value}</div>
-                      </div>
+            {/* Right — stats card */}
+            <div className="hp-hero-right">
+              <div className="hp-hero-stats-card">
+                <div className="hp-stats-label">WHY RELSTONE NMLS</div>
+                <div className="hp-stats-grid">
+                  {[['45+','Years in Education'],['98%','First-Time Pass Rate'],['50K+','Licensed Graduates'],['50','States Covered']].map(([n,l]) => (
+                    <div key={l} className="hp-stat-box">
+                      <div className="hp-stat-num">{n}</div>
+                      <div className="hp-stat-desc">{l}</div>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => navigate('/courses')} className="hp-hcard-cta">Browse Courses →</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── ABOUT NMLS BANNER ── */}
-        <div className="hp-about-banner">
-          <div className="hp-container hp-banner-inner">
-            <p className="hp-banner-text">
-              <strong>What is NMLS?</strong> The Nationwide Multistate Licensing System is the official platform
-              for U.S. mortgage licensing. The SAFE Act requires all Mortgage Loan Originators (MLOs)
-              to complete NMLS-approved education before originating loans.
-            </p>
-            <button onClick={() => navigate('/courses')} className="hp-banner-link">View Courses →</button>
-          </div>
-        </div>
-
-        {/* ── ABOUT SECTION ── */}
-        <section className="hp-about">
-          <div className="hp-container">
-            <div className="hp-section-label">ABOUT THE PLATFORM</div>
-            <div className="hp-about-grid">
-              <div className="hp-about-left">
-                <h2 className="hp-section-h2">NMLS-Approved Education<br /><span className="hp-h2-accent">Built for Compliance.</span></h2>
-                <p className="hp-about-para">Relstone is an NMLS-approved education provider offering fully online, self-paced mortgage licensing courses. Our platform is designed to meet every technical requirement set by the SAFE Act and NMLS — from identity authentication to time tracking and module sequencing.</p>
-                <p className="hp-about-para">Whether you're a first-time MLO applicant completing your 20-hour pre-licensing requirement or a licensed professional renewing with your annual 8-hour CE, Relstone has the course you need — available anytime, from any device.</p>
-                <button onClick={() => navigate('/courses')} className="hp-btn-primary" style={{ marginTop:'8px',display:'inline-flex',alignItems:'center',gap:'8px' }}>
-                  Browse Courses
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                </button>
-              </div>
-              <div className="hp-about-right">
-                <div className="hp-about-card">
-                  <div className="hp-acard-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.6"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
-                  <h3 className="hp-acard-title">Pre-Licensing Education (PE)</h3>
-                  <p className="hp-acard-desc">Complete the required 20-hour SAFE Act PE course for first-time MLO applicants. Covers federal law, ethics, and non-traditional mortgage products.</p>
-                  <div className="hp-acard-meta">20 Hours Required</div>
-                </div>
-                <div className="hp-about-card">
-                  <div className="hp-acard-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-                  <h3 className="hp-acard-title">Continuing Education (CE)</h3>
-                  <p className="hp-acard-desc">Renew your MLO license annually with the required 8-hour CE course. Must be completed by December 31st each year per state law.</p>
-                  <div className="hp-acard-meta">8 Hours Per Year</div>
+                <div className="hp-stats-divider" />
+                <div className="hp-req-label">KEY NMLS REQUIREMENTS COVERED</div>
+                <div className="hp-req-list">
+                  {[
+                    ['SAFE Act Pre-Licensing Education','20 hrs'],
+                    ['Annual Continuing Education','8 hrs / yr'],
+                    ['Federal Law & Ethics','Included'],
+                    ['State-Specific Law Electives','50 states'],
+                    ['Non-Traditional Lending Standards','Included'],
+                  ].map(([t,b]) => (
+                    <div key={t} className="hp-req-item">
+                      <svg width="10" height="8" viewBox="0 0 24 20" fill="none" stroke="#00FF09" strokeWidth="3" strokeLinecap="round"><polyline points="2 10 9 17 22 3"/></svg>
+                      <span className="hp-req-text">{t}</span>
+                      <span className="hp-req-badge">{b}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Stats bar */}
+          <div className="hp-statsbar">
+            <div className="hp-statsbar-line" />
+            <div className="hp-container hp-statsbar-inner">
+              {[['45+','YEARS EDUCATING PROFESSIONALS'],['50K+','LICENSED GRADUATES'],['50','STATES COVERED'],['98%','EXAM PASS RATE']].map(([n,l], i) => (
+                <div key={l} className="hp-sbar-item">
+                  {i > 0 && <div className="hp-sbar-divider" />}
+                  <div className="hp-sbar-num">{n}</div>
+                  <div className="hp-sbar-lbl">{l}</div>
+                </div>
+              ))}
+            </div>
+            <div className="hp-statsbar-line" />
+          </div>
         </section>
 
-        {/* ── FEATURES ── */}
-        <section className="hp-features">
+        {/* ════════ ABOUT ════════ */}
+        <section className="hp-about" id="why">
+          <div className="hp-container hp-about-grid">
+            <div>
+              <p className="hp-eyebrow-small">— ABOUT RELSTONE NMLS</p>
+              <h2 className="hp-h2">NMLS–APPROVED EDUCATION<br />BUILT FOR <span className="hp-blue">COMPLIANCE.</span></h2>
+              <p className="hp-body">RELSTONE is a nationally recognized, NMLS-approved education provider with over 45 years of experience training real estate and mortgage professionals. Our curriculum is built to meet every NMLS requirement — out of the box.</p>
+              <p className="hp-body">Whether you're starting your mortgage career with <strong>SAFE Act Pre-Licensing</strong>, maintaining your license with <strong>Annual Continuing Education</strong>, or seeking <strong>state-specific elective hours</strong>, RELSTONE delivers the most current, exam-relevant content available.</p>
+              <p className="hp-body">All courses are fully online, self-paced, and report directly to NMLS upon completion. No scheduling, no classroom, no waiting.</p>
+              <button className="hp-btn-dark" onClick={() => navigate('/courses')}>Browse Courses →</button>
+            </div>
+            <div className="hp-about-cards">
+              {[
+                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>, title:'100% Online, Self-Paced',     desc:'Study from any device, anytime. No classroom required.',                         border:'#2EABFE' },
+                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#008000" strokeWidth="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, title:'Direct NMLS Reporting',         desc:'Instant NMLS reporting for completed courses.',                                   border:'#008000' },
+                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>, title:'98% First-Time Pass Rate',      desc:'Exam prep designed specifically for the NMLS exam.',                              border:'#F59E0B' },
+                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#091925" strokeWidth="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>, title:'Dedicated Student Support',     desc:'Live support from licensed professionals, not automated bots.',                   border:'#091925' },
+              ].map((c,i) => (
+                <div key={i} className="hp-about-card">
+                  <div className="hp-about-card-icon" style={{ border:`0.5px solid ${c.border}`, background:`${c.border}18` }}>{c.icon}</div>
+                  <div>
+                    <div className="hp-about-card-title">{c.title}</div>
+                    <div className="hp-about-card-desc">{c.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ════════ FEATURES ════════ */}
+        <section className="hp-features" id="features">
           <div className="hp-container">
-            <div className="hp-section-label hp-section-label--light">PLATFORM FEATURES</div>
-            <div className="hp-features-top">
-              <h2 className="hp-section-h2 hp-section-h2--light">Every NMLS Requirement,<br /><span className="hp-h2-accent-light">Out of the Box.</span></h2>
-              <p className="hp-features-sub">Our LMS is engineered to satisfy every technical specification required by the NMLS for online course delivery.</p>
+            <div className="hp-section-center">
+              <p className="hp-eyebrow-sky">WHY CHOOSE RELSTONE</p>
+              <h2 className="hp-h2 hp-h2--light">EVERY NMLS REQUIREMENT,<br /><span className="hp-blue">OUT OF THE BOX.</span></h2>
+              <p className="hp-sub hp-sub--light">Built to comply with all NMLS standards and delivered in a format that works for busy professionals.</p>
             </div>
             <div className="hp-feat-grid">
               {[
-                { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>, title: 'BioSig-ID Authentication', desc: 'Every Online Self-Study course uses BioSig-ID identity verification as required by NMLS effective August 2017.' },
-                { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, title: 'Engagement Time Tracking', desc: 'The platform tracks active engagement time only. Students are automatically logged out after 6 minutes of inactivity.' },
-                { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>, title: 'Locked Module Sequencing', desc: 'Students must advance linearly through course modules. No module can be skipped until all prior activities are completed.' },
-                { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>, title: 'Rules of Conduct (ROCS V4)', desc: 'Students must read and digitally agree to NMLS Rules of Conduct before every course. Provider logs are maintained for 5 years.' },
-                { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, title: 'Bookmarking & Resume', desc: 'Students can log out at any time and resume exactly where they left off. Course progress is preserved automatically.' },
-                { icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>, title: 'Instant Completion Certificate', desc: 'NMLS-compliant certificates are issued immediately upon course completion. Credit is reported to NMLS within 7 calendar days.' },
-              ].map((f, i) => (
+                { bg:'rgba(46,171,254,0.1)',  border:'#2EABFE', icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>, title:'Easy Course Navigation',   desc:'Intuitive navigation, clear progress tracking, and zero technical friction.' },
+                { bg:'rgba(0,255,9,0.1)',     border:'#00FF09', icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, title:'Regulatory Compliance',   desc:'Continuously updated to reflect the latest CFPB, Dodd-Frank, RESPA, and TILA changes.' },
+                { bg:'rgba(245,158,11,0.1)',  border:'#F59E0B', icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, title:'Limited-Time Licensing',   desc:'Built-in deadline reminders and renewal alerts keep you on track.' },
+                { bg:'rgba(149,105,247,0.1)', border:'#9569F7', icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9569F7" strokeWidth="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.18 2 2 0 0 1 3.6 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.6a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16z"/></svg>, title:'Live Student Support',     desc:'Real humans — licensed mortgage professionals who know the industry.' },
+                { bg:'rgba(46,171,254,0.1)',  border:'#2EABFE', icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, title:'Instant Certificates',      desc:'Download your certificate immediately upon finishing — always in your student portal.' },
+                { bg:'rgba(239,68,68,0.1)',   border:'#EF4444', icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="1.8"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>, title:'Mobile-Friendly Platform',  desc:'Study on any device — phone, tablet, or desktop. Progress syncs automatically.' },
+              ].map((f,i) => (
                 <div key={i} className="hp-feat-card">
-                  <div className="hp-feat-num">0{i + 1}</div>
-                  <div className="hp-feat-icon">{f.icon}</div>
-                  <h3 className="hp-feat-title">{f.title}</h3>
-                  <p className="hp-feat-desc">{f.desc}</p>
+                  <div className="hp-feat-icon" style={{ background:f.bg, border:`0.5px solid ${f.border}` }}>{f.icon}</div>
+                  <div className="hp-feat-title">{f.title}</div>
+                  <div className="hp-feat-desc">{f.desc}</div>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── COURSES ── */}
-        <section className="hp-courses">
+        {/* ════════ REQUIREMENTS ════════ */}
+        <section className="hp-requirements" id="requirements">
           <div className="hp-container">
-            <div className="hp-section-label">AVAILABLE COURSES</div>
-            <div className="hp-courses-top">
-              <h2 className="hp-section-h2">Choose Your <span className="hp-h2-accent">Course</span></h2>
-              <p className="hp-courses-sub">NMLS-approved courses available 24/7 online, at your own pace.</p>
+            <div className="hp-section-center">
+              <p className="hp-eyebrow-blue">NMLS REQUIREMENTS</p>
+              <h2 className="hp-h2">BUILT TO MEET EVERY<br /><span className="hp-blue">NMLS STANDARD.</span></h2>
+              <p className="hp-sub">Every course is designed with the NMLS requirement checklist in mind so you graduate fully compliant — first time, every time.</p>
             </div>
-            <div className="hp-course-table">
-              <div className="hp-course-row hp-course-row--featured">
-                <div className="hp-course-badge-wrap"><span className="hp-course-tag">Pre-Licensing</span></div>
-                <div className="hp-course-info">
-                  <h3 className="hp-course-title">SAFE Act Pre-Licensing Education (PE)</h3>
-                  <p className="hp-course-desc">Required for all first-time MLO applicants. Covers federal mortgage law, ethics, fraud, non-traditional mortgage products, and state-specific electives.</p>
-                  <div className="hp-course-topics-row">
-                    <span className="hp-topic-chip">Federal Law (3 hrs)</span>
-                    <span className="hp-topic-chip">Ethics (3 hrs)</span>
-                    <span className="hp-topic-chip">Non-Traditional (2 hrs)</span>
-                    <span className="hp-topic-chip">Electives (12 hrs)</span>
+            <div className="hp-req-grid">
+              {[
+                { t:'20-Hour Pre-Licensing Education',       d:'Federal requirement for all new MLOs. Covers federal law, ethics, non-traditional lending, and 12 elective hours.' },
+                { t:'8-Hour Annual Continuing Education',    d:'Required every year for license renewal. Must include 3 hrs federal law, 2 hrs ethics, 2 hrs non-traditional lending.' },
+                { t:'State-Specific Law Requirements',       d:'Many states require additional state law hours. We offer state-specific courses for CA, TX, FL, NY, PA, RI, and more.' },
+                { t:'Background & Credit Check Compliance',  d:'We guide you through the NMLS background check and credit report requirements before licensing.' },
+                { t:'8-Year Waiting Period Guidance',        d:'Certain felonies require a waiting period before licensure. We help you understand your eligibility upfront.' },
+                { t:'High-Cost Mortgage Loan Training',      d:'Coverage of HOEPA, TILA Section 32, and high-cost mortgage guidelines required for full compliance.' },
+                { t:'Right of Rescission & RESPA',           d:'Detailed coverage of the three-day right of rescission and RESPA requirements including affiliated business arrangements.' },
+                { t:'Equal Credit Opportunity Act (ECOA)',   d:'Prohibition of credit discrimination and notification requirements thoroughly covered in our ethics modules.' },
+              ].map((r,i) => (
+                <div key={i} className="hp-req-card">
+                  <div className="hp-req-check">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div>
+                    <div className="hp-req-title">{r.t}</div>
+                    <div className="hp-req-desc">{r.d}</div>
                   </div>
                 </div>
-                <div className="hp-course-meta">
-                  <div className="hp-course-hours-badge">20<span>HRS</span></div>
-                  <button onClick={() => navigate('/courses')} className="hp-btn-primary">View Course</button>
-                </div>
-              </div>
-              <div className="hp-course-row">
-                <div className="hp-course-badge-wrap"><span className="hp-course-tag hp-course-tag--ce">Continuing Ed</span></div>
-                <div className="hp-course-info">
-                  <h3 className="hp-course-title">Annual Continuing Education (CE)</h3>
-                  <p className="hp-course-desc">Required annually for all licensed MLOs to maintain and renew their mortgage license. Must be completed by December 31st each year.</p>
-                  <div className="hp-course-topics-row">
-                    <span className="hp-topic-chip">Federal Update (3 hrs)</span>
-                    <span className="hp-topic-chip">Ethics (2 hrs)</span>
-                    <span className="hp-topic-chip">Non-Traditional (2 hrs)</span>
-                    <span className="hp-topic-chip">State Elective (1 hr)</span>
-                  </div>
-                </div>
-                <div className="hp-course-meta">
-                  <div className="hp-course-hours-badge hp-course-hours-badge--ce">8<span>HRS</span></div>
-                  <button onClick={() => navigate('/courses')} className="hp-btn-outline">View Course</button>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* ── COMPLIANCE ── */}
-        <section className="hp-compliance">
+        {/* ════════ TESTIMONIALS ════════ */}
+        <section className="hp-testimonials">
           <div className="hp-container">
-            <div className="hp-section-label">REGULATORY COMPLIANCE</div>
-            <div className="hp-compliance-grid">
-              <div className="hp-compliance-left">
-                <h2 className="hp-section-h2">Built to Meet Every<br /><span className="hp-h2-accent">NMLS Standard.</span></h2>
-                <p className="hp-comp-para">Our platform is engineered from the ground up to satisfy every technical and regulatory requirement mandated by the NMLS for online course providers — so your education hours are always valid and reportable.</p>
-              </div>
-              <div className="hp-compliance-right">
-                {[
-                  { label: 'SAFE Act Compliance',      desc: 'All courses meet federal SAFE Act minimum time and content requirements.' },
-                  { label: 'BioSig-ID Integration',    desc: 'Biometric identity authentication on every self-study course.' },
-                  { label: 'ROCS V4 Agreement',        desc: 'Rules of Conduct click-through enforced before every course session.' },
-                  { label: '7-Day Credit Reporting',   desc: 'Completions reported to NMLS within 7 calendar days of course finish.' },
-                  { label: 'Cross-Browser Compatible', desc: 'Works on all modern browsers, PC and Mac, with no plugins required.' },
-                  { label: '24/7 Course Access',       desc: 'Students can access course materials any time via the internet.' },
-                ].map((c, i) => (
-                  <div key={i} className="hp-comp-item">
-                    <div className="hp-comp-check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>
-                    <div><div className="hp-comp-label">{c.label}</div><div className="hp-comp-desc">{c.desc}</div></div>
-                  </div>
-                ))}
-              </div>
+            <div className="hp-section-center">
+              <p className="hp-eyebrow-blue">STUDENT SUCCESS STORIES</p>
+              <h2 className="hp-h2">REAL RESULTS FROM<br /><span className="hp-blue">REAL MORTGAGE PROFESSIONALS</span></h2>
+              <p className="hp-sub">Thousands of MLOs have used RELSTONE to get licensed and stay compliant.</p>
             </div>
-          </div>
-        </section>
-
-        {/* ── TESTIMONIALS ── */}
-        <section className="hp-testimonials-section">
-          <div className="hp-container">
-            <div className="hp-section-head-center">
-              <div className="hp-section-label">Student Reviews</div>
-              <h2 className="hp-section-h2">Real Results From<br /><span className="hp-h2-accent">Real Mortgage Professionals</span></h2>
-            </div>
-            <div className="hp-testimonials">
-              <div className="hp-tcard-wrap">
-                {TESTIMONIALS.map((t, i) => (
-                  <div key={i} className={`hp-tcard ${i === activeTestimonial ? 'hp-tcard--active' : ''}`}>
-                    <div className="hp-tcard-stars"><Stars n={t.rating} /></div>
-                    <p className="hp-tcard-text">"{t.text}"</p>
-                    <div className="hp-tcard-author">
-                      <div className="hp-tcard-avatar">{t.avatar}</div>
-                      <div>
-                        <div className="hp-tcard-name">{t.name}</div>
-                        <div className="hp-tcard-state">{t.state}</div>
-                      </div>
+            <div className="hp-tcard-grid">
+              {TESTIMONIALS.map((t,i) => (
+                <div key={i} className="hp-tcard">
+                  <Stars />
+                  <p className="hp-tcard-text">"{t.text}"</p>
+                  <div className="hp-tcard-author">
+                    <div className="hp-tcard-avatar">{t.avatar}</div>
+                    <div>
+                      <div className="hp-tcard-name">{t.name}</div>
+                      <div className="hp-tcard-role">{t.role}</div>
                     </div>
                   </div>
-                ))}
-              </div>
-              <div className="hp-tdots">
-                {TESTIMONIALS.map((_, i) => (
-                  <button key={i} className={`hp-tdot ${i === activeTestimonial ? 'hp-tdot--active' : ''}`} onClick={() => setActiveTestimonial(i)} />
-                ))}
-              </div>
-              <div className="hp-tarrows">
-                <button className="hp-tarrow" onClick={() => setActiveTestimonial(p => (p - 1 + TESTIMONIALS.length) % TESTIMONIALS.length)}>←</button>
-                <button className="hp-tarrow" onClick={() => setActiveTestimonial(p => (p + 1) % TESTIMONIALS.length)}>→</button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── FAQ ── */}
-        <section className="hp-faq-section">
-          <div className="hp-container hp-faq-inner">
-            <div className="hp-section-head-center">
-              <div className="hp-section-label">FAQ</div>
-              <h2 className="hp-section-h2">Common Questions</h2>
-            </div>
-            <div className="hp-faq">
-              {FAQS.map((f, i) => (
-                <div key={i} className={`hp-faq-item ${openFaq === i ? 'hp-faq-item--open' : ''}`}>
-                  <button className="hp-faq-q" onClick={() => setOpenFaq(openFaq === i ? null : i)}>
-                    <span>{f.q}</span>
-                    <span className="hp-faq-icon">{openFaq === i ? '−' : '+'}</span>
-                  </button>
-                  {openFaq === i && <div className="hp-faq-a">{f.a}</div>}
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── CTA ── */}
-        <section className="hp-cta">
-          <div className="hp-cta-glow" />
-          <div className="hp-container hp-cta-inner">
-            <div className="hp-cta-eyebrow">NMLS-Approved • SAFE Act Compliant • Online Self-Study</div>
-            <h2 className="hp-cta-h2">Continue Your<br />Mortgage Journey</h2>
-            <p className="hp-cta-p">Browse your courses, track your progress, and earn your NMLS certificates — all in one place.</p>
-            <div className="hp-cta-btns">
-              <button onClick={handleDashboard} className="hp-btn-primary hp-btn-lg">
-                Go to Dashboard
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-              </button>
-              <button onClick={() => navigate('/courses')} className="hp-cta-sub-link">Browse all courses →</button>
+        {/* ════════ FAQ ════════ */}
+        <section className="hp-faq" id="faq">
+          <div className="hp-container hp-faq-wrap">
+            <div className="hp-section-center">
+              <p className="hp-eyebrow-blue">COMMON QUESTIONS</p>
+              <h2 className="hp-h2">COMMON <span className="hp-blue">QUESTIONS</span></h2>
+              <p className="hp-sub">Everything you need to know about NMLS licensing education.</p>
+            </div>
+            <div className="hp-faq-list">
+              {FAQS.map((f,i) => (
+                <div key={i} className={`hp-faq-item${openFaq===i?' hp-faq-item--open':''}`}>
+                  <button className="hp-faq-q" onClick={() => setOpenFaq(openFaq===i?null:i)}>
+                    <span>{f.q}</span>
+                    <span className={`hp-faq-toggle${openFaq===i?' hp-faq-toggle--open':''}`}>
+                      {openFaq===i
+                        ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      }
+                    </span>
+                  </button>
+                  {openFaq===i && <div className="hp-faq-a">{f.a}</div>}
+                </div>
+              ))}
             </div>
           </div>
         </section>
+
+        {/* ════════ FOOTER BAND (replaces CTA — no sign-up) ════════ */}
+        <div className="hp-footer-band">
+          <div className="hp-footer-band-overlay" />
+          <div className="hp-container hp-footer-band-inner">
+            <div>
+              <p className="hp-footer-band-eye">— RELSTONE · NMLS — YOUR LEARNING HUB</p>
+              <h2 className="hp-footer-band-h2">CONTINUE YOUR<br /><span className="hp-blue">MORTGAGE JOURNEY.</span></h2>
+              <p className="hp-footer-band-sub">Browse your courses, track your progress, and earn your NMLS certificates — all in one place.</p>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <button className="hp-btn-enroll" onClick={handleDashboard}>Go to Dashboard ——</button>
+              <button className="hp-btn-enroll-ghost" onClick={() => navigate('/courses')}>Browse Courses →</button>
+            </div>
+          </div>
+        </div>
+
+        {/* ════════ FOOTER ════════ */}
+        <footer className="hp-footer">
+          <div className="hp-container hp-footer-inner">
+            <p className="hp-footer-copy">
+              © Copyright {new Date().getFullYear()} <a href="#" className="hp-footer-link-blue">Real Estate License Services, Inc.</a> — A California School Established 1978. All Rights Reserved.
+            </p>
+            <div className="hp-footer-links">
+              <a href="#" className="hp-footer-link">Privacy Policy</a>
+              <span className="hp-footer-dot">·</span>
+              <a href="#" className="hp-footer-link">Terms of Use</a>
+              <span className="hp-footer-dot">·</span>
+              <a href="#" className="hp-footer-link">NMLS Disclosure</a>
+            </div>
+          </div>
+        </footer>
 
       </div>
     </Layout>
   );
 };
 
-const css = `
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.cdnfonts.com/css/homepage-baukasten');
+// ─── CSS ───────────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
 
-:root {
-  --hp-midnight:    #091925;
-  --hp-deep-navy:   #0D2436;
-  --hp-steel-night: #163347;
-  --hp-electric:    #2EABFE;
-  --hp-sky:         #60C3FF;
-  --hp-ocean:       #1A7AB8;
-  --hp-ice:         #F0F6FA;
-  --hp-slate:       #7FA8C4;
-  --hp-white:       #ffffff;
-  --hp-text-muted:  #64748b;
-  --hp-border:      rgba(9,25,37,0.09);
-  --hp-font-title:  'Homepage Baukasten', sans-serif;
-  --hp-font-body:   'Poppins', sans-serif;
-}
-
-.hp-root { font-family: var(--hp-font-body); background: var(--hp-white); color: var(--hp-midnight); overflow-x: hidden; }
-.hp-container { max-width: 1200px; margin: 0 auto; padding: 0 5%; }
-
-/* ══ BUTTONS ══ */
-.hp-btn-primary { padding: 9px 20px; font-size: 13.5px; font-weight: 700; color: #fff; background: var(--hp-midnight); border-radius: 9px; border: none; cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 8px; font-family: var(--hp-font-body); }
-.hp-btn-primary:hover { background: var(--hp-electric); box-shadow: 0 8px 24px rgba(46,171,254,0.3); transform: translateY(-1px); }
-.hp-btn-ghost { padding: 8px 18px; font-size: 13.5px; font-weight: 600; color: var(--hp-midnight); border-radius: 9px; border: 1.5px solid var(--hp-border); transition: all .18s; display: inline-flex; align-items: center; gap: 6px; background: transparent; font-family: var(--hp-font-body); cursor: pointer; }
-.hp-btn-ghost:hover { border-color: var(--hp-electric); color: var(--hp-electric); }
-.hp-btn-outline { padding: 9px 20px; font-size: 13.5px; font-weight: 700; color: var(--hp-midnight); background: transparent; border: 2px solid var(--hp-midnight); border-radius: 9px; transition: all .2s; display: inline-flex; align-items: center; gap: 8px; font-family: var(--hp-font-body); cursor: pointer; }
-.hp-btn-outline:hover { background: var(--hp-midnight); color: #fff; }
-.hp-btn-lg { padding: 13px 28px; font-size: 15px; border-radius: 10px; }
+.hp-root { font-family: 'Poppins', system-ui, sans-serif; color: #091925; overflow-x: hidden; background: #F2F6F9; }
+.hp-container { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
+.hp-blue { color: #2EABFE; }
 
 /* ══ HERO ══ */
-.hp-hero { min-height: calc(100vh - 58px); background: var(--hp-midnight); position: relative; overflow: hidden; display: flex; align-items: center; }
+.hp-hero { background: #091925; position: relative; overflow: hidden; display: flex; flex-direction: column; }
 .hp-hero-bg-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(46,171,254,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(46,171,254,0.05) 1px, transparent 1px); background-size: 52px 52px; }
 .hp-hero-glow { position: absolute; pointer-events: none; width: 700px; height: 700px; border-radius: 50%; background: radial-gradient(circle, rgba(46,171,254,0.14) 0%, transparent 65%); top: -100px; right: -80px; }
-.hp-hero-inner { width: 100%; display: grid; grid-template-columns: 1fr 420px; gap: 60px; align-items: center; padding-top: 60px; padding-bottom: 60px; position: relative; z-index: 1; }
-.hp-hero-eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; background: rgba(46,171,254,0.1); border: 1px solid rgba(46,171,254,0.22); border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--hp-sky); margin-bottom: 28px; }
-.hp-eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hp-electric); animation: hp-pulse 2s infinite; }
-@keyframes hp-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.45;transform:scale(0.8)} }
-.hp-hero-h1 { font-family: var(--hp-font-title); font-size: clamp(44px, 5.5vw, 72px); line-height: 1.04; font-weight: 800; color: #fff; letter-spacing: -1px; margin-bottom: 22px; }
-.hp-hero-accent { background: linear-gradient(90deg, #fff 0%, #cfeeff 30%, #2EABFE 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.hp-hero-desc { font-size: 16px; line-height: 1.75; color: rgba(240,246,250,0.68); max-width: 500px; margin-bottom: 36px; }
-.hp-hero-actions { display: flex; gap: 14px; margin-bottom: 36px; flex-wrap: wrap; }
-.hp-hero-badges { display: flex; flex-direction: column; gap: 10px; }
-.hp-badge-item { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: rgba(240,246,250,0.65); }
-.hp-hero-card-wrap { position: relative; }
-.hp-hero-card { background: rgba(13,36,54,0.75); border: 1px solid rgba(46,171,254,0.18); border-radius: 20px; padding: 28px; backdrop-filter: blur(16px); }
-.hp-hcard-header { margin-bottom: 20px; }
-.hp-hcard-tag { font-size: 11px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; color: var(--hp-sky); }
-.hp-hcard-items { display: grid; gap: 16px; margin-bottom: 24px; }
-.hp-hcard-item { display: flex; align-items: flex-start; gap: 14px; }
-.hp-hcard-icon { width: 38px; height: 38px; border-radius: 10px; background: rgba(46,171,254,0.1); border: 1px solid rgba(46,171,254,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.hp-hcard-label { font-size: 11px; font-weight: 600; color: var(--hp-slate); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px; }
-.hp-hcard-value { font-size: 14px; font-weight: 600; color: #fff; }
-.hp-hcard-cta { display: flex; align-items: center; justify-content: center; width: 100%; padding: 13px; background: var(--hp-electric); color: #fff; font-family: var(--hp-font-body); font-size: 14px; font-weight: 700; border-radius: 12px; border: none; cursor: pointer; transition: all .2s; }
-.hp-hcard-cta:hover { background: var(--hp-sky); transform: translateY(-1px); }
+.hp-hero-inner { position: relative; z-index: 3; flex: 1; display: grid; grid-template-columns: 1fr 460px; gap: 40px; align-items: center; padding: 50px 40px 44px; max-width: 1200px; margin: 0 auto; width: 100%; }
+.hp-hero-eyebrow-wrap { display: inline-flex; align-items: center; gap: 8px; padding: 0 12px; height: 28px; background: rgba(46,171,254,0.1); border: 0.5px solid #2EABFE; border-radius: 100px; margin-bottom: 18px; }
+.hp-eyebrow-dot { width: 6px; height: 6px; border-radius: 50%; background: #00FF09; box-shadow: 0 0 4px #00FF09; flex-shrink: 0; animation: hp-blink 2s infinite; }
+@keyframes hp-blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+.hp-hero-eyebrow-text { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 700; color: #2EABFE; letter-spacing: 0.5px; text-transform: uppercase; }
+.hp-hero-h1 { font-family: 'Poppins', sans-serif; font-size: clamp(36px,4.5vw,58px); line-height: 1.02; font-weight: 700; color: #fff; text-transform: uppercase; margin-bottom: 18px; }
+.hp-hero-accent { color: #2EABFE; }
+.hp-hero-desc { font-family: 'Poppins', sans-serif; font-size: 15px; line-height: 1.7; font-weight: 400; color: rgba(255,255,255,0.78); max-width: 480px; margin-bottom: 26px; }
+.hp-hero-actions { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.hp-btn-hero-solid { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 22px; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; color: #091925; background: #2EABFE; border-radius: 5px; border: 0.5px solid #2EABFE; cursor: pointer; transition: background .15s; }
+.hp-btn-hero-solid:hover { background: #60C3FF; }
+.hp-btn-hero-outline { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 22px; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; color: #fff; border: 1px solid #fff; border-radius: 5px; background: transparent; cursor: pointer; transition: all .15s; }
+.hp-btn-hero-outline:hover { background: rgba(255,255,255,0.08); }
+.hp-hero-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.hp-badge-item { display: flex; align-items: center; gap: 5px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #fff; }
+.hp-badge-sep { width: 0; height: 9px; border-left: 0.5px solid #2EABFE; margin: 0 10px; }
 
-/* ══ ABOUT BANNER ══ */
-.hp-about-banner { background: var(--hp-electric); padding: 18px 0; }
-.hp-banner-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
-.hp-banner-text { font-size: 14px; line-height: 1.6; color: #fff; max-width: 780px; }
-.hp-banner-text strong { font-weight: 700; }
-.hp-banner-link { font-size: 13px; font-weight: 700; color: #fff; white-space: nowrap; padding: 8px 18px; border: 1.5px solid rgba(255,255,255,0.45); border-radius: 8px; transition: all .18s; flex-shrink: 0; background: none; cursor: pointer; font-family: var(--hp-font-body); }
-.hp-banner-link:hover { background: rgba(255,255,255,0.15); }
+/* Stats card */
+.hp-hero-stats-card { background: rgba(46,171,254,0.1); border: 0.5px solid #2EABFE; border-radius: 8px; padding: 20px; }
+.hp-stats-label { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500; color: #fff; text-transform: uppercase; margin-bottom: 12px; }
+.hp-stats-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.hp-stat-box { background: rgba(46,171,254,0.1); border: 0.5px solid #2EABFE; padding: 10px; text-align: center; }
+.hp-stat-num { font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 800; color: #2EABFE; line-height: 1.2; }
+.hp-stat-desc { font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 500; color: #fff; line-height: 1.4; text-align: center; }
+.hp-stats-divider { width: 100%; height: 0.5px; background: #2EABFE; margin: 14px 0; }
+.hp-req-label { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500; color: #fff; text-transform: uppercase; margin-bottom: 10px; }
+.hp-req-list { display: flex; flex-direction: column; gap: 9px; }
+.hp-req-item { display: flex; align-items: center; gap: 8px; }
+.hp-req-text { flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #fff; }
+.hp-req-badge { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #2EABFE; white-space: nowrap; }
 
-/* ══ SECTIONS ══ */
-.hp-about { padding: 96px 0; background: var(--hp-white); }
-.hp-section-label { font-size: 11px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: var(--hp-electric); margin-bottom: 16px; }
-.hp-section-label--light { color: var(--hp-sky); }
-.hp-section-h2 { font-family: var(--hp-font-title); font-size: clamp(28px, 3.2vw, 40px); line-height: 1.12; font-weight: 800; color: var(--hp-midnight); margin-bottom: 18px; }
-.hp-section-h2--light { color: #fff; }
-.hp-h2-accent { color: var(--hp-electric); }
-.hp-h2-accent-light { color: var(--hp-sky); }
-.hp-about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
-.hp-about-para { font-size: 15px; line-height: 1.8; color: var(--hp-text-muted); margin-bottom: 16px; }
-.hp-about-card { background: var(--hp-ice); border: 1px solid var(--hp-border); border-radius: 16px; padding: 26px; margin-bottom: 16px; transition: transform .2s, box-shadow .2s; }
-.hp-about-card:last-child { margin-bottom: 0; }
-.hp-about-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(9,25,37,0.07); }
-.hp-acard-icon { width: 48px; height: 48px; background: rgba(46,171,254,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
-.hp-acard-title { font-family: var(--hp-font-title); font-size: 17px; font-weight: 700; color: var(--hp-midnight); margin-bottom: 8px; }
-.hp-acard-desc { font-size: 13.5px; line-height: 1.65; color: var(--hp-text-muted); margin-bottom: 12px; }
-.hp-acard-meta { display: inline-flex; align-items: center; padding: 4px 12px; background: rgba(46,171,254,0.1); border: 1px solid rgba(46,171,254,0.2); border-radius: 999px; font-size: 12px; font-weight: 700; color: var(--hp-electric); }
+/* Statsbar */
+.hp-statsbar { background: rgba(9,25,37,0.85); position: relative; z-index: 10; }
+.hp-statsbar-line { width: 100%; height: 0; border-top: 0.5px solid #2EABFE; }
+.hp-statsbar-inner { display: grid; grid-template-columns: repeat(4,1fr); padding: 16px 40px; max-width: 1200px; margin: 0 auto; position: relative; }
+.hp-sbar-item { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 12px 10px; position: relative; }
+.hp-sbar-divider { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 0; height: 100px; border-left: 0.5px solid #2EABFE; }
+.hp-sbar-num { font-family: 'JetBrains Mono', monospace; font-size: 40px; font-weight: 800; color: #2EABFE; line-height: 1.2; }
+.hp-sbar-lbl { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 700; color: #fff; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ══ Shared ══ */
+.hp-eyebrow-small { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 6px; text-transform: uppercase; }
+.hp-eyebrow-blue  { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 6px; text-transform: uppercase; display: inline-block; }
+.hp-eyebrow-sky   { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 6px; text-transform: uppercase; display: inline-block; }
+.hp-h2 { font-family: 'Poppins', sans-serif; font-size: clamp(26px,3vw,38px); font-weight: 700; line-height: 1.1; color: #091925; margin-bottom: 12px; text-transform: uppercase; }
+.hp-h2--light { color: #fff; }
+.hp-sub { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 400; color: #091925; line-height: 22px; }
+.hp-sub--light { color: rgba(255,255,255,0.7); }
+.hp-body { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 400; line-height: 22px; color: #091925; margin-bottom: 12px; }
+.hp-body strong { font-weight: 600; }
+.hp-section-center { text-align: center; margin-bottom: 40px; }
+
+/* ══ ABOUT ══ */
+.hp-about { padding: 80px 0; background: #fff; }
+.hp-about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+.hp-btn-dark { display: inline-flex; align-items: center; height: 44px; padding: 0 20px; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; color: #fff; background: #091925; border-radius: 5px; border: 0.5px solid #091925; cursor: pointer; margin-top: 8px; transition: background .15s; }
+.hp-btn-dark:hover { background: #1e3a52; }
+.hp-about-cards { display: flex; flex-direction: column; gap: 12px; }
+.hp-about-card { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; border: 0.5px solid #5B7384; border-radius: 5px; background: #fff; transition: box-shadow .2s; }
+.hp-about-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.07); }
+.hp-about-card-icon { width: 48px; height: 48px; min-width: 48px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.hp-about-card-title { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; color: #091925; margin-bottom: 3px; line-height: 18px; }
+.hp-about-card-desc  { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 400; color: #091925; line-height: 18px; }
 
 /* ══ FEATURES ══ */
-.hp-features { padding: 96px 0; background: var(--hp-midnight); }
-.hp-features-top { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: end; margin-bottom: 56px; }
-.hp-features-sub { font-size: 15px; line-height: 1.75; color: var(--hp-slate); padding-top: 8px; }
-.hp-feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.hp-feat-card { background: rgba(13,36,54,0.7); border: 1px solid rgba(46,171,254,0.1); border-radius: 18px; padding: 28px 24px; position: relative; transition: all .22s; }
-.hp-feat-card:hover { border-color: rgba(46,171,254,0.3); transform: translateY(-4px); background: var(--hp-steel-night); }
-.hp-feat-num { position: absolute; top: 24px; right: 24px; font-family: var(--hp-font-title); font-size: 28px; font-weight: 800; color: rgba(46,171,254,0.12); }
-.hp-feat-icon { width: 46px; height: 46px; background: rgba(46,171,254,0.1); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--hp-electric); margin-bottom: 18px; }
-.hp-feat-title { font-family: var(--hp-font-title); font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 10px; }
-.hp-feat-desc { font-size: 13.5px; line-height: 1.65; color: var(--hp-slate); }
+.hp-features { padding: 80px 0; background: #091925; position: relative; overflow: hidden; }
+.hp-features::before { content:''; position:absolute; inset:0; background:linear-gradient(180deg,rgba(9,25,37,0.05) 0%,rgba(46,171,254,0.3) 100%); pointer-events:none; z-index:0; }
+.hp-features .hp-container { position: relative; z-index: 1; }
+.hp-feat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.hp-feat-card { padding: 22px 18px; border: 0.5px solid rgba(46,171,254,0.2); border-radius: 5px; background: rgba(46,171,254,0.05); transition: background .2s, border-color .2s; }
+.hp-feat-card:hover { background: rgba(46,171,254,0.1); border-color: rgba(46,171,254,0.3); }
+.hp-feat-icon { width: 52px; height: 52px; border-radius: 5px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+.hp-feat-title { font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 8px; line-height: 22px; }
+.hp-feat-desc  { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 400; line-height: 20px; color: rgba(255,255,255,0.65); }
 
-/* ══ COURSES ══ */
-.hp-courses { padding: 96px 0; background: var(--hp-ice); }
-.hp-courses-top { margin-bottom: 44px; }
-.hp-courses-sub { font-size: 15px; color: var(--hp-text-muted); line-height: 1.65; margin-top: 4px; }
-.hp-course-table { display: grid; gap: 20px; }
-.hp-course-row { background: var(--hp-white); border: 1px solid var(--hp-border); border-radius: 18px; padding: 32px; display: grid; grid-template-columns: 120px 1fr auto; gap: 28px; align-items: center; transition: transform .2s, box-shadow .2s; }
-.hp-course-row:hover { transform: translateY(-2px); box-shadow: 0 12px 36px rgba(9,25,37,0.09); }
-.hp-course-row--featured { border-color: var(--hp-electric); border-width: 2px; }
-.hp-course-tag { display: inline-block; padding: 6px 14px; font-size: 12px; font-weight: 700; background: rgba(46,171,254,0.1); color: var(--hp-electric); border-radius: 8px; text-align: center; }
-.hp-course-tag--ce { background: rgba(26,122,184,0.1); color: var(--hp-ocean); }
-.hp-course-title { font-family: var(--hp-font-title); font-size: 20px; font-weight: 800; color: var(--hp-midnight); margin-bottom: 8px; }
-.hp-course-desc { font-size: 14px; line-height: 1.65; color: var(--hp-text-muted); margin-bottom: 14px; }
-.hp-course-topics-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.hp-topic-chip { padding: 4px 12px; background: var(--hp-ice); border: 1px solid var(--hp-border); border-radius: 6px; font-size: 12px; font-weight: 500; color: #4a5568; }
-.hp-course-meta { display: flex; flex-direction: column; align-items: center; gap: 14px; }
-.hp-course-hours-badge { font-family: var(--hp-font-title); font-size: 42px; font-weight: 800; line-height: 1; color: var(--hp-midnight); text-align: center; }
-.hp-course-hours-badge span { font-size: 14px; font-weight: 700; color: var(--hp-electric); display: block; margin-top: -2px; }
-
-/* ══ COMPLIANCE ══ */
-.hp-compliance { padding: 96px 0; background: var(--hp-white); }
-.hp-compliance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: start; }
-.hp-comp-para { font-size: 15px; line-height: 1.8; color: var(--hp-text-muted); }
-.hp-compliance-right { display: grid; gap: 16px; }
-.hp-comp-item { display: flex; align-items: flex-start; gap: 14px; }
-.hp-comp-check { width: 28px; height: 28px; border-radius: 8px; background: rgba(46,171,254,0.1); border: 1px solid rgba(46,171,254,0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
-.hp-comp-label { font-size: 14px; font-weight: 700; color: var(--hp-midnight); margin-bottom: 2px; }
-.hp-comp-desc { font-size: 13px; line-height: 1.55; color: var(--hp-text-muted); }
+/* ══ REQUIREMENTS ══ */
+.hp-requirements { padding: 80px 0; background: #F2F6F9; }
+.hp-req-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hp-req-card { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; border: 0.5px solid #5B7384; border-radius: 5px; background: #fff; }
+.hp-req-check { width: 18px; height: 18px; border-radius: 50%; background: #008000; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+.hp-req-title { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; color: #091925; margin-bottom: 4px; }
+.hp-req-desc  { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 400; line-height: 16px; color: #091925; }
 
 /* ══ TESTIMONIALS ══ */
-.hp-testimonials-section { padding: 96px 0; background: var(--hp-white); }
-.hp-section-head-center { text-align: center; margin-bottom: 60px; }
-.hp-section-head-center .hp-section-label { display: inline-block; }
-.hp-testimonials { position: relative; }
-.hp-tcard-wrap { position: relative; min-height: 220px; }
-.hp-tcard { position: absolute; inset: 0; background: #fff; border-radius: 20px; padding: 36px; border: 1px solid var(--hp-border); box-shadow: 0 8px 32px rgba(9,25,37,0.07); opacity: 0; transform: translateX(20px); transition: opacity .5s, transform .5s; pointer-events: none; }
-.hp-tcard--active { opacity: 1; transform: translateX(0); pointer-events: auto; }
-.hp-tcard-stars { margin-bottom: 14px; font-size: 18px; }
-.hp-tcard-text { font-size: 17px; line-height: 1.7; color: var(--hp-midnight); font-style: italic; margin-bottom: 24px; max-width: 700px; }
-.hp-tcard-author { display: flex; align-items: center; gap: 14px; }
-.hp-tcard-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--hp-electric), #00B4B4); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; font-size: 14px; }
-.hp-tcard-name { font-weight: 700; font-size: 15px; color: var(--hp-midnight); }
-.hp-tcard-state { font-size: 13px; color: var(--hp-text-muted); }
-.hp-tdots { display: flex; justify-content: center; gap: 8px; margin-top: 240px; }
-.hp-tdot { width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0; border: none; cursor: pointer; transition: all .2s; }
-.hp-tdot--active { background: var(--hp-electric); width: 24px; border-radius: 4px; }
-.hp-tarrows { display: flex; justify-content: center; gap: 12px; margin-top: 20px; }
-.hp-tarrow { width: 42px; height: 42px; border-radius: 50%; background: #fff; border: 1.5px solid var(--hp-border); font-size: 18px; cursor: pointer; transition: all .2s; display: flex; align-items: center; justify-content: center; }
-.hp-tarrow:hover { border-color: var(--hp-electric); color: var(--hp-electric); }
+.hp-testimonials { padding: 80px 0; background: #F2F6F9; }
+.hp-tcard-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.hp-tcard { background: #fff; border: 0.5px solid rgba(46,171,254,0.5); border-radius: 5px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.hp-tcard-text   { font-family: 'Poppins', sans-serif; font-size: 13px; line-height: 18px; color: #091925; font-style: italic; flex: 1; }
+.hp-tcard-author { display: flex; align-items: center; gap: 10px; }
+.hp-tcard-avatar { width: 36px; height: 36px; border-radius: 50%; background: #2EABFE; display: flex; align-items: center; justify-content: center; font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; color: #091925; flex-shrink: 0; }
+.hp-tcard-name   { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; color: #091925; }
+.hp-tcard-role   { font-family: 'Poppins', sans-serif; font-size: 12px; color: #5B7384; }
 
 /* ══ FAQ ══ */
-.hp-faq-section { padding: 96px 0; background: #f8fbff; }
-.hp-faq-inner { max-width: 760px; }
-.hp-faq { display: grid; gap: 12px; }
-.hp-faq-item { background: #fff; border: 1.5px solid var(--hp-border); border-radius: 14px; overflow: hidden; transition: border-color .2s; }
-.hp-faq-item--open { border-color: rgba(46,171,254,0.35); }
-.hp-faq-q { width: 100%; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; background: none; border: none; cursor: pointer; font-family: var(--hp-font-body); font-size: 15px; font-weight: 600; color: var(--hp-midnight); text-align: left; }
-.hp-faq-icon { font-size: 20px; color: var(--hp-electric); flex-shrink: 0; font-weight: 400; }
-.hp-faq-a { padding: 0 24px 20px; font-size: 14px; line-height: 1.75; color: var(--hp-text-muted); }
+.hp-faq { padding: 80px 0; background: #F2F6F9; }
+.hp-faq-wrap { max-width: 700px; margin: 0 auto; padding: 0 18px; }
+.hp-faq-list { display: flex; flex-direction: column; gap: 8px; }
+.hp-faq-item { border: 0.5px solid #5B7384; border-radius: 5px; overflow: hidden; background: #fff; }
+.hp-faq-item--open { border-color: #5B7384; }
+.hp-faq-q { width: 100%; padding: 15px 18px; display: flex; justify-content: space-between; align-items: center; gap: 14px; background: none; border: none; cursor: pointer; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; color: #091925; text-align: left; line-height: 18px; }
+.hp-faq-item--open .hp-faq-q { background: rgba(46,171,254,0.1); }
+.hp-faq-toggle { width: 28px; height: 28px; border-radius: 5px; border: 0.5px solid #5B7384; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .2s; }
+.hp-faq-toggle--open { background: #2EABFE; border-color: #2EABFE; }
+.hp-faq-a { padding: 12px 18px 16px; font-family: 'Poppins', sans-serif; font-size: 14px; line-height: 20px; color: #091925; background: rgba(46,171,254,0.05); }
 
-/* ══ CTA ══ */
-.hp-cta { background: var(--hp-midnight); padding: 100px 0; text-align: center; position: relative; overflow: hidden; }
-.hp-cta-glow { position: absolute; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(46,171,254,0.13) 0%, transparent 65%); top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; }
-.hp-cta-inner { position: relative; z-index: 1; }
-.hp-cta-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 2px; color: var(--hp-slate); text-transform: uppercase; margin-bottom: 20px; }
-.hp-cta-h2 { font-family: var(--hp-font-title); font-size: clamp(32px, 4vw, 52px); color: #fff; line-height: 1.1; margin-bottom: 20px; }
-.hp-cta-p { font-size: 16px; color: var(--hp-slate); max-width: 460px; margin: 0 auto 40px; line-height: 1.75; }
-.hp-cta-btns { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.hp-cta-sub-link { font-size: 14px; font-weight: 500; color: var(--hp-slate); transition: color .18s; background: none; border: none; cursor: pointer; font-family: var(--hp-font-body); }
-.hp-cta-sub-link:hover { color: var(--hp-electric); }
+/* ══ FOOTER BAND ══ */
+.hp-footer-band { background: #091925; padding: 52px 0; position: relative; overflow: hidden; }
+.hp-footer-band-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,25,37,0.05) 0%, rgba(46,171,254,0.3) 100%); z-index: 0; }
+.hp-footer-band-inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
+.hp-footer-band-eye  { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 8px; }
+.hp-footer-band-h2   { font-family: 'Poppins', sans-serif; font-size: clamp(28px,3.5vw,40px); font-weight: 700; line-height: 1.1; color: #fff; margin-bottom: 12px; text-transform: uppercase; }
+.hp-footer-band-sub  { font-family: 'Poppins', sans-serif; font-size: 14px; line-height: 22px; color: rgba(255,255,255,0.65); max-width: 480px; }
+.hp-btn-enroll { display: inline-flex; align-items: center; justify-content: center; padding: 0 32px; height: 54px; min-width: 220px; background: #2EABFE; color: #091925; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; border-radius: 999px; border: 0.5px solid #2EABFE; cursor: pointer; white-space: nowrap; transition: all .2s; }
+.hp-btn-enroll:hover { background: #60C3FF; transform: translateY(-2px); }
+.hp-btn-enroll-ghost { display: inline-flex; align-items: center; justify-content: center; padding: 0 32px; height: 54px; min-width: 220px; background: transparent; color: #fff; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; border-radius: 999px; border: 1px solid rgba(255,255,255,0.35); cursor: pointer; transition: all .2s; }
+.hp-btn-enroll-ghost:hover { border-color: #fff; background: rgba(255,255,255,0.06); }
+
+/* ══ FOOTER ══ */
+.hp-footer { background: #091925; border-top: 1px solid rgba(255,255,255,0.07); padding: 16px 0; }
+.hp-footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.hp-footer-copy      { font-family: 'Poppins', sans-serif; font-size: 11px; color: rgba(255,255,255,0.42); }
+.hp-footer-link-blue { color: #2EABFE; text-decoration: none; }
+.hp-footer-links     { display: flex; align-items: center; gap: 8px; }
+.hp-footer-link      { font-family: 'Poppins', sans-serif; font-size: 11px; color: rgba(255,255,255,0.42); text-decoration: none; transition: color .15s; }
+.hp-footer-link:hover { color: #fff; }
+.hp-footer-dot        { color: rgba(255,255,255,0.25); font-size: 11px; }
 
 /* ══ RESPONSIVE ══ */
 @media (max-width: 1024px) {
-  .hp-hero-inner { grid-template-columns: 1fr; gap: 48px; }
-  .hp-hero-card-wrap { max-width: 520px; }
-  .hp-features-top { grid-template-columns: 1fr; }
-  .hp-about-grid, .hp-compliance-grid { grid-template-columns: 1fr; gap: 48px; }
-  .hp-course-row { grid-template-columns: 1fr; }
-  .hp-course-meta { flex-direction: row; align-items: center; }
+  .hp-container { padding: 0 32px; }
+  .hp-hero-inner { padding: 48px 32px 40px; }
+  .hp-statsbar-inner { padding: 12px 32px; }
 }
-@media (max-width: 768px) {
+@media (max-width: 900px) {
+  .hp-hero-inner { grid-template-columns: 1fr; gap: 28px; padding: 40px 24px; }
+  .hp-about-grid { grid-template-columns: 1fr; gap: 32px; }
   .hp-feat-grid { grid-template-columns: 1fr 1fr; }
-  .hp-hero-inner { padding-top: 40px; padding-bottom: 40px; }
+  .hp-req-grid { grid-template-columns: 1fr; }
+  .hp-tcard-grid { grid-template-columns: 1fr 1fr; }
+  .hp-statsbar-inner { grid-template-columns: repeat(2,1fr); padding: 12px 24px; }
+  .hp-footer-band-inner { flex-direction: column; }
 }
-@media (max-width: 560px) {
+@media (max-width: 640px) {
+  .hp-container { padding: 0 16px; }
+  .hp-hero-inner { padding: 32px 16px; }
   .hp-feat-grid { grid-template-columns: 1fr; }
-  .hp-banner-inner { flex-direction: column; align-items: flex-start; }
+  .hp-tcard-grid { grid-template-columns: 1fr; }
+  .hp-statsbar-inner { grid-template-columns: repeat(2,1fr); padding: 12px 16px; }
+  .hp-footer-inner { flex-direction: column; text-align: center; }
+  .hp-footer-links { justify-content: center; }
 }
 `;
 

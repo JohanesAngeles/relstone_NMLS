@@ -24,7 +24,7 @@ const mongoose = require('mongoose');
 const dotenv   = require('dotenv');
 dotenv.config();
 
-const Course = require('./models/Course');
+const Course = require('../models/Course');
 
 // ── PDF URLs ──────────────────────────────────────────────────────────
 const NC_TEXTBOOK_PDF = 'https://www.dropbox.com/scl/fi/ja4entj37q7bbxvl2i0h8/North-Carolina-NMLS-CE.pdf?rlkey=v8k971n9yrm6clcsx3nsdnx9w&st=4z3xauhb&raw=1';

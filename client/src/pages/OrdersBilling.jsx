@@ -1,24 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
+import API from '../api/axios';
 
-// ─── Mock Data ───────────────────────────────────────────────────────────────
-const MOCK_ORDERS = [
-  { id: 'INV-2025-0041', date: '2025-02-10', course: 'SAFE Act Pre-Licensing Education (PE)', type: 'PE', hours: 20, amount: 149.00, status: 'completed', refundEligible: false },
-  { id: 'INV-2025-0038', date: '2025-01-22', course: 'Annual Continuing Education – 8 Hour CE', type: 'CE', hours: 8,  amount: 79.00,  status: 'completed', refundEligible: false },
-  { id: 'INV-2025-0052', date: '2025-03-01', course: 'SAFE Act Pre-Licensing Education (PE)', type: 'PE', hours: 20, amount: 149.00, status: 'pending',   refundEligible: true  },
-  { id: 'INV-2024-0089', date: '2024-11-05', course: 'Annual Continuing Education – 8 Hour CE', type: 'CE', hours: 8,  amount: 79.00,  status: 'refunded',  refundEligible: false },
-  { id: 'INV-2024-0067', date: '2024-08-17', course: 'SAFE Act Pre-Licensing Education (PE)', type: 'PE', hours: 20, amount: 149.00, status: 'completed', refundEligible: false },
-];
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const fmt     = (n) => `$${Number(n).toFixed(2)}`;
+const fmtDate = (d) => {
+  if (!d) return '—';
+  const date = new Date(d);
+  return isNaN(date) ? '—' : date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+const BRAND_COLORS = { Visa: '#1A1F71', Mastercard: '#252525', Amex: '#007BC1', Discover: '#E65C00' };
 
 const MOCK_CARDS = [
   { id: 1, brand: 'Visa',       last4: '4242', expiry: '08/26', isDefault: true  },
   { id: 2, brand: 'Mastercard', last4: '5555', expiry: '03/27', isDefault: false },
 ];
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const fmt     = (n) => `$${Number(n).toFixed(2)}`;
-const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-const BRAND_COLORS = { Visa: '#1A1F71', Mastercard: '#252525', Amex: '#007BC1', Discover: '#E65C00' };
 
 // ─── Download HTML Receipt ───────────────────────────────────────────────────
 const downloadReceipt = (order) => {
@@ -48,14 +44,16 @@ td{padding:14px 0;font-size:13px;border-bottom:1px solid #f1f5f9}
 <div class="hdr"><div class="brand">Relstone <span>NMLS</span></div><div class="pill">Receipt</div></div>
 <div class="body">
   <div style="margin-bottom:24px"><div style="font-size:22px;font-weight:800;margin-bottom:4px">Payment Confirmed</div><div style="font-size:13px;color:#64748b">Thank you for your purchase.</div></div>
-  <div class="kv"><span class="lbl">Order ID</span><span class="val" style="font-family:monospace;color:#2EABFE">${order.id}</span></div>
+  <div class="kv"><span class="lbl">Order ID</span><span class="val" style="font-family:monospace;color:#2EABFE">${order.displayId || order.id}</span></div>
   <div class="kv"><span class="lbl">Date</span><span class="val">${fmtDate(order.date)}</span></div>
   <div class="kv"><span class="lbl">Status</span><span class="badge">Paid</span></div>
   <div class="div"></div>
   <table>
     <thead><tr><th>Course</th><th>Type</th><th>Hrs</th><th style="text-align:right">Amount</th></tr></thead>
     <tbody>
-      <tr><td>${order.course}</td><td>${order.type}</td><td>${order.hours}</td><td style="text-align:right;font-weight:700">${fmt(order.amount)}</td></tr>
+      ${(order.items || [{ course: order.course, type: order.type, hours: order.hours, amount: order.amount }]).map(item => `
+      <tr><td>${item.course || item.course_id?.title || '—'}</td><td>${item.type || item.course_id?.type || '—'}</td><td>${item.hours || item.course_id?.credit_hours || 0}</td><td style="text-align:right;font-weight:700">${fmt(item.amount || item.price || 0)}</td></tr>
+      `).join('')}
       <tr><td colspan="3" style="font-weight:800;font-size:15px;border-bottom:none;padding-top:16px">Total Paid</td><td style="text-align:right;font-size:16px;font-weight:800;border-bottom:none;padding-top:16px">${fmt(order.amount)}</td></tr>
     </tbody>
   </table>
@@ -64,21 +62,55 @@ td{padding:14px 0;font-size:13px;border-bottom:1px solid #f1f5f9}
 </div></body></html>`;
   const blob = new Blob([html], { type: 'text/html' });
   const url  = URL.createObjectURL(blob);
-  const a    = Object.assign(document.createElement('a'), { href: url, download: `${order.id}-receipt.html` });
+  const a    = Object.assign(document.createElement('a'), { href: url, download: `receipt-${order.displayId || order.id}.html` });
   a.click();
   URL.revokeObjectURL(url);
+};
+
+// ─── Normalize API order to UI shape ─────────────────────────────────────────
+const normalizeOrder = (order) => {
+  const firstItem = order.items?.[0];
+  const course    = firstItem?.course_id;
+  const extraItems = order.items?.slice(1) || [];
+
+  return {
+    id:             order._id,
+    displayId:      `INV-${String(order._id).slice(-8).toUpperCase()}`,
+    date:           order.createdAt || order.created_at || '',
+    course:         course?.title || 'Unknown Course',
+    type:           course?.type  || '—',
+    hours:          course?.credit_hours || 0,
+    amount:         order.total_amount || 0,
+    status:         order.status || 'pending',
+    refundEligible: order.status === 'pending',
+    itemCount:      order.items?.length || 1,
+    extraItems,
+    // keep raw items for receipt
+    items: (order.items || []).map(it => ({
+      course:  it.course_id?.title || '—',
+      type:    it.course_id?.type  || '—',
+      hours:   it.course_id?.credit_hours || 0,
+      amount:  it.price || 0,
+    })),
+  };
 };
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 const StatusBadge = ({ status }) => {
   const cfg = {
     completed: { bg: 'rgba(34,197,94,.1)',   color: '#16a34a', border: 'rgba(34,197,94,.25)',  label: 'Completed' },
+    paid:      { bg: 'rgba(34,197,94,.1)',   color: '#16a34a', border: 'rgba(34,197,94,.25)',  label: 'Paid'      },
     pending:   { bg: 'rgba(245,158,11,.1)',  color: '#b45309', border: 'rgba(245,158,11,.3)',  label: 'Pending'   },
     refunded:  { bg: 'rgba(100,116,139,.1)', color: '#475569', border: 'rgba(100,116,139,.2)', label: 'Refunded'  },
+    cancelled: { bg: 'rgba(239,68,68,.1)',   color: '#dc2626', border: 'rgba(239,68,68,.25)',  label: 'Cancelled' },
     failed:    { bg: 'rgba(239,68,68,.1)',   color: '#dc2626', border: 'rgba(239,68,68,.25)',  label: 'Failed'    },
   };
   const s = cfg[status] || cfg.pending;
-  return <span style={{ display:'inline-flex', alignItems:'center', padding:'3px 11px', borderRadius:999, fontSize:11.5, fontWeight:700, background:s.bg, color:s.color, border:`1px solid ${s.border}` }}>{s.label}</span>;
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', padding:'3px 11px', borderRadius:999, fontSize:11.5, fontWeight:700, background:s.bg, color:s.color, border:`1px solid ${s.border}` }}>
+      {s.label}
+    </span>
+  );
 };
 
 // ─── Brand Mark ───────────────────────────────────────────────────────────────
@@ -181,16 +213,14 @@ const RefundModal = ({ order, onClose, onSubmit }) => {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        {/* Order chip */}
         <div style={{ background:'#f8fafc', border:'1px solid rgba(9,25,37,.07)', borderRadius:12, padding:'13px 16px', marginBottom:20 }}>
           <div style={{ fontSize:11, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:1, marginBottom:5 }}>Order</div>
           <div style={{ fontSize:13.5, fontWeight:700, color:'#091925', marginBottom:3 }}>{order.course}</div>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-            <span style={{ fontSize:12.5, color:'#64748b' }}>{order.id} · {fmtDate(order.date)}</span>
+            <span style={{ fontSize:12.5, color:'#64748b' }}>{order.displayId} · {fmtDate(order.date)}</span>
             <span style={{ fontSize:15, fontWeight:800, color:'#091925' }}>{fmt(order.amount)}</span>
           </div>
         </div>
-        {/* Reasons */}
         <div style={{ marginBottom:16 }}>
           <div style={{ fontSize:11.5, fontWeight:700, color:'rgba(9,25,37,.5)', marginBottom:9, letterSpacing:.3, textTransform:'uppercase' }}>Reason for Refund</div>
           <div style={{ display:'grid', gap:7 }}>
@@ -204,7 +234,6 @@ const RefundModal = ({ order, onClose, onSubmit }) => {
             ))}
           </div>
         </div>
-        {/* Details */}
         <div style={{ marginBottom:20 }}>
           <div style={{ fontSize:11.5, fontWeight:700, color:'rgba(9,25,37,.5)', marginBottom:6, letterSpacing:.3, textTransform:'uppercase' }}>Additional Details <span style={{ fontWeight:400, color:'#94a3b8', textTransform:'none' }}>(optional)</span></div>
           <textarea value={details} onChange={e => setDetails(e.target.value)} rows={3} placeholder="Describe your issue..."
@@ -240,27 +269,59 @@ const ConfirmDialog = ({ onConfirm, onCancel }) => (
   </>
 );
 
+// ─── Skeleton Row ─────────────────────────────────────────────────────────────
+const SkeletonRow = () => (
+  <tr>
+    {[180, 100, 220, 80, 90, 120].map((w, i) => (
+      <td key={i} style={{ padding:'16px' }}>
+        <div style={{ height:14, width:w, borderRadius:6, background:'linear-gradient(90deg,#f0f4f8 25%,#e2e8f0 50%,#f0f4f8 75%)', backgroundSize:'200% 100%', animation:'ob-shimmer 1.4s infinite' }} />
+      </td>
+    ))}
+  </tr>
+);
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function OrdersBilling() {
-  const [tab,          setTab]          = useState('orders');
-  const [orders,       setOrders]       = useState(MOCK_ORDERS);
-  const [cards,        setCards]        = useState(MOCK_CARDS);
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [showAddCard,  setShowAddCard]  = useState(false);
-  const [refundTarget, setRefundTarget] = useState(null);
-  const [removeTarget, setRemoveTarget] = useState(null);
-  const [toast,        setToast]        = useState(null);
+  const [tab,           setTab]           = useState('orders');
+  const [orders,        setOrders]        = useState([]);
+  const [cards,         setCards]         = useState(MOCK_CARDS);
+  const [filterStatus,  setFilterStatus]  = useState('all');
+  const [showAddCard,   setShowAddCard]   = useState(false);
+  const [refundTarget,  setRefundTarget]  = useState(null);
+  const [removeTarget,  setRemoveTarget]  = useState(null);
+  const [toast,         setToast]         = useState(null);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersError,   setOrdersError]   = useState(null);
+
+  // ── Fetch real orders ─────────────────────────────────────────────
+  useEffect(() => {
+    setOrdersLoading(true);
+    setOrdersError(null);
+    API.get('/orders/my')
+      .then(res => {
+        const raw = Array.isArray(res.data) ? res.data : [];
+        setOrders(raw.map(normalizeOrder));
+      })
+      .catch(err => {
+        console.error('Failed to load orders:', err);
+        setOrdersError('Failed to load orders. Please try again.');
+      })
+      .finally(() => setOrdersLoading(false));
+  }, []);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 4000); };
 
-  const filtered      = filterStatus === 'all' ? orders : orders.filter(o => o.status === filterStatus);
-  const totalSpent    = orders.filter(o => o.status === 'completed').reduce((s, o) => s + o.amount, 0);
-  const completedCount = orders.filter(o => o.status === 'completed').length;
+  const filtered       = filterStatus === 'all' ? orders : orders.filter(o => o.status === filterStatus);
+  const totalSpent     = orders.filter(o => ['completed','paid'].includes(o.status)).reduce((s, o) => s + o.amount, 0);
+  const completedCount = orders.filter(o => ['completed','paid'].includes(o.status)).length;
 
   const handleAddCard    = (card) => { setCards(p => [...p, card]); showToast('Card added successfully.'); };
   const handleSetDefault = (id)   => setCards(p => p.map(c => ({ ...c, isDefault: c.id === id })));
   const handleRemove     = ()     => { setCards(p => p.filter(c => c.id !== removeTarget)); setRemoveTarget(null); showToast('Card removed.'); };
-  const handleRefund     = (id)   => { setOrders(p => p.map(o => o.id === id ? { ...o, status:'refunded', refundEligible:false } : o)); showToast('Refund request submitted. Confirmation email sent shortly.'); };
+  const handleRefund     = (id)   => {
+    setOrders(p => p.map(o => o.id === id ? { ...o, status:'refunded', refundEligible:false } : o));
+    showToast('Refund request submitted. Confirmation email sent shortly.');
+  };
 
   return (
     <Layout>
@@ -288,10 +349,10 @@ export default function OrdersBilling() {
         {/* Stats */}
         <div className="ob-stats">
           {[
-            { label:'Total Spent',      value:fmt(totalSpent),    icon:'dollar'  },
-            { label:'Completed Orders', value:completedCount,     icon:'check'   },
-            { label:'Total Orders',     value:orders.length,      icon:'file'    },
-            { label:'Saved Cards',      value:cards.length,       icon:'card'    },
+            { label:'Total Spent',      value: ordersLoading ? '—' : fmt(totalSpent),    icon:'dollar'  },
+            { label:'Completed Orders', value: ordersLoading ? '—' : completedCount,     icon:'check'   },
+            { label:'Total Orders',     value: ordersLoading ? '—' : orders.length,      icon:'file'    },
+            { label:'Saved Cards',      value: cards.length,                              icon:'card'    },
           ].map((s, i) => (
             <div key={i} className="ob-stat">
               <div className="ob-stat-icon">
@@ -308,11 +369,11 @@ export default function OrdersBilling() {
 
         {/* Tabs */}
         <div className="ob-tabs">
-          <button className={`ob-tab${tab==='orders'?'  ob-tab--on':''}`} onClick={() => setTab('orders')}>
+          <button className={`ob-tab${tab==='orders'  ? ' ob-tab--on' : ''}`} onClick={() => setTab('orders')}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             Order History
           </button>
-          <button className={`ob-tab${tab==='payments'?' ob-tab--on':''}`} onClick={() => setTab('payments')}>
+          <button className={`ob-tab${tab==='payments' ? ' ob-tab--on' : ''}`} onClick={() => setTab('payments')}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
             Payment Methods
           </button>
@@ -324,16 +385,44 @@ export default function OrdersBilling() {
             <div className="ob-panel-head">
               <div>
                 <div className="ob-panel-title">Purchase History</div>
-                <div className="ob-panel-sub">Download receipts or request refunds within the policy window</div>
+                <div className="ob-panel-sub">
+                  {ordersLoading
+                    ? 'Loading your orders…'
+                    : `${orders.length} order${orders.length !== 1 ? 's' : ''} · Download receipts or request refunds`}
+                </div>
               </div>
-              <div className="ob-filters">
-                {['all','completed','pending','refunded'].map(f => (
-                  <button key={f} className={`ob-filter${filterStatus===f?' ob-filter--on':''}`} onClick={() => setFilterStatus(f)}>
-                    {f.charAt(0).toUpperCase()+f.slice(1)}
-                  </button>
-                ))}
+              <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                <div className="ob-filters">
+                  {['all','completed','pending','refunded'].map(f => (
+                    <button key={f} className={`ob-filter${filterStatus===f?' ob-filter--on':''}`} onClick={() => setFilterStatus(f)}>
+                      {f.charAt(0).toUpperCase()+f.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="ob-refresh-btn"
+                  onClick={() => {
+                    setOrdersLoading(true);
+                    setOrdersError(null);
+                    API.get('/orders/my')
+                      .then(res => setOrders((Array.isArray(res.data) ? res.data : []).map(normalizeOrder)))
+                      .catch(() => setOrdersError('Failed to reload.'))
+                      .finally(() => setOrdersLoading(false));
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.03"/></svg>
+                  Refresh
+                </button>
               </div>
             </div>
+
+            {/* Error state */}
+            {ordersError && (
+              <div style={{ margin:'16px 20px', padding:'12px 16px', borderRadius:10, background:'rgba(239,68,68,.06)', border:'1px solid rgba(239,68,68,.2)', color:'#dc2626', fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {ordersError}
+              </div>
+            )}
 
             <div className="ob-table-wrap">
               <table className="ob-table">
@@ -348,17 +437,51 @@ export default function OrdersBilling() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0 ? (
-                    <tr><td colSpan={6} style={{ textAlign:'center', padding:'52px 0', color:'#94a3b8', fontSize:14 }}>No orders match this filter.</td></tr>
-                  ) : filtered.map(o => (
+                  {/* Loading skeleton */}
+                  {ordersLoading && [1,2,3].map(i => <SkeletonRow key={i} />)}
+
+                  {/* Empty state */}
+                  {!ordersLoading && filtered.length === 0 && !ordersError && (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign:'center', padding:'52px 0' }}>
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 }}>
+                          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          <div style={{ fontSize:14, fontWeight:700, color:'#64748b' }}>
+                            {filterStatus === 'all' ? 'No orders yet.' : `No ${filterStatus} orders.`}
+                          </div>
+                          {filterStatus === 'all' && (
+                            <a href="/courses" style={{ fontSize:13, color:'#2EABFE', fontWeight:700, textDecoration:'none' }}>Browse courses →</a>
+                          )}
+                          {filterStatus !== 'all' && (
+                            <button onClick={() => setFilterStatus('all')} style={{ fontSize:12, color:'#2EABFE', fontWeight:700, background:'none', border:'none', cursor:'pointer', padding:0 }}>Show all orders</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* Real data */}
+                  {!ordersLoading && filtered.map(o => (
                     <tr key={o.id} className="ob-tr">
-                      <td><span className="ob-oid">{o.id}</span></td>
+                      <td>
+                        <span className="ob-oid">{o.displayId}</span>
+                        {o.itemCount > 1 && (
+                          <div style={{ fontSize:10, color:'#94a3b8', fontWeight:600, marginTop:2 }}>
+                            {o.itemCount} courses
+                          </div>
+                        )}
+                      </td>
                       <td className="ob-date">{fmtDate(o.date)}</td>
                       <td>
                         <div className="ob-cname">{o.course}</div>
                         <div className="ob-cmeta">
-                          <span className={`ob-type ob-type--${o.type.toLowerCase()}`}>{o.type}</span>
-                          {o.hours} hrs
+                          {o.type !== '—' && (
+                            <span className={`ob-type ob-type--${o.type.toLowerCase()}`}>{o.type}</span>
+                          )}
+                          {o.hours > 0 && `${o.hours} hrs`}
+                          {o.itemCount > 1 && (
+                            <span style={{ color:'#2EABFE', fontWeight:700 }}>+{o.itemCount - 1} more</span>
+                          )}
                         </div>
                       </td>
                       <td className="ob-amt">{fmt(o.amount)}</td>
@@ -462,6 +585,9 @@ const CSS = `
 .ob-toast { display:flex; align-items:center; gap:10px; padding:13px 18px; border-radius:12px; font-size:13px; font-weight:600; margin-bottom:22px; background:#f0fdf4; border:1px solid #bbf7d0; color:#15803d; animation:ob-in .28s ease; }
 @keyframes ob-in { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
 
+/* shimmer */
+@keyframes ob-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
 /* stats */
 .ob-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px; }
 .ob-stat  { background:#fff; border:1px solid rgba(9,25,37,.08); border-radius:16px; padding:20px 18px; display:flex; flex-direction:column; gap:8px; transition:box-shadow .2s; }
@@ -485,6 +611,10 @@ const CSS = `
 .ob-filters   { display:flex; gap:6px; flex-wrap:wrap; }
 .ob-filter    { padding:6px 14px; border-radius:8px; border:1.5px solid rgba(9,25,37,.09); background:transparent; font-family:'Poppins',sans-serif; font-size:12px; font-weight:600; color:#64748b; cursor:pointer; transition:all .15s; }
 .ob-filter--on { background:#091925; color:#fff; border-color:#091925; }
+
+/* refresh btn */
+.ob-refresh-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:8px; border:1.5px solid rgba(9,25,37,.09); background:#fff; font-family:'Poppins',sans-serif; font-size:12px; font-weight:600; color:#64748b; cursor:pointer; transition:all .15s; }
+.ob-refresh-btn:hover { border-color:#2EABFE; color:#2EABFE; }
 
 /* table */
 .ob-table-wrap { overflow-x:auto; }

@@ -24,10 +24,10 @@ const mongoose = require('mongoose');
 const dotenv   = require('dotenv');
 dotenv.config();
 
-const Course = require('./models/Course');
+const Course = require('../models/Course');
 
 // ── PDF URLs ──────────────────────────────────────────────────────────
-const CA_TEXTBOOK_PDF = 'https://www.dropbox.com/scl/fo/enrih9t4dnji9j47b2mge/AJlfq4abtljhjBkysTe8kDQ/FLORIDA/8-Hour%20FL%20SAFE%20Comprehensive%20-%20Annual%20MLO%20Fundamentals.pdf?rlkey=jdwbravxwpfj6idgxzhxr3ynj&st=jad72fw1&raw=1';
+const CA_TEXTBOOK_PDF = 'https://www.dropbox.com/scl/fi/aqfzku0u6aubysm1qt9ik/8-HOUR-CA-DFPI-SAFE-COMPREHENSIVE-ANNUAL-MLO-FUNDAMENTAL.pdf?rlkey=i3bsqzaemqzq0t282gstjauxh&st=di5zb6lo&raw=1';
 const CA_FINAL_PDF    = 'https://www.dropbox.com/scl/fi/2lqm5jbkk4ei6ig12tba9/FINAL-CALIFORNIA-DFPI-1.pdf?rlkey=0ph2l6b8rezmmc6kpcgkup3ei&st=u6o5eelg&raw=1';
 
 // ── 70-Question Retry Bank ────────────────────────────────────────────
@@ -162,7 +162,7 @@ const courseData = {
     // ── MODULE 1 ────────────────────────────────────────────────────
     {
       order: 1, title: 'Federal Mortgage-Related Laws', credit_hours: 3,
-      pdf_url: CA_TEXTBOOK_PDF, show_pdf_before_quiz: false,
+      pdf_url: CA_TEXTBOOK_PDF, pdf_start_page: 1, show_pdf_before_quiz: false,
       sections: ['1.1 Truth in Lending Act (TILA) & TRID','1.2 Real Estate Settlement Procedures Act (RESPA)','1.3 Equal Credit Opportunity Act (ECOA)','1.4 Fair Housing Act (FHA)','1.5 Home Mortgage Disclosure Act (HMDA)','1.6 SAFE Act Overview','Module 1 Summary','Case Study: The Disclosure Dilemma'],
       quiz: [
         // Answer key: 1C 2B 3C 4B 5B
@@ -177,7 +177,7 @@ const courseData = {
     // ── MODULE 2 ────────────────────────────────────────────────────
     {
       order: 2, title: 'Ethical Guidelines for Mortgage Loan Originators', credit_hours: 2,
-      pdf_url: CA_TEXTBOOK_PDF, show_pdf_before_quiz: false,
+      pdf_url: CA_TEXTBOOK_PDF, pdf_start_page: 25, show_pdf_before_quiz: false,
       sections: ['2.1 Ethical Standards in Mortgage Lending','2.2 Conflicts of Interest and Disclosure','2.3 Fraud Prevention and Ethical Red Flags','Module 2 Summary','Case Study: Conflict and Compensation'],
       quiz: [
         // Answer key: 1B 2D 3B 4A 5B
@@ -192,7 +192,7 @@ const courseData = {
     // ── MODULE 3 ────────────────────────────────────────────────────
     {
       order: 3, title: 'Non-Traditional Mortgage Lending', credit_hours: 2,
-      pdf_url: CA_TEXTBOOK_PDF, show_pdf_before_quiz: false,
+      pdf_url: CA_TEXTBOOK_PDF, pdf_start_page: 45, show_pdf_before_quiz: false,
       sections: ['3.1 Overview of Non-Traditional Mortgage Products','3.2 Risks to Consumers and Lenders','3.3 Compliance and Suitability Considerations','Module 3 Summary','Case Study: The ARM Adjustment'],
       quiz: [
         // Answer key: 1B 2B 3B 4B 5B
@@ -207,7 +207,7 @@ const courseData = {
     // ── MODULE 4 ────────────────────────────────────────────────────
     {
       order: 4, title: 'California State Law and Regulations', credit_hours: 1,
-      pdf_url: CA_TEXTBOOK_PDF, show_pdf_before_quiz: false,
+      pdf_url: CA_TEXTBOOK_PDF, pdf_start_page: 65, show_pdf_before_quiz: false,
       sections: ['4.1 Overview of State Regulatory Authority in California (DFPI)','4.2 State Continuing Education Requirements','4.3 State-Specific Mortgage Laws (CRMLA & CFLL)','4.4 State Enforcement, Penalties, and Disciplinary Actions','4.5 State Consumer Protection Provisions','Module 4 Summary','Case Study: The Unqualified Loan Processor'],
       quiz: [
         // Answer key: 1B 2C 3C 4C 5B
@@ -224,7 +224,7 @@ const courseData = {
     // Student reads FINAL-CALIFORNIA-DFPI PDF then proceeds directly to Final Exam
     {
       order: 5, title: 'FINAL - CALIFORNIA DFPI', credit_hours: 0,
-      pdf_url: CA_FINAL_PDF, show_pdf_before_quiz: false,
+      pdf_url: CA_FINAL_PDF, pdf_start_page: 1, show_pdf_before_quiz: false,
       sections: ['8-HOUR CA-DFPI SAFE COMPREHENSIVE: ANNUAL MLO FUNDAMENTALS','California State Law & DFPI Regulations — Full Review','Review all four modules before attempting the Final Exam','Covers: Federal Law · Ethics · Non-Traditional Lending · CA State Law'],
       quiz: [], // ← NO checkpoint — proceeds directly to Final Exam
     },

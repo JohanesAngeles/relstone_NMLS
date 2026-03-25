@@ -28,7 +28,7 @@ const mongoose = require('mongoose');
 const dotenv   = require('dotenv');
 dotenv.config();
 
-const Course = require('./models/Course');
+const Course = require('../models/Course');
 
 // ── PDF URLs ──────────────────────────────────────────────────────────
 const MODULE_PDF  = 'https://www.dropbox.com/scl/fi/9h17lbyuhecwqlhsoevqq/11-Hour-NY-SAFE-Comprehensive-Annual-MLO-Fundamentals.pdf?rlkey=22t9d1355w99ai53n2upvmhao&st=cb4lr9s4&raw=1';

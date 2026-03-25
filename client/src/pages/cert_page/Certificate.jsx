@@ -4,6 +4,10 @@ import { useAuth } from '../../context/AuthContext';
 import { Award, User, Hash, BookOpen, Clock, Calendar, ArrowLeft, Download, AlertCircle } from 'lucide-react';
 import API from '../../api/axios';
 import Layout from '../../components/Layout';
+import TestimonialGateModal from "../../components/TempModal";
+
+const ATTESTATION_TEXT =
+  "By accepting this certificate, I hereby acknowledge receipt of my course completion and authorize the education provider to report my education hours to NMLS. I am the named person on this certificate and have completed this course. I further attest I completed the course in accordance with the Rules of Conduct.";
 
 const Certificate = () => {
   const { courseId } = useParams();
@@ -13,17 +17,23 @@ const Certificate = () => {
   const [cert, setCert]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
+  
+  // ── Testimonial Gate State ──
+  const [showGate, setShowGate] = useState(false); //
+  const [gateChecked, setGateChecked] = useState(false); //
+  
   const printRef = useRef();
 
   useEffect(() => {
     const fetchCert = async () => {
       try {
         // ── Strategy 1: try the dedicated endpoint first ──────────────
-        // Works if your backend has GET /certificates/:courseId
         try {
           const res = await API.get(`/certificates/${courseId}`);
           if (res.data?.certificate) {
-            setCert(buildCertFromEndpoint(res.data.certificate, user));
+            const builtCert = buildCertFromEndpoint(res.data.certificate, user);
+            setCert(builtCert);
+            checkTestimonial(builtCert.course_title); //
             return;
           }
         } catch {
@@ -34,7 +44,6 @@ const Certificate = () => {
         const transcriptRes = await API.get('/dashboard/transcript');
         const transcript    = transcriptRes.data?.transcript || [];
 
-        // Match by course _id — transcript entry has course_id as object or string
         const entry = transcript.find((t) => {
           const id = t.course_id?._id || t.course_id;
           return String(id) === String(courseId);
@@ -45,7 +54,10 @@ const Certificate = () => {
           return;
         }
 
-        setCert(buildCertFromTranscript(entry, user));
+        const builtCert = buildCertFromTranscript(entry, user);
+        setCert(builtCert);
+        checkTestimonial(builtCert.course_title); //
+
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load certificate.');
       } finally {
@@ -53,8 +65,22 @@ const Certificate = () => {
       }
     };
 
+    const checkTestimonial = async (title) => {
+      if (gateChecked) return; //
+      try {
+        const res = await API.get("/testimonials/mine"); //
+        const reviews = res.data?.testimonials || []; //
+        const already = reviews.some(r => String(r.course_id) === String(courseId)); //
+        if (!already) setShowGate(true); //
+      } catch (err) {
+        console.error("Testimonial check failed", err);
+      } finally {
+        setGateChecked(true); //
+      }
+    };
+
     fetchCert();
-  }, [courseId, user]);
+  }, [courseId, user, gateChecked]);
 
   const handlePrint = () => window.print();
 
@@ -109,6 +135,15 @@ const Certificate = () => {
         }
       `}</style>
 
+      {/* ── Testimonial Gate ── */}
+      {showGate && cert && (
+        <TestimonialGateModal
+          courseId={courseId}
+          courseName={cert.course_title}
+          onDone={() => setShowGate(false)}
+        />
+      )}
+
       <div style={S.container}>
 
         {/* ── Action bar ── */}
@@ -125,10 +160,8 @@ const Certificate = () => {
         <div style={S.certWrapper} ref={printRef}>
           <div style={S.cert} className="cert-doc">
 
-            {/* Top gradient bar */}
             <div style={S.topAccent} />
 
-            {/* Header — org, seal, title */}
             <div style={S.certHeader}>
               <div style={S.certSealWrap}>
                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none">
@@ -144,7 +177,6 @@ const Certificate = () => {
 
             <div style={S.divider} />
 
-            {/* Student + course */}
             <p style={S.certifyText}>This certifies that</p>
             <h2 style={S.studentName}>{cert.student_name}</h2>
             <p style={S.certifyText}>has successfully completed</p>
@@ -152,7 +184,6 @@ const Certificate = () => {
 
             <div style={S.divider} />
 
-            {/* Detail grid */}
             <div style={S.detailsGrid}>
               <DetailItem icon={<Hash size={17} color="#2EABFE" />}     label="NMLS Course ID"  value={cert.nmls_course_id || '—'} />
               <DetailItem icon={<User size={17} color="#2EABFE" />}     label="Student NMLS ID" value={cert.student_nmls_id || '—'} />
@@ -170,7 +201,6 @@ const Certificate = () => {
 
             <div style={S.divider} />
 
-            {/* Signature row */}
             <div style={S.certFooter}>
               <div style={S.signatureRow}>
                 <div style={S.sigBlock}>
@@ -201,7 +231,11 @@ const Certificate = () => {
               </p>
             </div>
 
-            {/* Bottom bar */}
+            <div style={S.attestationWrap}>
+              <div style={S.attestationLabel}>Attestation</div>
+              <div style={S.attestationText}>{ATTESTATION_TEXT}</div>
+            </div>
+
             <div style={S.bottomBar}>
               <span>Certificate ID: {cert.cert_id}</span>
               <span>·</span>
@@ -218,7 +252,6 @@ const Certificate = () => {
 };
 
 /* ─── Data builders ──────────────────────────────────────────────── */
-// Builds a normalized cert object from the /certificates/:id endpoint response
 const buildCertFromEndpoint = (raw, user) => ({
   student_name:       raw.student_name    || user?.name || '—',
   student_nmls_id:    raw.student_nmls_id || user?.nmls_id || '—',
@@ -240,8 +273,6 @@ const buildCertFromEndpoint = (raw, user) => ({
   cert_id: String(raw._id || '').slice(-10).toUpperCase() || 'N/A',
 });
 
-// Builds a normalized cert object from a transcript entry
-// transcript entry shape: { _id, course_id: {_id, title, type, credit_hours, nmls_course_id, state_approval_number}, completed_at, ... }
 const buildCertFromTranscript = (entry, user) => {
   const course       = entry.course_id || {};
   const courseType   = String(entry.type || course.type || '').toUpperCase();
@@ -269,7 +300,6 @@ const buildCertFromTranscript = (entry, user) => {
   };
 };
 
-/* ─── Detail Item atom ───────────────────────────────────────────── */
 const DetailItem = ({ icon, label, value }) => (
   <div style={S.detailItem}>
     {icon}
@@ -280,43 +310,34 @@ const DetailItem = ({ icon, label, value }) => (
   </div>
 );
 
-/* ─── Spinner CSS ────────────────────────────────────────────────── */
 const spinnerCss = `
   .cert-spinner{width:34px;height:34px;border-radius:999px;border:3px solid rgba(2,8,23,0.10);border-top-color:#2EABFE;animation:cert-spin 1s linear infinite;}
   @keyframes cert-spin{to{transform:rotate(360deg);}}
 `;
 
-/* ─── Styles ─────────────────────────────────────────────────────── */
 const S = {
   container:   { padding: '24px 18px 56px', maxWidth: 1180, margin: '0 auto' },
   center:      { display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', gap: '1rem' },
-
   errorCard:   { background: '#fff', border: '1px solid rgba(2,8,23,0.09)', borderRadius: 16, padding: '32px 28px', maxWidth: 420, width: '100%', boxShadow: '0 8px 32px rgba(2,8,23,0.09)' },
-
   actionBar:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 820, margin: '0 auto 20px', fontFamily: 'Inter, sans-serif' },
   backBtn:     { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid rgba(2,8,23,0.12)', padding: '9px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 800, color: 'rgba(9,25,37,0.80)', fontFamily: 'Inter, sans-serif' },
   printBtn:    { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#091925', color: '#fff', border: 'none', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 800, fontFamily: 'Inter, sans-serif' },
-
   certWrapper: { maxWidth: 820, margin: '0 auto' },
   cert:        { background: '#fff', borderRadius: 18, boxShadow: '0 8px 40px rgba(2,8,23,0.14)', overflow: 'hidden', fontFamily: 'Georgia, serif' },
   topAccent:   { height: 8, background: 'linear-gradient(90deg,#2EABFE,#00B4B4)' },
-
   certHeader:  { textAlign: 'center', padding: '36px 32px 20px' },
   certSealWrap:{ width: 72, height: 72, borderRadius: 999, background: 'rgba(46,171,254,0.08)', border: '2px solid rgba(46,171,254,0.22)', display: 'grid', placeItems: 'center', margin: '0 auto 14px' },
   certOrg:     { fontSize: 12, fontWeight: 900, color: '#2EABFE', textTransform: 'uppercase', letterSpacing: '.12em', fontFamily: 'Inter, sans-serif', marginBottom: 8 },
   certTitle:   { fontSize: '2rem', color: '#091925', margin: '0 0 6px', letterSpacing: '0.04em', fontWeight: 700 },
   certSubtitle:{ color: 'rgba(9,25,37,0.55)', fontSize: '0.9rem', margin: 0, fontFamily: 'Inter, sans-serif' },
-
   divider:     { height: 1, background: 'linear-gradient(90deg,transparent,rgba(46,171,254,0.25),transparent)', margin: '0 2rem' },
   certifyText: { textAlign: 'center', color: 'rgba(9,25,37,0.55)', fontSize: '0.95rem', margin: '1.5rem 0 0.25rem', fontStyle: 'italic' },
   studentName: { textAlign: 'center', fontSize: '2rem', color: '#2EABFE', margin: '0 0 0.5rem', fontWeight: 700 },
   courseName:  { textAlign: 'center', fontSize: '1.15rem', color: 'rgba(9,25,37,0.85)', margin: '0 2rem 1.5rem', fontWeight: 600 },
-
   detailsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '1.25rem', padding: '1.5rem 2.5rem' },
   detailItem:  { display: 'flex', alignItems: 'flex-start', gap: '0.75rem' },
   detailLabel: { margin: 0, fontSize: '0.72rem', color: 'rgba(9,25,37,0.50)', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800 },
   detailValue: { margin: '0.2rem 0 0', fontSize: '0.95rem', color: 'rgba(9,25,37,0.85)', fontWeight: 700, fontFamily: 'Inter, sans-serif' },
-
   certFooter:    { textAlign: 'center', padding: '1.5rem 2rem' },
   signatureRow:  { display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: 20, marginBottom: 20 },
   sigBlock:      { textAlign: 'center', flex: 1 },
@@ -325,8 +346,10 @@ const S = {
   signatureName: { fontSize: '0.90rem', color: 'rgba(9,25,37,0.80)', margin: 0, fontFamily: 'Inter, sans-serif', fontWeight: 800 },
   sealCircle:    { width: 72, height: 72, borderRadius: 999, border: '2px dashed rgba(46,171,254,0.40)', display: 'grid', placeItems: 'center', flexShrink: 0, textAlign: 'center' },
   footerNote:    { fontSize: '0.72rem', color: 'rgba(9,25,37,0.40)', maxWidth: 500, margin: '0 auto', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' },
-
   bottomBar:   { background: 'linear-gradient(90deg,#091925,#0d2a4a)', color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: 700, display: 'flex', justifyContent: 'center', gap: 12, padding: '10px 20px', letterSpacing: '.04em', fontFamily: 'Inter, sans-serif' },
+  attestationWrap: { padding: '18px 32px 10px', fontFamily: 'Inter, sans-serif' },
+  attestationLabel:{ fontSize: 11, fontWeight: 900, color: 'rgba(9,25,37,0.55)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 },
+  attestationText: { fontSize: 12, lineHeight: 1.55, fontWeight: 600, color: 'rgba(9,25,37,0.80)' },
 };
 
 export default Certificate;

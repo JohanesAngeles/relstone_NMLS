@@ -9,6 +9,9 @@ const userSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   otp:        { type: String,  default: null },
   otpExpires: { type: Date,    default: null },
+  is_active:      { type: Boolean, default: true },
+  deactivated_at: { type: Date,    default: null },
+  last_login_at:  { type: Date,    default: null },
 
   // ── Profile ───────────────────────────────────────────────────────
   nmls_id:  { type: String, trim: true, default: null },
@@ -16,11 +19,24 @@ const userSchema = new mongoose.Schema({
   phone:    { type: String, trim: true, default: null },
   address:  { type: String, trim: true, default: null },
 
+  // ── BioSig-ID (BSI) History (NEW) ─────────────────────────────────
+  // NMLS requires biometric verification logs for audits. 
+  // This stores every successful identity verification.
+  biosig_verifications: [
+    {
+      course_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
+      verified_at:   { type: Date, default: Date.now },
+      session_token: { type: String }, // Token received from BSI API
+      provider:      { type: String, default: 'BioSig-ID' },
+      module_order:  { type: Number }  // Optional: tracking which module triggered it
+    }
+  ],
+
   // ── License Goals ─────────────────────────────────────────────────
-  license_type:  { type: String, default: null }, // 'new' | 'renewal' | 'both'
+  license_type:  { type: String, default: null }, 
   target_state:  { type: String, default: null },
   target_date:   { type: String, default: null },
-  experience:    { type: String, default: null }, // 'none' | 'some' | 'experienced' | 'renewing'
+  experience:    { type: String, default: null },
 
   // ── Notification Preferences ──────────────────────────────────────
   notification_prefs: {
@@ -47,7 +63,17 @@ const userSchema = new mongoose.Schema({
   ce_renewal_deadline: { type: Date, default: null },
   ce_hours_required: { type: Number, default: 0 },
   ce_renewal_cycle_start: { type: Date, default: null },
+  renewal_status: { type: String, enum: ['in-progress', 'completed'], default: 'in-progress' },
+  renewal_reminders_sent: [
+    {
+      days_before: { type: Number }, // 90, 60, or 30
+      sent_at: { type: Date },
+    }
+  ],
 
 }, { timestamps: true });
+
+// Indexing for faster BioSig status lookups
+userSchema.index({ "biosig_verifications.course_id": 1 });
 
 module.exports = mongoose.model('User', userSchema);
