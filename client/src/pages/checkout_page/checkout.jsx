@@ -6,15 +6,22 @@ import {
 } from "lucide-react";
 import API from "../../api/axios";
 import Layout from "../../components/Layout";
+import { useNotifications } from "../../context/NotificationContext";
+
+/** Checkout payment options — ids match server Order.payment_method */
+const PAYMENT_OPTIONS = [
+  { id: "credit_card", label: "Credit / debit card", hint: "Card will be charged when your processor (e.g. Stripe) is connected." },
+  { id: "ach", label: "ACH / bank transfer", hint: "Bank account debit — integrate Plaid or Stripe ACH in production." },
+  { id: "payment_plan", label: "Payment plan", hint: "We record your choice; fulfillment can follow your billing team’s workflow." },
+];
 
 const Checkout = () => {
   const navigate = useNavigate();
+  const { fetchNotifications } = useNotifications();
 
-  const [cart, setCart]           = useState([]);
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState("");
-  const [orderId, setOrderId]     = useState(null);
+  const [cart, setCart]       = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
 
   const [form, setForm] = useState({
     firstName: "", lastName: "", companyName: "",
@@ -22,6 +29,9 @@ const Checkout = () => {
     townCity: "", state: "", zipCode: "",
     phone: "", email: "", additionalInfo: "",
   });
+
+  // ── Purchase: how the buyer pays (stored on Order; wire gateways later) ──
+  const [paymentMethod, setPaymentMethod] = useState("credit_card");
 
   useEffect(() => {
     const savedCart = JSON.parse(localStorage.getItem("cart") || "[]");
@@ -54,6 +64,7 @@ const Checkout = () => {
           textbook_price:   item.include_textbook ? Number(item.textbook_price || 0) : 0,
         })),
         total_amount: total,
+        payment_method: paymentMethod,
         billing: {
           first_name:      form.firstName,
           last_name:       form.lastName,
@@ -69,43 +80,40 @@ const Checkout = () => {
         },
       };
       const res = await API.post("/orders", payload);
-      setOrderId(res.data?._id || res.data?.order?._id || "");
+      const orderId = res.data?._id || res.data?.order?._id || null;
       localStorage.removeItem("cart");
-      setSubmitted(true);
+      setCart([]);
+
+      // Refresh notifications immediately after successful purchase (server send/DB write already happened).
+      try {
+        await fetchNotifications();
+      } catch (err) {
+        console.error('Failed to refresh notifications after purchase:', err);
+      }
+
+      // ── Redirect to Dashboard: course(s) show under My Courses once order is completed ──
+      navigate("/dashboard", {
+        replace: true,
+        state: {
+          purchaseSuccess: true,
+          orderId: orderId ? String(orderId) : null,
+          paymentMethod,
+        },
+      });
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to place order. Please try again.");
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message;
+      let msg = serverMsg;
+      if (!msg) {
+        if (status === 401) msg = "Your session expired. Please sign in again.";
+        else if (status === 404) msg = "Order service not found. Check that the API is running.";
+        else msg = "Failed to place order. Please try again.";
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
-
-  /* ── Success screen ── */
-  if (submitted) return (
-    <Layout>
-      <style>{css}</style>
-      <div style={S.successWrap}>
-        <div style={S.successCard}>
-          <div style={S.successIcon}><CheckCircle2 size={40} /></div>
-          <h1 style={S.successTitle}>Order Placed!</h1>
-          <p style={S.successSub}>
-            Your order has been saved successfully.{" "}
-            {orderId && <span>Order ID: <strong>#{String(orderId).slice(-6).toUpperCase()}</strong></span>}
-          </p>
-          <p style={S.successNote}>
-            Once payment is confirmed by an admin, your courses will be unlocked and available to start.
-          </p>
-          <div style={S.successActions}>
-            <button style={S.primaryBtn} onClick={() => navigate("/dashboard")} type="button">
-              Go to Dashboard
-            </button>
-            <button style={S.secondaryBtn} onClick={() => navigate("/courses")} type="button">
-              Browse More Courses
-            </button>
-          </div>
-        </div>
-      </div>
-    </Layout>
-  );
 
   return (
     <Layout>
@@ -164,6 +172,31 @@ const Checkout = () => {
                   placeholder="Order notes, special instructions, or anything else"
                   style={S.textarea} rows={4} />
               </div>
+
+              {/* ── Purchase: payment method (UI + Order.payment_method; processors plug in server-side) ── */}
+              <div style={S.purchaseSection}>
+                <div style={S.purchaseTitle}>Payment method</div>
+                <div style={S.purchaseSub}>Choose how you want to pay. Card/Bank SDKs hook up in a later pass.</div>
+                <div style={S.payOptions}>
+                  {PAYMENT_OPTIONS.map((opt) => (
+                    <label key={opt.id} style={{ ...S.payOption, ...(paymentMethod === opt.id ? S.payOptionActive : {}) }}>
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value={opt.id}
+                        checked={paymentMethod === opt.id}
+                        onChange={() => setPaymentMethod(opt.id)}
+                        style={S.payRadio}
+                      />
+                      <div>
+                        <div style={S.payLabel}>{opt.label}</div>
+                        <div style={S.payHint}>{opt.hint}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <div style={S.actionRow}>
                 <button type="button" style={S.secondaryBtn} onClick={() => navigate("/courses")}>
                   Continue Browsing
@@ -220,8 +253,11 @@ const Checkout = () => {
                   <div style={{ ...S.totalRow, ...S.grandTotal }}><span>Total</span><strong>${total.toFixed(2)}</strong></div>
                 </div>
                 <div style={S.pendingNote}>
-                  <CheckCircle2 size={14} style={{ flexShrink:0, marginTop:1 }} />
-                  <span>Your order will be marked <strong>pending</strong> until payment is confirmed by an admin.</span>
+                  <CheckCircle2 size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>
+                    After you place the order, you’ll be taken to your dashboard and enrolled courses appear in{" "}
+                    <strong>My Courses</strong>.
+                  </span>
                 </div>
               </>
             )}
@@ -280,6 +316,15 @@ const S = {
   inputIcon:      { position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:"#98a0aa", display:"flex", alignItems:"center", pointerEvents:"none" },
   input:          { width:"100%", height:48, padding:"0 14px", border:"1.5px solid #e3e5e8", borderRadius:14, fontSize:14, background:"#fafafa", color:"#1a1a1a", outline:"none", fontFamily:"inherit", boxSizing:"border-box" },
   textarea:       { width:"100%", padding:"14px", border:"1.5px solid #e3e5e8", borderRadius:14, fontSize:14, background:"#fafafa", color:"#1a1a1a", outline:"none", resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" },
+  purchaseSection:{ marginTop:6, paddingTop:16, borderTop:"1px solid rgba(2,8,23,0.08)", display:"grid", gap:10 },
+  purchaseTitle:  { fontWeight:950, fontSize:15, color:"rgba(11,18,32,0.88)" },
+  purchaseSub:    { fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.50)", lineHeight:1.45 },
+  payOptions:     { display:"grid", gap:10 },
+  payOption:      { display:"flex", gap:12, alignItems:"flex-start", padding:"12px 14px", borderRadius:14, border:"1.5px solid #e3e5e8", background:"#fafafa", cursor:"pointer" },
+  payOptionActive:{ border:"1.5px solid rgba(46,171,254,0.55)", background:"rgba(46,171,254,0.06)", boxShadow:"0 0 0 3px rgba(46,171,254,0.12)" },
+  payRadio:       { marginTop:3, accentColor:"#091925" },
+  payLabel:       { fontWeight:900, fontSize:14, color:"rgba(11,18,32,0.86)" },
+  payHint:        { fontSize:12, fontWeight:600, color:"rgba(11,18,32,0.48)", marginTop:4, lineHeight:1.45 },
   actionRow:      { display:"flex", gap:12, justifyContent:"flex-end", marginTop:6, flexWrap:"wrap" },
   primaryBtn:     { display:"inline-flex", alignItems:"center", gap:8, padding:"12px 20px", borderRadius:14, border:"none", background:"#091925", color:"#fff", cursor:"pointer", fontWeight:950, fontSize:14 },
   primaryBtnLoading: { opacity:0.75, cursor:"not-allowed" },
@@ -303,15 +348,6 @@ const S = {
   emptyTitle:     { fontWeight:950, color:"rgba(11,18,32,0.86)" },
   emptySub:       { fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.55)", lineHeight:1.6 },
   errorBanner:    { marginBottom:16, padding:"12px 18px", borderRadius:14, background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.22)", color:"rgba(185,28,28,1)", fontWeight:800, fontSize:13 },
-
-  // Success
-  successWrap:    { minHeight:"80vh", display:"grid", placeItems:"center", padding:24 },
-  successCard:    { background:"#fff", borderRadius:28, padding:"48px 40px", maxWidth:480, width:"100%", textAlign:"center", boxShadow:"0 40px 100px rgba(0,0,0,0.12)", border:"1px solid rgba(2,8,23,0.08)" },
-  successIcon:    { width:80, height:80, borderRadius:"50%", background:"rgba(34,197,94,0.12)", border:"2px solid rgba(34,197,94,0.30)", display:"grid", placeItems:"center", color:"rgba(34,197,94,1)", margin:"0 auto 22px" },
-  successTitle:   { fontSize:28, fontWeight:950, color:"#091925", letterSpacing:"-0.4px", marginBottom:10 },
-  successSub:     { fontSize:15, color:"rgba(10,22,40,0.65)", fontWeight:600, marginBottom:14 },
-  successNote:    { fontSize:13, fontWeight:700, color:"rgba(10,22,40,0.50)", lineHeight:1.6, padding:"12px 16px", borderRadius:14, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.20)", marginBottom:24 },
-  successActions: { display:"grid", gap:10 },
 };
 
 export default Checkout;

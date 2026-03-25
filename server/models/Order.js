@@ -33,7 +33,18 @@ const orderSchema = new mongoose.Schema({
   payment_reference: {
     type: String,
     default: null
-  }
+  },
+  /** credit_card | ach | payment_plan — set at checkout; gateway ids can live in payment_reference later */
+  payment_method: {
+    type: String,
+    enum: ['credit_card', 'ach', 'payment_plan'],
+    default: 'credit_card',
+  },
+  /** Snapshot from checkout form (billing / shipping fields) */
+  billing: {
+    type: mongoose.Schema.Types.Mixed,
+    default: undefined,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Order', orderSchema);

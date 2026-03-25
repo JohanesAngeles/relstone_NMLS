@@ -460,3 +460,7 @@ router.post('/test-email', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+
+// Export functions for use in other routes
+module.exports.createNotification = createNotification;
+module.exports.sendNotificationEmail = sendNotificationEmail;

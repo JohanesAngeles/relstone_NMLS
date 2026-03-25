@@ -14,6 +14,7 @@ import {
   FileText,
   Clock3,
   Tag,
+  ShoppingCart,
 } from "lucide-react";
 
 const NOTIFICATION_TYPES = [
@@ -22,6 +23,7 @@ const NOTIFICATION_TYPES = [
   { key: "quiz", label: "Quiz Results", icon: <Sparkles size={14} /> },
   { key: "ce", label: "CE Renewals", icon: <CheckCircle2 size={14} /> },
   { key: "new", label: "New Courses", icon: <BookOpen size={14} /> },
+  { key: "purchase", label: "Purchases", icon: <ShoppingCart size={14} /> },
   { key: "promotions", label: "Promotions", icon: <Award size={14} /> },
   { key: "system", label: "System", icon: <Bell size={14} /> },
 ];
@@ -129,6 +131,7 @@ const NotificationsCenter = () => {
                       {item.type === "quiz" && <FileText size={13} />}
                       {item.type === "ce" && <Clock3 size={13} />}
                       {item.type === "new" && <BookOpen size={13} />}
+                      {item.type === "purchase" && <ShoppingCart size={13} />}
                       {item.type === "promotions" && <Tag size={13} />}
                       {item.type === "system" && <Bell size={13} />}
                     </div>

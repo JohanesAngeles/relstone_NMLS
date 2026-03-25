@@ -1,152 +1,129 @@
 const express = require('express');
-const router  = express.Router();
-const User    = require('../models/User');
-const Course  = require('../models/Course');
-const Order   = require('../models/Order');
+const mongoose = require('mongoose');
+const router = express.Router();
+const Order = require('../models/Order');
+const Course = require('../models/Course');
+const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+const { createNotification, sendNotificationEmail } = require('./notifications');
 
-const buildTranscript = async (user) => {
-  const completions = user.completions || [];
-  if (completions.length === 0) return [];
-
-  const courseIds = completions
-    .map((c) => c.course_id?._id || c.course_id)
-    .filter(Boolean);
-
-  const courses = await Course.find({ _id: { $in: courseIds } })
-    .select('title type credit_hours nmls_course_id state_approval_number states_approved');
-
-  const courseMap = {};
-  courses.forEach((c) => { courseMap[String(c._id)] = c; });
-
-  return completions.map((c) => {
-    const cId    = String(c.course_id?._id || c.course_id || '');
-    const course = courseMap[cId] || {};
-    return {
-      _id:             c._id,
-      course_id: {
-        _id:                   cId,
-        title:                 course.title                || '—',
-        type:                  course.type                 || '—',
-        credit_hours:          course.credit_hours         || 0,
-        nmls_course_id:        course.nmls_course_id       || '—',
-        state_approval_number: course.state_approval_number || '—',
-      },
-      course_title:    course.title           || '—',
-      type:            course.type            || '—',
-      credit_hours:    course.credit_hours    || 0,
-      nmls_course_id:  course.nmls_course_id  || '—',
-      completed_at:    c.completed_at,
-      certificate_url: c.certificate_url || null,
-      state:           course.states_approved?.[0] || user.state || '—',
-    };
-  });
-};
-
-// GET /api/dashboard
-router.get('/', authMiddleware, async (req, res) => {
+/**
+ * POST /api/orders
+ * Creates an order from checkout (authenticated user).
+ * Payment gateways (Stripe, ACH, etc.) can be wired in later; we still persist method + billing.
+ */
+router.post('/', authMiddleware, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const { items, total_amount, billing, payment_method } = req.body;
 
-    // ── FIX: accept both 'paid' (old orders) and 'completed' (new orders)
-    const orders = await Order.find({
-      user_id: req.user.id,
-      status:  { $in: ['paid', 'completed'] },
-    }).populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url');
-
-    const completedCourseIds = new Set(
-      (user.completions || []).map((c) => String(c.course_id?._id || c.course_id))
-    );
-
-    const seen = new Set();
-    const available_courses = [];
-
-    orders.forEach((order) => {
-      (order.items || []).forEach((item) => {
-        const course = item.course_id;
-        if (!course) return;
-        const courseId = String(course._id);
-        if (seen.has(courseId)) return;
-        seen.add(courseId);
-        available_courses.push({
-          course_id:         courseId,
-          title:             course.title,
-          type:              course.type,
-          credit_hours:      course.credit_hours,
-          nmls_course_id:    course.nmls_course_id,
-          state:             course.states_approved?.[0] || 'Federal',
-          already_completed: completedCourseIds.has(courseId),
-          progress:          0,
-        });
-      });
-    });
-
-    res.json({
-      user: {
-        name:    user.name,
-        email:   user.email,
-        state:   user.state,
-        nmls_id: user.nmls_id,
-        role:    user.role,
-      },
-      available_courses,
-      orders,
-    });
-  } catch (err) {
-    console.error('GET /dashboard error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
-
-// GET /api/dashboard/transcript
-router.get('/transcript', authMiddleware, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    const transcript = await buildTranscript(user);
-    res.json({ transcript });
-  } catch (err) {
-    console.error('GET /dashboard/transcript error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
-
-// POST /api/dashboard/complete
-router.post('/complete', authMiddleware, async (req, res) => {
-  try {
-    const { courseId } = req.body;
-    console.log(`POST /dashboard/complete — user: ${req.user.id}, courseId: ${courseId}`);
-    if (!courseId) return res.status(400).json({ message: 'courseId is required' });
-
-    const [user, course] = await Promise.all([
-      User.findById(req.user.id),
-      Course.findById(courseId).select('title type credit_hours nmls_course_id states_approved'),
-    ]);
-
-    if (!user)   return res.status(404).json({ message: 'User not found' });
-    if (!course) return res.status(404).json({ message: 'Course not found' });
-
-    const alreadyDone = (user.completions || []).some(
-      (c) => String(c.course_id?._id || c.course_id) === String(courseId)
-    );
-
-    if (alreadyDone) {
-      return res.json({ message: 'Already completed', already_existed: true });
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ message: 'No items in order' });
     }
 
-    user.completions.push({ course_id: courseId, completed_at: new Date() });
-    await user.save();
-    console.log(`✅ Completion saved — user: ${req.user.id}, course: ${courseId}`);
+    const allowedMethods = ['credit_card', 'ach', 'payment_plan'];
+    const method =
+      payment_method && allowedMethods.includes(payment_method)
+        ? payment_method
+        : 'credit_card';
 
-    res.json({
-      message:         'Course completion saved successfully',
-      already_existed: false,
-      completion: { course_id: courseId, course_title: course.title, completed_at: new Date() },
+    const normalizedItems = [];
+    for (const it of items) {
+      const rawId = it.course_id;
+      if (!rawId || !mongoose.Types.ObjectId.isValid(String(rawId))) {
+        return res.status(400).json({ message: 'Invalid course id in cart' });
+      }
+
+      const course = await Course.findById(rawId).select('_id');
+      if (!course) {
+        return res.status(400).json({ message: 'One or more courses are no longer available' });
+      }
+
+      const includeTextbook = !!it.include_textbook;
+      const price = Number(it.price) || 0;
+      const textbookPrice = includeTextbook ? Number(it.textbook_price) || 0 : 0;
+
+      normalizedItems.push({
+        course_id: course._id,
+        price,
+        include_textbook: includeTextbook,
+        textbook_price: textbookPrice,
+      });
+    }
+
+    const computedTotal = normalizedItems.reduce(
+      (sum, it) => sum + it.price + (it.include_textbook ? it.textbook_price : 0),
+      0
+    );
+
+    const clientTotal = Number(total_amount);
+    if (Number.isNaN(clientTotal) || Math.abs(clientTotal - computedTotal) > 0.02) {
+      return res.status(400).json({ message: 'Order total does not match items' });
+    }
+
+    // When you add a real processor, switch to 'pending' until the webhook confirms payment.
+    const status = 'completed';
+
+    const order = await Order.create({
+      user_id: req.user.id,
+      items: normalizedItems,
+      total_amount: computedTotal,
+      status,
+      payment_method: method,
+      billing: billing && typeof billing === 'object' ? billing : undefined,
     });
+
+    // After successful purchase, create notification and send email
+    try {
+      const user = await User.findById(req.user.id);
+      if (user) {
+        // Get course names for the notification
+        const courseIds = normalizedItems.map(item => item.course_id);
+        const courses = await Course.find({ _id: { $in: courseIds } }).select('title');
+        const courseNames = courses.map(course => course.title).join(', ');
+
+        // Create notification
+        const notificationTitle = 'Course Purchased Successfully';
+        const notificationBody = `You have successfully purchased ${courseNames}. It is now available in My Courses.`;
+        await createNotification(user, {
+          type: 'purchase',
+          title: notificationTitle,
+          body: notificationBody,
+        });
+
+        // Send email if user has email preferences enabled
+        if (user.notification_prefs?.email_course_updates) {
+          const emailBody = `You have successfully purchased ${courseNames}.\n\nYour course is now available in your dashboard under My Courses.`;
+          await sendNotificationEmail(user, 'Course Purchase Confirmation', emailBody, {
+            eventType: 'purchase',
+          });
+        }
+      }
+    } catch (notificationError) {
+      console.error('[orders] Error creating notification/email after purchase:', notificationError);
+      // Don't fail the purchase if notification/email fails
+    }
+
+    return res.status(201).json(order);
   } catch (err) {
-    console.error('POST /dashboard/complete error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error('[orders] POST /', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/**
+ * GET /api/orders
+ * Lists the signed-in user's orders (newest first).
+ */
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const orders = await Order.find({ user_id: req.user.id })
+      .sort({ createdAt: -1 })
+      .populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url');
+
+    res.json({ orders });
+  } catch (err) {
+    console.error('[orders] GET /', err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

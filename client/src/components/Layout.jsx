@@ -149,6 +149,7 @@ const Layout = ({ children, title, subtitle, actions }) => {
                           {n.type === 'quiz' && <FileText size={14} />}
                           {n.type === 'ce' && <Clock3 size={14} />}
                           {n.type === 'new' && <BookOpen size={14} />}
+                          {n.type === 'purchase' && <ShoppingCart size={14} />}
                           {n.type === 'promotions' && <Sparkles size={14} />}
                           {n.type === 'system' && <Bell size={14} />}
                         </span>

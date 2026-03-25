@@ -103,11 +103,10 @@ router.get('/', authMiddleware, async (req, res) => {
     const user = await User.findById(req.user.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // FIX: query by BOTH user_id field names to be safe,
-    // ensure status is exactly 'completed'
+    // Paid or completed orders unlock courses on the dashboard; pending (e.g. payment plan) excluded until fulfilled
     const orders = await Order.find({
       user_id: req.user.id,
-      status:  'completed',
+      status: { $in: ['paid', 'completed'] },
     }).populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url');
 
     // Set of completed course IDs for quick lookup
