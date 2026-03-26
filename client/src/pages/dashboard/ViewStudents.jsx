@@ -8,6 +8,8 @@ import {
   BookOpen, ArrowLeft, Eye, PlusCircle, X, Check,
   Unlock, AlertTriangle,
 } from "lucide-react";
+import InnerBreadcrumbs from "../../components/InnerBreadcrumbs";
+import GlobalSearchBar from "../../components/GlobalSearchBar";
 
 const ViewStudents = () => {
   const { logout } = useAuth();
@@ -77,6 +79,7 @@ const ViewStudents = () => {
             </div>
           </div>
           <div style={S.topbarRight}>
+            <GlobalSearchBar minWidth={280} />
             <button style={S.backBtn} onClick={() => navigate("/instructor/dashboard")} type="button">
               <ArrowLeft size={15} /> Back to Dashboard
             </button>
@@ -84,6 +87,9 @@ const ViewStudents = () => {
               Sign out
             </button>
           </div>
+        </div>
+        <div style={S.breadcrumbWrap}>
+          <InnerBreadcrumbs />
         </div>
       </header>
 
@@ -528,6 +534,7 @@ const S = {
   center:  { minHeight:"100vh", display:"grid", placeItems:"center" },
   topbar:  { background:"#fff", borderBottom:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 2px 12px rgba(2,8,23,0.05)" },
   topbarInner: { maxWidth:1200, margin:"0 auto", padding:"13px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 },
+  breadcrumbWrap: { maxWidth:1200, margin:"0 auto", padding:"0 20px 10px" },
   brandLeft:   { display:"flex", alignItems:"center", gap:12 },
   brandLogo:   { height:30, objectFit:"contain" },
   brandTitle:  { fontWeight:900, fontSize:15, color:"var(--rs-dark)", letterSpacing:"-0.2px" },

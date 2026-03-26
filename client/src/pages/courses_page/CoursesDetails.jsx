@@ -6,6 +6,14 @@ import {
 } from "lucide-react";
 import API from "../../api/axios";
 import Layout from "../../components/Layout";
+import InnerBreadcrumbs from "../../components/InnerBreadcrumbs";
+import GlobalSearchBar from "../../components/GlobalSearchBar";
+
+const REVIEW_BANK = [
+  { name: 'Sarah M.', text: 'Clear explanations and great pacing. I felt fully ready for testing.', rating: 5 },
+  { name: 'James T.', text: 'The modules are practical and easy to follow while working full-time.', rating: 5 },
+  { name: 'Maria L.', text: 'Best course experience I have used for NMLS requirements.', rating: 4 },
+];
 
 const CourseDetails = () => {
   const { id } = useParams();
@@ -61,6 +69,9 @@ const CourseDetails = () => {
   const typeColor  = isPE ? "var(--rs-blue)" : isCE ? "rgba(0,140,140,1)" : "rgba(11,18,32,0.7)";
   const typeBg     = isPE ? "rgba(46,171,254,0.10)" : isCE ? "rgba(0,180,180,0.10)" : "rgba(2,8,23,0.05)";
   const typeBorder = isPE ? "rgba(46,171,254,0.22)" : isCE ? "rgba(0,180,180,0.20)" : "rgba(2,8,23,0.10)";
+  const instructorName = isPE ? 'Alicia Harper' : 'Michael Grant';
+  const instructorRole = isPE ? 'Senior SAFE Act Instructor' : 'Continuing Education Faculty';
+  const reviews = REVIEW_BANK;
 
   return (
     <Layout>
@@ -77,6 +88,12 @@ const CourseDetails = () => {
             <span style={{ color: "rgba(11,18,32,0.30)" }}>/</span>
             <span style={{ fontWeight: 800, color: "rgba(11,18,32,0.82)" }}>{course.title}</span>
           </div>
+          <div style={{ marginLeft: 'auto' }}>
+            <GlobalSearchBar minWidth={320} />
+          </div>
+        </div>
+        <div style={S.breadcrumbWrap}>
+          <InnerBreadcrumbs />
         </div>
 
         {/* ── Hero card ─────────────────────────────────────────── */}
@@ -152,6 +169,38 @@ const CourseDetails = () => {
                 </div>
               </div>
             )}
+
+            <div style={S.card}>
+              <div style={S.cardHead}>
+                <div style={S.cardIcon}><BookOpen size={17} /></div>
+                <div style={S.cardTitle}>Instructor</div>
+              </div>
+              <div style={S.instructorBlock}>
+                <div style={S.instructorAvatar}>{instructorName.split(' ').map((part) => part[0]).join('')}</div>
+                <div>
+                  <div style={S.instructorName}>{instructorName}</div>
+                  <div style={S.instructorRole}>{instructorRole}</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={S.card}>
+              <div style={S.cardHead}>
+                <div style={S.cardIcon}><CheckCircle2 size={17} /></div>
+                <div style={S.cardTitle}>Student Reviews</div>
+              </div>
+              <div style={S.reviewsList}>
+                {reviews.map((review) => (
+                  <div key={review.name} style={S.reviewItem}>
+                    <div style={S.reviewTop}>
+                      <strong>{review.name}</strong>
+                      <span>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+                    </div>
+                    <div style={S.reviewText}>{review.text}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Right col — purchase card */}
@@ -283,7 +332,16 @@ const S = {
 
   statesGrid:  { display: "flex", flexWrap: "wrap", gap: 7 },
   stateChip:   { display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 999, background: "rgba(46,171,254,0.08)", border: "1px solid rgba(46,171,254,0.18)", fontSize: 11, fontWeight: 800, color: "var(--rs-dark)", fontFamily: "'Poppins',sans-serif" },
-
+  
+  instructorBlock: { display: "flex", alignItems: "center", gap: 12 },
+  instructorAvatar: { width: 42, height: 42, borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 900, fontSize: 13, color: "#fff", background: "linear-gradient(140deg,#2EABFE,#00B4B4)" },
+  instructorName: { fontWeight: 900, color: "rgba(11,18,32,0.85)" },
+  instructorRole: { marginTop: 2, fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.55)" },
+  reviewsList: { display: "grid", gap: 10 },
+  reviewItem: { borderRadius: 14, border: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)", padding: "10px 12px" },
+  reviewTop: { display: "flex", justifyContent: "space-between", alignItems: "center", color: "rgba(11,18,32,0.8)", fontSize: 13 },
+  reviewText: { marginTop: 6, fontSize: 13, lineHeight: 1.5, color: "rgba(11,18,32,0.67)", fontWeight: 650 },
+  
   purchaseCard:      { borderRadius: 18, background: "#fff", border: "1px solid rgba(2,8,23,0.08)", boxShadow: "0 12px 32px rgba(2,8,23,0.09)", padding: 18, display: "grid", gap: 13, position: "sticky", top: 20 },
   purchaseTop:       { textAlign: "center" },
   purchasePrice:     { fontWeight: 900, fontSize: 34, color: "rgba(11,18,32,0.90)", letterSpacing: "-0.5px", fontFamily: "'Poppins',sans-serif" },

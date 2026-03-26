@@ -7,12 +7,17 @@ import AuthModal from './pages/auth_page/AuthModal';
 import Dashboard from './pages/dashboard/Dashboard';
 import InstructorDashboard from './pages/dashboard/InstructorDashboard';
 import ViewStudents from './pages/dashboard/ViewStudents';
+import CETracker from './pages/dashboard/CETracker';
 import Certificate from './pages/cert_page/Certificate';
 import Courses from './pages/courses_page/Courses';
 import Checkout from './pages/checkout_page/checkout';
 import CourseDetails from './pages/courses_page/CoursesDetails';
 import CoursePortal from './pages/courses_page/CoursePortal';
+import StateRequirements from './pages/courses_page/StateRequirements';
+import PricingPage from './pages/courses_page/PricingPage';
 import HomePage from './pages/HomePage';
+import ResourcesHub from './pages/resources_page/ResourcesHub';
+import ResourceArticlePage from './pages/resources_page/ResourceArticlePage';
 import MyCourses from './pages/my_courses/MyCourses';
 import Profile from './pages/profile/Profile';
 import MyCertificates from './pages/certificates/MyCertificates';
@@ -80,6 +85,10 @@ function App() {
           <Route path="/"                   element={<LandingWrapper />} />
           <Route path="/certificate-test"   element={<Certificate />} />
 
+          {/* Public resources */}
+          <Route path="/resources" element={<ResourcesHub />} />
+          <Route path="/resources/:slug" element={<ResourceArticlePage />} />
+
           {/* ── /home — role-aware entry point ── */}
           <Route path="/home" element={
             <PrivateRoute>
@@ -97,6 +106,91 @@ function App() {
           <Route path="/orders" element={<StudentRoute><OrdersBilling /></StudentRoute>} />
           <Route path="/support" element={<StudentRoute><ContactSupport /></StudentRoute>} />
 
+          {/* CE Tracker */}
+          <Route path="/ce-tracker" element={
+            <PrivateRoute>
+              <CETracker />
+            </PrivateRoute>
+          } />
+
+          {/* Instructor dashboard */}
+          <Route path="/instructor/dashboard" element={
+            <PrivateRoute>
+              <InstructorDashboard />
+            </PrivateRoute>
+          } />
+
+          {/* Instructor students */}
+          <Route path="/instructor/students" element={
+            <PrivateRoute>
+              <ViewStudents />
+            </PrivateRoute>
+          } />
+
+          {/* Checkout */}
+          <Route path="/checkout" element={
+            <PrivateRoute>
+              <Checkout />
+            </PrivateRoute>
+          } />
+
+          {/* Courses */}
+          <Route path="/courses" element={
+            <PrivateRoute>
+              <Courses />
+            </PrivateRoute>
+          } />
+
+          {/* Discover pages */}
+          <Route path="/state-requirements" element={
+            <PrivateRoute>
+              <StateRequirements />
+            </PrivateRoute>
+          } />
+
+          <Route path="/pricing" element={
+            <PrivateRoute>
+              <PricingPage />
+            </PrivateRoute>
+          } />
+
+          {/* Course detail */}
+          <Route path="/courses/:id" element={
+            <PrivateRoute>
+              <CourseDetails />
+            </PrivateRoute>
+          } />
+
+          {/* Course portal / LMS */}
+          <Route path="/courses/:id/learn" element={
+            <PrivateRoute>
+              <CoursePortal />
+            </PrivateRoute>
+          } />
+
+          {/* Certificate */}
+          <Route path="/certificate/:courseId" element={
+            <PrivateRoute>
+              <Certificate />
+            </PrivateRoute>
+          } />
+          <Route path="/my-courses" element={
+            <PrivateRoute>
+              <MyCourses />
+            </PrivateRoute>
+          } />
+          <Route path="/profile" element={
+            <PrivateRoute>
+              <Profile />
+            </PrivateRoute>
+          } />
+          <Route path="/certificates" element={
+            <PrivateRoute>
+              <MyCertificates />
+            </PrivateRoute>
+          } />
+          <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
+=======
           {/* ── Instructor-only pages ── */}
           <Route path="/instructor/dashboard" element={<InstructorRoute><InstructorDashboard /></InstructorRoute>} />
           <Route path="/instructor/students" element={<InstructorRoute><ViewStudents /></InstructorRoute>} />
@@ -112,6 +206,7 @@ function App() {
           <Route path="/courses/:id/learn" element={<PrivateRoute><CoursePortal /></PrivateRoute>} />
           <Route path="/certificate/:courseId" element={<PrivateRoute><Certificate /></PrivateRoute>} />
           <Route path="/checkout" element={<PrivateRoute><Checkout /></PrivateRoute>} />
+>>>>>>> main
         </Routes>
       </Router>
     </AuthProvider>

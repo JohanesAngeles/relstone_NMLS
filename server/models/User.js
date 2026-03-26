@@ -59,6 +59,18 @@ const userSchema = new mongoose.Schema({
     }
   ],
 
+  // CE Renewal Tracking
+  ce_renewal_deadline: { type: Date, default: null },
+  ce_hours_required: { type: Number, default: 0 },
+  ce_renewal_cycle_start: { type: Date, default: null },
+  renewal_status: { type: String, enum: ['in-progress', 'completed'], default: 'in-progress' },
+  renewal_reminders_sent: [
+    {
+      days_before: { type: Number }, // 90, 60, or 30
+      sent_at: { type: Date },
+    }
+  ],
+
 }, { timestamps: true });
 
 // Indexing for faster BioSig status lookups

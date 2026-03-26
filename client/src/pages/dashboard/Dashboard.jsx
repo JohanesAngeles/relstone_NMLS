@@ -5,7 +5,7 @@ import API from "../../api/axios";
 import Layout from "../../components/Layout";
 import {
   FileText, BookOpen, Clock, CheckCircle, Award,
-  ChevronRight, Search, PlayCircle, Lock, User, Download,
+  ChevronRight, Search, PlayCircle, Lock, User, Download, TrendingUp, MapPin,
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -255,13 +255,13 @@ const Dashboard = () => {
             <TabBtn label="Overview"   active={activeTab==="overview"}   onClick={() => setActiveTab("overview")}/>
             <TabBtn label="Transcript" active={activeTab==="transcript"} onClick={() => setActiveTab("transcript")}/>
             <TabBtn label="Orders"     active={activeTab==="orders"}     onClick={() => setActiveTab("orders")}/>
+            <button style={S.backBtn} onClick={() => navigate("/my-courses")} type="button">My Courses ›</button>
             {activeTab === "transcript" && (
               <div style={S.tabSearch}>
                 <Search size={13} style={{color:"rgba(9,25,37,0.55)"}}/>
                 <input style={S.tabSearchInput} value={q} onChange={e => setQ(e.target.value)} placeholder="Search transcript…"/>
               </div>
             )}
-            <button style={S.backBtn} onClick={() => navigate("/my-courses")} type="button">My Courses ›</button>
           </div>
 
           {activeTab === "overview" && (
@@ -279,23 +279,34 @@ const Dashboard = () => {
                     : recentCompletions.map((c,i) => <CompletionRow key={i} item={c}/>)
                   }
                 </div>
-                <div style={S.innerPanel}>
-                  <div style={S.innerHdr}><div style={S.innerTitle}>Quick actions</div></div>
-                  <div style={{display:"flex",flexDirection:"column",gap:9}}>
-                    {[
-                      {icon:<BookOpen size={15}/>,title:"Browse courses",  sub:"Find PE and CE courses",     action:() => navigate("/courses")       },
-                      {icon:<FileText size={15}/>,title:"View transcript", sub:"Download and verify details",action:() => setActiveTab("transcript")},
-                      {icon:<Clock size={15}/>,   title:"My orders",       sub:"Track payment and status",   action:() => setActiveTab("orders")    },
-                    ].map((a,i) => (
-                      <button key={i} style={S.actionCard} onClick={a.action} type="button">
-                        <div style={S.actionIcon}>{a.icon}</div>
-                        <div style={{flex:1}}>
-                          <div style={S.actionTitle}>{a.title}</div>
-                          <div style={S.actionSub}>{a.sub}</div>
-                        </div>
-                        <ChevronRight size={15} style={{color:"rgba(9,25,37,0.40)"}}/>
-                      </button>
-                    ))}
+                <div style={S.panel}>
+                  <div style={S.panelHead}><div style={S.panelTitle}>Quick actions</div></div>
+                  <div style={S.quickActions}>
+                    <button style={S.actionCard} type="button" onClick={() => navigate("/courses")}>
+                      <div style={S.actionIcon}><BookOpen size={18} /></div>
+                      <div style={S.actionText}><div style={S.actionTitle}>Browse courses</div><div style={S.actionSub}>Find PE and CE courses</div></div>
+                      <ChevronRight size={18} />
+                    </button>
+                    <button style={S.actionCard} type="button" onClick={() => navigate("/ce-tracker")}>
+                      <div style={S.actionIcon}><TrendingUp size={18} /></div>
+                      <div style={S.actionText}><div style={S.actionTitle}>CE Tracker</div><div style={S.actionSub}>Track renewal progress</div></div>
+                      <ChevronRight size={18} />
+                    </button>
+                    <button style={S.actionCard} type="button" onClick={() => setActiveTab("transcript")}>
+                      <div style={S.actionIcon}><FileText size={18} /></div>
+                      <div style={S.actionText}><div style={S.actionTitle}>View transcript</div><div style={S.actionSub}>Download and verify details</div></div>
+                      <ChevronRight size={18} />
+                    </button>
+                    <button style={S.actionCard} type="button" onClick={() => setActiveTab("orders")}>
+                      <div style={S.actionIcon}><Clock size={18} /></div>
+                      <div style={S.actionText}><div style={S.actionTitle}>My orders</div><div style={S.actionSub}>Track payment and status</div></div>
+                      <ChevronRight size={18} />
+                    </button>
+                    <button style={S.actionCard} type="button" onClick={() => navigate("/state-requirements")}>
+                      <div style={S.actionIcon}><MapPin size={18} /></div>
+                      <div style={S.actionText}><div style={S.actionTitle}>State requirements</div><div style={S.actionSub}>View state licensing and CE rules</div></div>
+                      <ChevronRight size={18} />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -548,7 +559,7 @@ const S = {
   ctaAmber: {display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:7,border:"none",background:"#F59E0B",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"'Poppins',sans-serif",marginTop:10},
   tabsCard:      {background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 2px 8px rgba(2,8,23,0.06)",border:"0.5px solid rgba(2,8,23,0.07)"},
   tabBar:        {display:"flex",alignItems:"center",borderBottom:"0.5px solid rgba(2,8,23,0.08)"},
-  tabSearch:     {display:"flex",alignItems:"center",gap:7,padding:"0 11px",height:46,borderLeft:"0.5px solid rgba(2,8,23,0.08)",flex:1},
+  tabSearch:     {display:"flex",alignItems:"right",gap:7,padding:"0 11px",height:46,borderLeft:"0.5px solid rgba(2,8,23,0.08)",maxWidth:300},
   tabSearchInput:{flex:1,border:"none",outline:"none",fontSize:12,fontFamily:"'Poppins',sans-serif",background:"transparent",color:"#091925"},
   backBtn:       {marginLeft:"auto",padding:"0 16px",height:46,border:"none",borderLeft:"0.5px solid rgba(2,8,23,0.08)",background:"transparent",color:"#5B7384",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Poppins',sans-serif"},
   tabBody:       {padding:"14px"},
