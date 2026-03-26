@@ -11,6 +11,7 @@ import RocsModal from "../../components/RocsModal";
 import useSeatTimer from "../../hooks/useSeatTimer";
 import BioSigModal from "../../components/BioSigModal";
 import TestimonialGateModal from "../../components/TempModal";
+import AccessibleVideoPlayer from "../../components/AccessibleVideoPlayer";
 /* ─── Build content array from DB course ────────────────────────── */
 const buildPdfUrl = (baseUrl, startPage) => {
   if (!baseUrl) return null;
@@ -33,7 +34,10 @@ const buildContent = (course) => {
         id: `lesson-mod-${mod.order}`, type: "lesson",
         title: mod.title, credit_hours: mod.credit_hours,
         moduleOrder: mod.order,
-        pdf_url: modPdf, video_url: mod.video_url || null, sections: mod.sections || [],
+        pdf_url: modPdf,
+        video_url: mod.video_url || course.video_url || null,
+        caption_tracks: mod.caption_tracks || course.caption_tracks || [],
+        sections: mod.sections || [],
       });
       if (mod.show_pdf_before_quiz && modPdf) {
         content.push({
@@ -573,13 +577,12 @@ const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds, review
       {pdfView && <PDFViewer url={item.pdf_url} />}
       {!pdfView && (
         <>
-          <div style={S.videoBox}>
-            <div style={S.videoInner}>
-              <div style={S.videoIconWrap}><PlayCircle size={48} style={{ color: "#fff", opacity: 0.9 }} /></div>
-              <div style={S.videoLabel}>Video Lesson</div>
-              <div style={S.videoSub}>Video content will be embedded here</div>
-            </div>
-          </div>
+          <AccessibleVideoPlayer
+            title={item.title}
+            videoUrl={item.video_url}
+            captionTracks={item.caption_tracks}
+            transcriptLines={item.sections || []}
+          />
           {item.sections?.length > 0 && (
             <div style={S.lessonText}>
               <h3 style={{ ...S.lessonH3, marginTop: 0 }}>Topics Covered in This Module</h3>
