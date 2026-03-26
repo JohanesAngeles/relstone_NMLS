@@ -1,7 +1,7 @@
 /**
  * seed_ny_safe_course.js
- * Drop this in: relstone_NMLS/server/
- * Run with:    node seed_ny_safe_course.js
+ * Drop this in: relstone_NMLS/server/seeders/
+ * Run with:    node seed_ny_safe_course.js   (from inside the /seeders directory)
  *
  * COURSE STRUCTURE:
  *   Step 1  📄 Lesson     — Module 1: Federal Mortgage Law
@@ -18,26 +18,26 @@
  *   Step 12 🏆 Final Exam — Attempt 1: official 35 Qs | Retry: random 35 from 70-Q bank
  *
  * RETRY LOGIC:
- *   - First attempt:  35 questions from FINAL_EXAM_35 (official verified set)
- *   - On failure:     35 questions drawn RANDOMLY from QUESTION_BANK_70
- *   - Each retry gets a fresh random 35 — student sees different questions each time
- *   - The question_bank array on final_exam enables this in the backend
+ *   - First attempt:  serve FINAL_EXAM_35 (official verified set)
+ *   - On failure:     shuffle QUESTION_BANK_70, slice(0, 35) — new set each retry
  */
 
 const mongoose = require('mongoose');
 const dotenv   = require('dotenv');
-dotenv.config();
+const path     = require('path');
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const Course = require('../models/Course');
 
 // ── PDF URLs ──────────────────────────────────────────────────────────
-const MODULE_PDF  = 'https://www.dropbox.com/scl/fi/9h17lbyuhecwqlhsoevqq/11-Hour-NY-SAFE-Comprehensive-Annual-MLO-Fundamentals.pdf?rlkey=22t9d1355w99ai53n2upvmhao&st=cb4lr9s4&raw=1';
+const MODULE_PDF   = 'https://www.dropbox.com/scl/fi/9h17lbyuhecwqlhsoevqq/11-Hour-NY-SAFE-Comprehensive-Annual-MLO-Fundamentals.pdf?rlkey=22t9d1355w99ai53n2upvmhao&st=cb4lr9s4&raw=1';
 const FINAL_NY_PDF = 'https://www.dropbox.com/scl/fi/qj8fccuig00cvwzft3ivj/FINAL-NEW-YORK.pdf?rlkey=qwdeze1ah60rmceel5pwvg5lu&st=thqz8ddv&raw=1';
 
-// ─────────────────────────────────────────────────────────────────────
-// 70-QUESTION BANK — used as retry pool when student fails the final exam
-// Backend should: on retry, randomly select 35 from this array each time
-// ─────────────────────────────────────────────────────────────────────
+// ── Video URL (shared across all modules) ─────────────────────────────
+// CoursePortal's toGDriveEmbed() auto-converts this share URL → /preview embed
+const NY_VIDEO = 'https://drive.google.com/file/d/1ggzsoGR8zrXbIBNps5JK-2DE5HwNQMX1/view?usp=drive_link';
+
+// ── 70-Question Retry Bank ────────────────────────────────────────────
 const QUESTION_BANK_70 = [
   // ── Federal Mortgage Law ──────────────────────────────────────────
   { number:1,  question:'What is the purpose of TILA?', options:['To extend more credit','To make credit easier to obtain','To promote the informed use of consumer credit','To better qualify borrowers'], correct_index:2 },
@@ -122,12 +122,10 @@ const QUESTION_BANK_70 = [
   { number:70, question:'Under New York DFS rules, a mortgage loan originator must disclose their NMLS ID:', options:['Only on loan applications','Only on closing documents','In all advertising and on all loan documents','Only when requested by the borrower'], correct_index:2 },
 ];
 
-// ─────────────────────────────────────────────────────────────────────
-// OFFICIAL FINAL EXAM — 35 questions, verified answer key
-// Key: 1A 2B 3B 4A 5B 6D 7D 8A 9D 10B 11A 12B 13D 14A 15D
+// ── Official Final Exam: 35 Questions (first attempt) ─────────────────
+// Key: 1A 2B 3B 4A 5B 6D 7D 8A 9D 10B 11A 12B 13D 14A 15B
 //      16B 17B 18A 19D 20D 21B 22B 23A 24A 25B 26B 27B 28C 29A
 //      30A 31B 32B 33D 34B 35D
-// ─────────────────────────────────────────────────────────────────────
 const FINAL_EXAM_35 = [
   { number:1,  question:'What is the purpose of TILA?', options:['To promote the informed use of consumer credit','To extend more credit','To make credit easier to obtain','To better qualify borrowers'], correct_index:0 },
   { number:2,  question:'Under the Truth in Lending Act (TILA), the APR must include which of the following?', options:['Only the interest rate','Interest rate plus certain other charges','Only fees charged for services','The interest rate plus taxes and insurance'], correct_index:1 },
@@ -143,7 +141,7 @@ const FINAL_EXAM_35 = [
   { number:12, question:'What is the primary purpose of HMDA?', options:['Promote mortgage availability','Gather data to identify discriminatory lending patterns','Monitor lending risk','Prevent mortgage fraud'], correct_index:1 },
   { number:13, question:'Which is a requirement under the SAFE Act?', options:['Completion of pre-licensing education','Completion of continuing education','Passing a national test','All of the above'], correct_index:3 },
   { number:14, question:'How many hours of continuing education are required annually under SAFE?', options:['8 hours','12 hours','16 hours','20 hours'], correct_index:0 },
-  { number:15, question:'What is steering in mortgage lending?', options:['Guiding borrower to best product','Encouraging risky high-cost loans for higher compensation','Providing equal loan access','Denying loans based on credit'], correct_index:3 },
+  { number:15, question:'What is steering in mortgage lending?', options:['Guiding borrower to best product','Encouraging risky high-cost loans for higher compensation','Providing equal loan access','Denying loans based on credit'], correct_index:1 },
   { number:16, question:'What is the primary function of the CFPB?', options:['Regulate origination fees','Supervise fair lending practices','Oversee credit cards only','Enforce state-specific laws'], correct_index:1 },
   { number:17, question:'What is the minimum down payment for an FHA loan?', options:['1%','3.5%','5%','10%'], correct_index:1 },
   { number:18, question:'What is the role of the Federal Housing Administration (FHA)?', options:['Insure loans made by approved lenders','Provide loans directly to borrowers','Enforce the Fair Housing Act','Regulate mortgage insurance companies'], correct_index:0 },
@@ -168,15 +166,11 @@ const FINAL_EXAM_35 = [
 
 // ─────────────────────────────────────────────────────────────────────
 const courseData = {
-  title:          '11-HOUR NY SAFE COMPREHENSIVE: ANNUAL MLO FUNDAMENTALS',
-  nmls_course_id: 'CE-NY-SAFE-11HR',
-  type:           'CE',
-  credit_hours:   11,
-  description:
-    'This 11-hour SAFE Act continuing education course covers federal mortgage law ' +
-    '(3 hrs), ethics & consumer protection (2 hrs), FHA & government lending (3 hrs), ' +
-    'mortgage market & qualified mortgages (2 hrs), and New York state-specific law ' +
-    '(1 hr). Required annually for New York-licensed Mortgage Loan Originators.',
+  title:           '11-HOUR NY SAFE COMPREHENSIVE: ANNUAL MLO FUNDAMENTALS',
+  nmls_course_id:  'CE-NY-SAFE-11HR',
+  type:            'CE',
+  credit_hours:    11,
+  description:     'This 11-hour SAFE Act continuing education course covers federal mortgage law (3 hrs), ethics & consumer protection (2 hrs), FHA & government lending (3 hrs), mortgage market & qualified mortgages (2 hrs), and New York state-specific law (1 hr). Required annually for New York-licensed Mortgage Loan Originators.',
   price:           99.00,
   states_approved: ['NY'],
   has_textbook:    false,
@@ -188,10 +182,10 @@ const courseData = {
 
     // ── MODULE 1 ────────────────────────────────────────────────────
     {
-      order:        1,
-      title:        'Federal Mortgage Law',
-      credit_hours: 3,
-      pdf_url:      MODULE_PDF,
+      order: 1, title: 'Federal Mortgage Law', credit_hours: 3,
+      pdf_url:   MODULE_PDF,
+      video_url: NY_VIDEO,
+      show_pdf_before_quiz: false,
       sections: [
         '1.1 Overview of Federal Mortgage Regulation',
         '1.2 Truth in Lending Act (TILA) & TRID',
@@ -214,10 +208,10 @@ const courseData = {
 
     // ── MODULE 2 ────────────────────────────────────────────────────
     {
-      order:        2,
-      title:        'Ethics & Consumer Protection',
-      credit_hours: 2,
-      pdf_url:      MODULE_PDF,
+      order: 2, title: 'Ethics & Consumer Protection', credit_hours: 2,
+      pdf_url:   MODULE_PDF,
+      video_url: NY_VIDEO,
+      show_pdf_before_quiz: false,
       sections: [
         '2.1 Ethical Standards for Mortgage Loan Originators',
         '2.2 Equal Credit Opportunity Act (ECOA)',
@@ -240,10 +234,10 @@ const courseData = {
 
     // ── MODULE 3 ────────────────────────────────────────────────────
     {
-      order:        3,
-      title:        'Non-Traditional Mortgage Lending',
-      credit_hours: 3,
-      pdf_url:      MODULE_PDF,
+      order: 3, title: 'Non-Traditional Mortgage Lending', credit_hours: 3,
+      pdf_url:   MODULE_PDF,
+      video_url: NY_VIDEO,
+      show_pdf_before_quiz: false,
       sections: [
         '3.1 Overview of Non-Traditional Mortgage Products',
         '3.2 Interest-Only Mortgages — Features and Risks',
@@ -265,10 +259,10 @@ const courseData = {
 
     // ── MODULE 4 ────────────────────────────────────────────────────
     {
-      order:        4,
-      title:        'Mortgage Origination',
-      credit_hours: 2,
-      pdf_url:      MODULE_PDF,
+      order: 4, title: 'Mortgage Origination', credit_hours: 2,
+      pdf_url:   MODULE_PDF,
+      video_url: NY_VIDEO,
+      show_pdf_before_quiz: false,
       sections: [
         '4.1 The Loan Application Process',
         '4.2 Loan Estimate and Required Disclosures',
@@ -288,12 +282,12 @@ const courseData = {
       ],
     },
 
-    // ── MODULE 5: New York State Law and Regulations ────────────────
+    // ── MODULE 5 ────────────────────────────────────────────────────
     {
-      order:        5,
-      title:        'New York State Law and Regulations',
-      credit_hours: 1,
-      pdf_url:      MODULE_PDF,
+      order: 5, title: 'New York State Law and Regulations', credit_hours: 1,
+      pdf_url:   MODULE_PDF,
+      video_url: NY_VIDEO,
+      show_pdf_before_quiz: false,
       sections: [
         '5.1 Overview of New York State Regulatory Authority (DFS)',
         '5.2 New York State Continuing Education Requirements',
@@ -315,45 +309,47 @@ const courseData = {
 
     // ── MODULE 6: FINAL - NEW YORK ───────────────────────────────────
     // PDF-only lesson — NO quiz
-    // Student reads the Final NY PDF, then proceeds directly to the Final Exam
-    // On failure: Final Exam retries with random 35 from QUESTION_BANK_70
+    // Student reads the Final NY PDF then proceeds directly to Final Exam
     {
-      order:        6,
-      title:        'FINAL - NEW YORK',
-      credit_hours: 0,
-      pdf_url:      FINAL_NY_PDF,
+      order: 6, title: 'FINAL - NEW YORK', credit_hours: 0,
+      pdf_url:   FINAL_NY_PDF,
+      video_url: NY_VIDEO,
+      show_pdf_before_quiz: false,
       sections: [
         '11-HOUR NY SAFE COMPREHENSIVE: ANNUAL MLO FUNDAMENTALS',
         'New York State-Specific Law & DFS Regulations — Full Review',
         'Review all five modules before attempting the Final Exam',
         'Covers: Federal Law · Ethics · Non-Traditional Lending · Mortgage Origination · NY State Law',
       ],
-      quiz: [], // ← NO checkpoint — student proceeds directly to Final Exam
+      quiz: [], // ← NO checkpoint — proceeds directly to Final Exam
     },
 
   ],
 
   // ── OFFICIAL FINAL EXAM ─────────────────────────────────────────────
-  //
   // RETRY LOGIC (implement in your exam controller):
   //   attempt === 1  → serve FINAL_EXAM_35 (official 35-question set)
-  //   attempt >= 2   → randomly shuffle QUESTION_BANK_70, slice first 35
-  //                    → each retry gets a different random 35 from the bank
-  //
-  // The question_bank field stores the 70 questions for backend retry logic.
-  // ───────────────────────────────────────────────────────────────────
+  //   attempt >= 2   → shuffle QUESTION_BANK_70, slice(0, 35) — new set each time
   final_exam: {
     title:              '11-HOUR NY SAFE COMPREHENSIVE: ANNUAL MLO FUNDAMENTALS — Final Exam',
     passing_score:      70,
     time_limit_minutes: 90,
-    questions:          FINAL_EXAM_35,       // first attempt — official 35
-    question_bank:      QUESTION_BANK_70,    // retries — random 35 drawn from here
+    questions:          FINAL_EXAM_35,
+    question_bank:      QUESTION_BANK_70,
   },
 };
 
 // ─────────────────────────────────────────────────────────────────────
 const seed = async () => {
   try {
+    console.log('🔍 MONGO_URI:', process.env.MONGO_URI ? '✅ Found' : '❌ UNDEFINED — check .env path');
+    console.log('🔍 __dirname:', __dirname);
+    console.log('🔍 .env path:', path.resolve(__dirname, '../.env'));
+
+    if (!process.env.MONGO_URI) {
+      throw new Error('MONGO_URI is undefined. Make sure .env exists in the /server directory.');
+    }
+
     await mongoose.connect(process.env.MONGO_URI);
     console.log('✅ MongoDB connected');
 
@@ -361,7 +357,6 @@ const seed = async () => {
     console.log('🗑️  Removed existing NY SAFE course (if any)');
 
     const course = await Course.create(courseData);
-
     console.log(`\n✅ Course inserted: ${course.title}`);
     console.log(`   ID: ${course._id}`);
     console.log('\n📋 Full Course Structure:');
@@ -369,7 +364,7 @@ const seed = async () => {
     course.modules.forEach((m, i) => {
       const lessonStep = (i * 2) + 1;
       const hasQuiz = m.quiz && m.quiz.length > 0;
-      console.log(`   Step ${lessonStep.toString().padStart(2)}  📄 Lesson     — ${m.title} (${m.credit_hours} hr)`);
+      console.log(`   Step ${lessonStep.toString().padStart(2)}  📄 Lesson     — ${m.title} (${m.credit_hours} hr) 🎬 video`);
       if (hasQuiz) {
         console.log(`   Step ${(lessonStep+1).toString().padStart(2)}  📋 Checkpoint — ${m.quiz.length} questions`);
       } else {
@@ -381,12 +376,7 @@ const seed = async () => {
     console.log(`           • Attempt 1:  ${FINAL_EXAM_35.length} official questions`);
     console.log(`           • Retry 2+:   35 random questions drawn from ${QUESTION_BANK_70.length}-question bank`);
     console.log('   ─────────────────────────────────────────');
-    console.log('\n📝 Official Answer Key (Attempt 1):');
-    console.log('   Q1:A  Q2:B  Q3:B  Q4:A  Q5:B  Q6:D  Q7:D  Q8:A  Q9:D  Q10:B');
-    console.log('   Q11:A Q12:B Q13:D Q14:A Q15:D Q16:B Q17:B Q18:A Q19:D Q20:D');
-    console.log('   Q21:B Q22:B Q23:A Q24:A Q25:B Q26:B Q27:B Q28:C Q29:A Q30:A');
-    console.log('   Q31:B Q32:B Q33:D Q34:B Q35:D');
-    console.log('\n⚙️  Retry implementation needed in your exam controller:');
+    console.log('\n⚙️  Retry implementation in your exam controller:');
     console.log('   if (attempt === 1) serve final_exam.questions');
     console.log('   if (attempt >= 2)  shuffle final_exam.question_bank, slice(0, 35)');
     console.log('\n🎯 Test at: /courses/CE-NY-SAFE-11HR/learn');
