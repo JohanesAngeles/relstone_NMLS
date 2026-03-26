@@ -29,7 +29,7 @@ import CourseDetail from './pages/instructor_page/CourseDetail';
 import StudentDetail from './pages/instructor_page/StudentDetail';
 import ContactSupport from './pages/dashboard/ContactSupport';
 import SupportInbox   from './pages/instructor_page/SupportInbox';
-
+import EditCourseModal from './pages/dashboard/EditCourseModal';
 // FIX: Removed the .JSX extension to avoid casing conflicts and circular errors
 
 /* ─── Role helpers ───────────────────────────────────────────────── */
@@ -198,6 +198,7 @@ function App() {
           <Route path="/instructor/course/:courseId" element={<InstructorRoute><CourseDetail /></InstructorRoute>} />
           <Route path="/instructor/students/:studentId" element={<InstructorRoute><StudentDetail /></InstructorRoute>} />
           <Route path="/instructor/support" element={<InstructorRoute><SupportInbox /></InstructorRoute>} />
+          <Route path="/instructor/course/:courseId/edit" element={<InstructorRoute><EditCourseModal /></InstructorRoute>} />
 
           {/* ── Shared private pages ── */}
           <Route path="/courses" element={<PrivateRoute><Courses /></PrivateRoute>} />

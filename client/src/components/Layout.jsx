@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -61,7 +61,14 @@ const Layout = ({ children, pageTitle, pageSubtitle }) => {
   const location          = useLocation();
   const [showLogout,     setShowLogout]     = useState(false);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [sidebarOpen,    setSidebarOpen]    = useState(true);
+  const [sidebarOpen,    setSidebarOpen]    = useState(window.innerWidth > 1024);
+
+  // Auto-close sidebar when route changes on mobile
+  useEffect(() => {
+    if (window.innerWidth <= 1024) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => { logout(); window.location.href = '/'; };
   const isActive = (path) => location.pathname === path;
@@ -82,27 +89,33 @@ const Layout = ({ children, pageTitle, pageSubtitle }) => {
         />
       )}
 
+      {/* Mobile Backdrop Overlay */}
+      <div 
+        className={`mobile-overlay ${sidebarOpen ? 'visible' : ''}`} 
+        onClick={() => setSidebarOpen(false)} 
+      />
+
       {/* ── TOP BAR ──────────────────────────────────────────── */}
-      <header style={S.topbar}>
+      <header style={S.topbar} className="topbar">
         <div style={S.topbarLeft}>
           <button style={S.menuToggle} onClick={() => setSidebarOpen(o => !o)} type="button">
             {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
           <div style={S.logo}>
             <img src={logo} alt="Relstone" style={S.logoImg} onClick={() => navigate('/home')} />
-            <div style={S.logoText}>
+            <div style={S.logoText} className="hide-mobile">
               <span style={S.logoNmls}>NMLS</span>
               <span style={S.logoSub}>Mortgage Licensing Education</span>
             </div>
-            <div style={S.logoDivider} />
-            <span style={S.logoTagline}>Student Portal</span>
+            <div style={S.logoDivider} className="hide-mobile" />
+            <span style={S.logoTagline} className="hide-tablet">Student Portal</span>
           </div>
         </div>
 
-        {/* ── Centered search ── */}
-        <div style={S.topSearch}>
+        {/* ── Search bar ── */}
+        <div style={S.topSearch} className="top-search">
           <Search size={15} style={{ color: "rgba(255,255,255,0.55)", flexShrink: 0 }} />
-          <input style={S.topSearchInput} placeholder="Search States or Courses..." />
+          <input style={S.topSearchInput} placeholder="Search Courses..." />
         </div>
 
         <div style={S.topbarRight}>
@@ -111,13 +124,13 @@ const Layout = ({ children, pageTitle, pageSubtitle }) => {
             onClick={() => setShowHowItWorks(true)}
             title="How it works"
             style={S.howBtn}
-            className="layout-how-btn"
+            className="layout-how-btn hide-mobile"
           >
             ?
           </button>
           <div style={S.userChip}>
             <div style={S.userAvatar}>{initials}</div>
-            <span style={S.userName}>{user?.name || "Student"}</span>
+            <span style={S.userName} className="hide-mobile">{user?.name?.split(" ")[0] || "Student"}</span>
           </div>
         </div>
       </header>
@@ -125,49 +138,47 @@ const Layout = ({ children, pageTitle, pageSubtitle }) => {
       <div style={S.body}>
 
         {/* ── SIDEBAR ──────────────────────────────────────────── */}
-        {sidebarOpen && (
-          <aside style={S.sidebar}>
-            <div style={S.sideProfile}>
-              <div style={S.sideAvatar}>{initials}</div>
-              <div style={S.sideUserInfo}>
-                <div style={S.sideUserName}>{user?.name || "Student"}</div>
-                <div style={S.sideStudentId}>{studentId}</div>
-              </div>
+        <aside style={S.sidebar} className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+          <div style={S.sideProfile}>
+            <div style={S.sideAvatar}>{initials}</div>
+            <div style={S.sideUserInfo}>
+              <div style={S.sideUserName}>{user?.name || "Student"}</div>
+              <div style={S.sideStudentId}>{studentId}</div>
             </div>
+          </div>
 
-            <div style={S.sideDivider} />
+          <div style={S.sideDivider} />
 
-            <div style={S.sideSection}>MY ACCOUNT</div>
-            <SideNavItem icon={<LayoutDashboard size={20} />} label="Dashboard"      sub="Home / Overview & Summary"              active={isActive('/dashboard')}    onClick={() => navigate('/dashboard')} />
-            <SideNavItem icon={<BookOpen size={20} />}        label="My Courses"     sub="Progress & Certificates"                active={isActive('/my-courses')}   onClick={() => navigate('/my-courses')} />
-            <SideNavItem icon={<Award size={20} />}           label="Certificates"   sub="Download & Verify"                      active={isActive('/certificates')} onClick={() => navigate('/certificates')} />
-            <SideNavItem icon={<GraduationCap size={20} />}   label="Browse Courses" sub="Find PE and CE courses"                 active={isActive('/courses')}      onClick={() => navigate('/courses')} />
+          <div style={S.sideSection}>MY ACCOUNT</div>
+          <SideNavItem icon={<LayoutDashboard size={20} />} label="Dashboard"      sub="Home / Overview & Summary"              active={isActive('/dashboard')}    onClick={() => navigate('/dashboard')} />
+          <SideNavItem icon={<BookOpen size={20} />}        label="My Courses"     sub="Progress & Certificates"                active={isActive('/my-courses')}   onClick={() => navigate('/my-courses')} />
+          <SideNavItem icon={<Award size={20} />}           label="Certificates"   sub="Download & Verify"                      active={isActive('/certificates')} onClick={() => navigate('/certificates')} />
+          <SideNavItem icon={<GraduationCap size={20} />}   label="Browse Courses" sub="Find PE and CE courses"                 active={isActive('/courses')}      onClick={() => navigate('/courses')} />
 
-            <div style={S.sideDivider} />
+          <div style={S.sideDivider} />
 
-            <div style={S.sideSection}>SETTINGS & SUPPORT</div>
-            <SideNavItem icon={<User size={20} />}         label="My Profile"      sub="Personal info & preferences"            active={isActive('/profile')}        onClick={() => navigate('/profile')} />
-            <SideNavItem icon={<Settings size={20} />}     label="Account Setup"   sub="NMLS ID, license goals & notifications" active={isActive('/account-setup')} onClick={() => navigate('/account-setup')} />
-            <SideNavItem icon={<ShoppingCart size={20} />} label="My Orders"       sub="Purchase History & Receipts"            active={isActive('/orders')}         onClick={() => navigate('/orders')} />
-            <SideNavItem icon={<HelpCircle size={20} />}   label="Contact Support" sub="Get Help from RELS NMLS"                active={isActive('/support')}        onClick={() => navigate('/support')} />
+          <div style={S.sideSection}>SETTINGS & SUPPORT</div>
+          <SideNavItem icon={<User size={20} />}         label="My Profile"      sub="Personal info & preferences"            active={isActive('/profile')}        onClick={() => navigate('/profile')} />
+          <SideNavItem icon={<Settings size={20} />}     label="Account Setup"   sub="NMLS ID, license goals & notifications" active={isActive('/account-setup')} onClick={() => navigate('/account-setup')} />
+          <SideNavItem icon={<ShoppingCart size={20} />} label="My Orders"       sub="Purchase History & Receipts"            active={isActive('/orders')}         onClick={() => navigate('/orders')} />
+          <SideNavItem icon={<HelpCircle size={20} />}   label="Contact Support" sub="Get Help from RELS NMLS"                active={isActive('/support')}        onClick={() => navigate('/support')} />
 
-            <div style={S.sideDivider} />
+          <div style={S.sideDivider} />
 
-            <SideNavItem
-              icon={<LogOut size={20} style={{ color: "#EF4444" }} />}
-              label="Sign out" sub="End Your Session"
-              danger
-              onClick={() => setShowLogout(true)}
-            />
-          </aside>
-        )}
+          <SideNavItem
+            icon={<LogOut size={20} style={{ color: "#EF4444" }} />}
+            label="Sign out" sub="End Your Session"
+            danger
+            onClick={() => setShowLogout(true)}
+          />
+        </aside>
 
         {/* ── MAIN CONTENT ─────────────────────────────────────── */}
         <main style={S.main} className="layout-main">
           {(pageTitle || pageSubtitle) && (
             <div style={S.pageHead}>
-              {pageTitle    && <h1 style={S.pageTitle}>{pageTitle}</h1>}
-              {pageSubtitle && <p  style={S.pageSub}>{pageSubtitle}</p>}
+              {pageTitle    && <h1 style={S.pageTitle} className="page-title">{pageTitle}</h1>}
+              {pageSubtitle && <p  style={S.pageSub} className="page-sub">{pageSubtitle}</p>}
               <div style={S.headDivider} />
             </div>
           )}
@@ -181,7 +192,7 @@ const Layout = ({ children, pageTitle, pageSubtitle }) => {
 /* ─── Dialog styles ──────────────────────────────────────────────── */
 const D = {
   backdrop:   { position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(9,25,37,0.55)', backdropFilter: 'blur(5px)' },
-  dialog:     { position: 'fixed', zIndex: 301, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '100%', maxWidth: 360, background: '#fff', borderRadius: 22, padding: '32px 28px 26px', boxShadow: '0 28px 70px rgba(9,25,37,0.20)', textAlign: 'center', fontFamily: "'Poppins', sans-serif" },
+  dialog:     { position: 'fixed', zIndex: 301, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '90%', maxWidth: 360, background: '#fff', borderRadius: 22, padding: '32px 28px 26px', boxShadow: '0 28px 70px rgba(9,25,37,0.20)', textAlign: 'center', fontFamily: "'Poppins', sans-serif" },
   dialogIcon: { width: 52, height: 52, borderRadius: 16, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' },
   dialogTitle:{ fontSize: 18, fontWeight: 700, color: 'rgba(11,18,32,0.88)', marginBottom: 8 },
   dialogSub:  { fontSize: 13, color: 'rgba(11,18,32,0.52)', marginBottom: 24 },
@@ -199,6 +210,32 @@ body{font-family:'Poppins',sans-serif;background:#F0F4F8;}
 .layout-main::-webkit-scrollbar-track{background:transparent;}
 .layout-main::-webkit-scrollbar-thumb{background:rgba(9,25,37,0.15);border-radius:99px;}
 .layout-how-btn:hover{background:#2EABFE !important;color:#fff !important;border-color:#2EABFE !important;}
+
+/* Mobile Overlay */
+.mobile-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); z-index: 90; opacity: 0; visibility: hidden; transition: 0.3s; }
+.mobile-overlay.visible { opacity: 1; visibility: visible; }
+
+@media (max-width: 1024px) {
+  .sidebar {
+    position: fixed !important;
+    left: 0; top: 85px; bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 10px 0 30px rgba(0,0,0,0.1);
+  }
+  .sidebar.open { transform: translateX(0); }
+  .top-search { width: 250px !important; }
+  .hide-tablet { display: none !important; }
+}
+
+@media (max-width: 768px) {
+  .top-search { position: static !important; transform: none !important; width: 100% !important; height: 40px !important; margin: 0 10px; order: 3; }
+  .topbar { height: auto !important; padding: 10px 15px !important; flex-wrap: wrap; gap: 10px; }
+  .hide-mobile { display: none !important; }
+  .page-title { font-size: 24px !important; }
+  .page-sub { font-size: 12px !important; }
+}
 `;
 
 /* ─── Styles ─────────────────────────────────────────────────────── */
@@ -211,20 +248,19 @@ const S = {
   topbarRight: { display: "flex", alignItems: "center", gap: 10 },
   menuToggle:  { width: 32, height: 32, background: "rgba(255,255,255,0.08)", border: "0.5px solid rgba(255,255,255,0.15)", borderRadius: 8, display: "grid", placeItems: "center", cursor: "pointer", color: "#fff", flexShrink: 0 },
 
-  logo:        { display: "flex", alignItems: "center", gap: 14 },
-  logoImg:     { height: 32, objectFit: "contain", cursor: "pointer" },
-  logoText:    { display: "flex", flexDirection: "column" },
-  logoNmls:    { fontSize: 20, fontWeight: 900, color: "#fff", lineHeight: 1.2 },
-  logoSub:     { fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.70)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" },
-  logoDivider: { width: "0.5px", height: 35, background: "#2EABFE", opacity: 0.6 },
-  logoTagline: { fontSize: 13, fontWeight: 600, color: "rgba(255,255,255,0.55)" },
+  logo:         { display: "flex", alignItems: "center", gap: 14 },
+  logoImg:      { height: 28, objectFit: "contain", cursor: "pointer" },
+  logoText:     { display: "flex", flexDirection: "column" },
+  logoNmls:     { fontSize: 18, fontWeight: 900, color: "#fff", lineHeight: 1.2 },
+  logoSub:      { fontSize: 10, fontWeight: 400, color: "rgba(255,255,255,0.70)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.04em" },
+  logoDivider:  { width: "1px", height: 30, background: "#2EABFE", opacity: 0.6 },
+  logoTagline:  { fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.55)" },
 
-  // Centered search — absolute so it's always in the middle regardless of left/right widths
   topSearch: {
     position: "absolute", left: "50%", transform: "translateX(-50%)",
     display: "flex", alignItems: "center", gap: 10,
     background: "rgba(255,255,255,0.10)", border: "0.5px solid rgba(255,255,255,0.20)",
-    borderRadius: 8, padding: "0 14px", height: 48, width: 360,
+    borderRadius: 8, padding: "0 14px", height: 44, width: 360,
   },
   topSearchInput: { flex: 1, background: "transparent", border: "none", outline: "none", color: "#fff", fontSize: 13, fontFamily: "'Poppins',sans-serif" },
 
@@ -236,9 +272,9 @@ const S = {
     fontFamily: "'Poppins',sans-serif", flexShrink: 0, transition: "all .15s",
   },
 
-  userChip:   { display: "flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.06)", border: "0.5px solid #60C3FF", borderRadius: 999, padding: "6px 14px 6px 8px" },
-  userAvatar: { width: 38, height: 38, borderRadius: "50%", background: "#2EABFE", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 700, color: "#091925", flexShrink: 0 },
-  userName:   { fontSize: 14, fontWeight: 700, color: "#fff" },
+  userChip:    { display: "flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.06)", border: "0.5px solid #60C3FF", borderRadius: 999, padding: "6px 10px 6px 6px" },
+  userAvatar: { width: 32, height: 32, borderRadius: "50%", background: "#2EABFE", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 700, color: "#091925", flexShrink: 0 },
+  userName:    { fontSize: 13, fontWeight: 700, color: "#fff" },
 
   // ── Body ──
   body: { display: "flex", flex: 1, overflow: "hidden" },
@@ -254,11 +290,11 @@ const S = {
   sideSection:  { fontSize: 11, fontWeight: 700, color: "#7FA8C4", textTransform: "uppercase", letterSpacing: "0.07em", padding: "10px 18px 4px" },
 
   // ── Main ──
-  main:        { flex: 1, overflowY: "auto", padding: "0 24px 40px" },
-  pageHead:    { padding: "22px 0 0" },
-  pageTitle:   { fontSize: 32, fontWeight: 800, color: "#091925", lineHeight: 1.1, marginBottom: 6 },
-  pageSub:     { fontSize: 14, fontWeight: 500, color: "#5B7384", marginBottom: 12 },
-  headDivider: { height: "1.5px", background: "linear-gradient(90deg,#2EABFE,transparent)", borderRadius: 99, marginBottom: 18 },
+  main:         { flex: 1, overflowY: "auto", padding: "0 20px 40px" },
+  pageHead:     { padding: "20px 0 0" },
+  pageTitle:    { fontSize: 28, fontWeight: 800, color: "#091925", lineHeight: 1.1, marginBottom: 6 },
+  pageSub:      { fontSize: 13, fontWeight: 500, color: "#5B7384", marginBottom: 12 },
+  headDivider:  { height: "1.5px", background: "linear-gradient(90deg,#2EABFE,transparent)", borderRadius: 99, marginBottom: 18 },
 };
 
 export default Layout;

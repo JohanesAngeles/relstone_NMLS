@@ -4,6 +4,7 @@ const User    = require('../models/User');
 const Course  = require('../models/Course');
 const Order   = require('../models/Order');
 const authMiddleware = require('../middleware/auth');
+const InstructorLog = require('../models/InstructorLog');
 
 /* ── instructor + admin only ─────────────────────────────────────── */
 const instructorOnly = (req, res, next) => {
@@ -97,10 +98,10 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
 
     res.json({
       courses:           enrichedCourses,
-      students:           studentRows,
+      students:          studentRows,
       total_enrollments: students.length,
       total_completions: totalCompletions,
-      active_courses:     courses.filter((c) => c.is_active).length,
+      active_courses:    courses.filter((c) => c.is_active).length,
       pending_reviews:   0,
     });
   } catch (err) {
@@ -131,8 +132,8 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
         if (item.course_id) {
           enrollmentMap[uid].push({
             course_id:    item.course_id._id,
-            title:         item.course_id.title,
-            type:          item.course_id.type,
+            title:        item.course_id.title,
+            type:         item.course_id.type,
             credit_hours: item.course_id.credit_hours,
           });
         }
@@ -154,8 +155,8 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
         progress:  completedIds.has(String(ec.course_id)) ? 100 : 0,
       }));
 
-      const completed = courses.filter(c => c.status === 'completed').length;
-      const progress  = courses.length > 0
+      const completed   = courses.filter(c => c.status === 'completed').length;
+      const progress    = courses.length > 0
         ? Math.round((completed / courses.length) * 100) : 0;
       const firstCourse = courses[0] || {};
 
@@ -187,6 +188,48 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────────────────────
+   GET /api/instructor/logs
+   ⚠️  Must be ABOVE /students/:id so Express doesn't treat "logs"
+       as a student :id wildcard and return 404.
+───────────────────────────────────────────────────────────────── */
+router.get('/logs', authMiddleware, instructorOnly, async (req, res) => {
+  try {
+    const { limit = 100, action, student_id } = req.query;
+    const filter = {};
+    if (action)     filter.action     = action;
+    if (student_id) filter.student_id = student_id;
+
+    const logs = await InstructorLog.find(filter)
+      .sort({ timestamp: -1 })
+      .limit(Number(limit))
+      .lean();
+
+    res.json({ logs, total: logs.length });
+  } catch (err) {
+    console.error('[instructor/logs GET]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────────
+   POST /api/instructor/logs
+───────────────────────────────────────────────────────────────── */
+router.post('/logs', authMiddleware, instructorOnly, async (req, res) => {
+  try {
+    const log = await InstructorLog.create({
+      instructor_id:   req.user._id || req.user.id,
+      instructor_name: req.user.name,
+      ...req.body,
+      timestamp: new Date(),
+    });
+    res.json({ success: true, log });
+  } catch (err) {
+    console.error('[instructor/logs POST]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────────
    GET /api/instructor/students/:id
 ───────────────────────────────────────────────────────────────── */
 router.get('/students/:id', authMiddleware, instructorOnly, async (req, res) => {
@@ -204,6 +247,7 @@ router.get('/students/:id', authMiddleware, instructorOnly, async (req, res) => 
 
 /* ─────────────────────────────────────────────────────────────────
    PUT /api/instructor/students/:userId/toggle-active
+   ✅ LOGS: records every activation / deactivation
 ───────────────────────────────────────────────────────────────── */
 router.put('/students/:userId/toggle-active', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -213,10 +257,22 @@ router.put('/students/:userId/toggle-active', authMiddleware, instructorOnly, as
       return res.status(400).json({ message: 'Cannot deactivate non-student accounts without Admin privileges' });
     }
 
-    const currentlyActive = student.is_active !== false;
+    const currentlyActive  = student.is_active !== false;
     student.is_active      = !currentlyActive;
     student.deactivated_at = student.is_active ? null : new Date();
     await student.save();
+
+    // ── Activity log ─────────────────────────────────────────────
+    await InstructorLog.create({
+      instructor_id:   req.user._id || req.user.id,
+      instructor_name: req.user.name,
+      action:          'toggle_active',
+      student_id:      student._id,
+      student_name:    student.name,
+      student_email:   student.email,
+      details:         `Account ${student.is_active ? 'activated' : 'deactivated'}`,
+      timestamp:       new Date(),
+    });
 
     res.json({
       success:   true,
@@ -257,12 +313,12 @@ router.get('/courses-stats', authMiddleware, instructorOnly, async (req, res) =>
     }
 
     const result = courses.map(c => ({
-      _id:               c._id,
-      title:             c.title,
-      type:              c.type,
-      credit_hours:      c.credit_hours,
-      nmls_course_id:    c.nmls_course_id,
-      active:            c.active ?? c.is_active ?? true,
+      _id:              c._id,
+      title:            c.title,
+      type:             c.type,
+      credit_hours:     c.credit_hours,
+      nmls_course_id:   c.nmls_course_id,
+      active:           c.active ?? c.is_active ?? true,
       enrollment_count: enrollMap[String(c._id)] || 0,
       completion_count: completeMap[String(c._id)] || 0,
     }));
@@ -276,6 +332,7 @@ router.get('/courses-stats', authMiddleware, instructorOnly, async (req, res) =>
 
 /* ─────────────────────────────────────────────────────────────────
    POST /api/instructor/assign-course
+   ✅ LOGS: records every course assignment
 ───────────────────────────────────────────────────────────────── */
 router.post('/assign-course', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -301,6 +358,20 @@ router.post('/assign-course', authMiddleware, instructorOnly, async (req, res) =
       certificate_url: null,
     });
     await student.save();
+
+    // ── Activity log ─────────────────────────────────────────────
+    await InstructorLog.create({
+      instructor_id:   req.user._id || req.user.id,
+      instructor_name: req.user.name,
+      action:          'assign_course',
+      student_id:      student._id,
+      student_name:    student.name,
+      student_email:   student.email,
+      course_id:       course._id,
+      course_title:    course.title,
+      details:         `Assigned course "${course.title}" to ${student.name}`,
+      timestamp:       new Date(),
+    });
 
     res.json({ message: `Course "${course.title}" assigned to ${student.name} successfully` });
   } catch (err) {
@@ -409,7 +480,7 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
       );
 
       const seatSeconds = enrollment?.total_seat_seconds || null;
-      const seatHours = seatSeconds != null
+      const seatHours   = seatSeconds != null
         ? Math.round((seatSeconds / 3600) * 10) / 10
         : null;
 
@@ -443,7 +514,7 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
 
     students.sort((a, b) => {
       if (a.completed !== b.completed) return a.completed ? -1 : 1;
-      return (a.name || "").localeCompare(b.name || "");
+      return (a.name || '').localeCompare(b.name || '');
     });
 
     res.json({ students, course, total: students.length });
@@ -462,44 +533,44 @@ router.get('/students/:id/courses', authMiddleware, instructorOnly, async (req, 
       .select('completions')
       .populate('completions.course_id', 'title type credit_hours nmls_course_id')
       .lean();
- 
+
     if (!student) return res.status(404).json({ message: 'Student not found' });
- 
+
     const orders = await Order.find({
       user_id: req.params.id,
-      status: 'completed',
+      status:  'completed',
     }).populate('items.course_id', 'title type credit_hours nmls_course_id').lean();
- 
+
     const completedIds = new Set(
       (student.completions || []).map(c => String(c.course_id?._id || c.course_id))
     );
- 
-    const seen = new Set();
+
+    const seen    = new Set();
     const courses = [];
- 
+
     for (const order of orders) {
       for (const item of order.items || []) {
         const cid = String(item.course_id?._id || item.course_id);
         if (!cid || seen.has(cid)) continue;
         seen.add(cid);
- 
+
         const completion = (student.completions || []).find(
           c => String(c.course_id?._id || c.course_id) === cid
         );
- 
+
         courses.push({
-          _id:              item.course_id?._id || item.course_id,
-          title:             item.course_id?.title,
-          type:              item.course_id?.type,
-          credit_hours:      item.course_id?.credit_hours,
-          nmls_course_id:    item.course_id?.nmls_course_id,
-          status:            completedIds.has(cid) ? 'completed' : 'in_progress',
-          completed_at:      completion?.completed_at || null,
-          certificate_url:   completion?.certificate_url || null,
+          _id:             item.course_id?._id || item.course_id,
+          title:           item.course_id?.title,
+          type:            item.course_id?.type,
+          credit_hours:    item.course_id?.credit_hours,
+          nmls_course_id:  item.course_id?.nmls_course_id,
+          status:          completedIds.has(cid) ? 'completed' : 'in_progress',
+          completed_at:    completion?.completed_at    || null,
+          certificate_url: completion?.certificate_url || null,
         });
       }
     }
- 
+
     res.json({ courses, total: courses.length });
   } catch (err) {
     console.error('[instructor/students/:id/courses]', err);
