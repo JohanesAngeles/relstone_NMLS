@@ -25,7 +25,7 @@ const APP_BASE_URL =
   process.env.APP_URL ||
   'http://localhost:3000';
 
-// --- HTML email template ----------------------------------------------------
+// HTML email template 
 
 const escapeHtml = (value = '') =>
   String(value)
@@ -86,6 +86,7 @@ const ICON_BY_NOTIFICATION_TYPE = {
   new: '&#10003;',
   ce: '&#9200;',
   system: '&#9679;',
+  purchase: '&#10003;',
 };
 
 function getEmailMeta(eventType) {
@@ -94,6 +95,99 @@ function getEmailMeta(eventType) {
 
 function getIconForType(type) {
   return ICON_BY_NOTIFICATION_TYPE[type] || '&#9679;';
+}
+
+function normalizeNotificationEventType(eventType) {
+  if (!eventType) return eventType;
+  const normalized = {
+    completion: 'milestone',
+    completions: 'milestone',
+    certificate: 'milestone',
+    milestone: 'milestone',
+    milestones: 'milestone',
+    new_course: 'new_course',
+    renewal: 'renewal',
+    purchase: 'purchase',
+    quiz: 'quiz',
+    welcome: 'welcome',
+  };
+  return normalized[eventType] || eventType;
+}
+
+function getNotificationChannelStatus(user, eventType, channel) {
+  const prefs = user.notification_prefs || {};
+  const normalizedEvent = normalizeNotificationEventType(eventType);
+  const legacyMap = {
+    purchase:   { email: 'email_course_updates', sms: 'sms_course_updates', inapp: true },
+    renewal:    { email: 'email_reminders',    sms: 'sms_reminders',    inapp: true },
+    new_course: { email: 'email_course_updates', sms: 'sms_course_updates', inapp: true },
+    quiz:       { email: 'email_completions',  sms: 'sms_completions',  inapp: true },
+    milestone:  { email: 'email_completions',  sms: 'sms_completions',  inapp: false },
+  };
+
+  console.log(`[getNotificationChannelStatus] eventType=${eventType} normalizedEvent=${normalizedEvent} channel=${channel}`);
+  console.log(`[getNotificationChannelStatus] full prefs:`, JSON.stringify(prefs, null, 2));
+  console.log(`[getNotificationChannelStatus] prefs[${normalizedEvent}]=`, prefs[normalizedEvent]);
+  console.log(`[getNotificationChannelStatus] prefs[${normalizedEvent}][${channel}]=`, prefs[normalizedEvent]?.[channel]);
+
+  if (prefs[normalizedEvent] && prefs[normalizedEvent][channel] !== undefined) {
+    const result = prefs[normalizedEvent][channel];
+    console.log(`[getNotificationChannelStatus] returning new pref: ${result}`);
+    return result;
+  }
+
+  console.log(`[getNotificationChannelStatus] no new pref found, checking legacy`);
+
+  const mapping = legacyMap[normalizedEvent];
+  if (mapping) {
+    const legacyVal = mapping[channel];
+    if (typeof legacyVal === 'boolean') {
+      console.log(`[getNotificationChannelStatus] returning legacy boolean: ${legacyVal} for ${normalizedEvent}.${channel}`);
+      return legacyVal;
+    }
+    const legacyPref = prefs[legacyVal];
+    console.log(`[getNotificationChannelStatus] legacy key=${legacyVal} value=${legacyPref}`);
+    if (legacyPref !== undefined) {
+      console.log(`[getNotificationChannelStatus] returning legacy pref: ${legacyPref}`);
+      return legacyPref;
+    }
+    console.log(`[getNotificationChannelStatus] returning fallback for inapp: ${channel === 'inapp'}`);
+    return channel === 'inapp';
+  }
+
+  // New behavior: opt-out by default to honor user preferences, unless explicitly enabled
+  console.log(`[getNotificationChannelStatus] returning default false`);
+  if (channel === 'inapp') return false;
+  if (channel === 'email') return false;
+  if (channel === 'sms') return false;
+  return false;
+}
+
+function getPrefValue(userPrefs, prefKey) {
+  if (!prefKey) return false;
+
+  // Handle nested preferences like 'purchase.email'
+  if (prefKey.includes('.')) {
+    const [category, channel] = prefKey.split('.');
+    const result = userPrefs?.[category]?.[channel] ?? false;
+    console.log(`[getPrefValue] ${prefKey} -> userPrefs.${category}.${channel} = ${result}`);
+    return result;
+  }
+
+  // Handle legacy flat preferences
+  const result = userPrefs?.[prefKey] ?? false;
+  console.log(`[getPrefValue] ${prefKey} -> userPrefs.${prefKey} = ${result}`);
+  return result;
+}
+
+function isNotificationAllowed(user, eventType, channel) {
+  const normalizedType = normalizeNotificationEventType(eventType);
+  if (!normalizedType || !['email', 'sms', 'inapp'].includes(channel)) {
+    return false;
+  }
+
+  // Complete event types are governed either by specific pref or fallback
+  return getNotificationChannelStatus(user, normalizedType, channel);
 }
 
 function buildNotificationEmailHtml({
@@ -234,7 +328,7 @@ async function sendNotificationEmail(user, title, body, options = {}) {
   }
 }
 
-// --- Persistence -----------------------------------------------------------
+//  Persistence 
 
 async function createNotification(user, payload) {
   if (!user.notifications) user.notifications = [];
@@ -250,7 +344,7 @@ async function createNotification(user, payload) {
   return note;
 }
 
-/** Predefined QA events: each maps to a notification shape + which user.notification_prefs key gates email */
+/** Predefined QA: each maps to a notification shape + which user.notification_prefs key gates email */
 const PREDEFINED_EVENTS = {
   welcome: {
     notification: {
@@ -259,14 +353,18 @@ const PREDEFINED_EVENTS = {
       body: 'Thanks for signing up! Start learning now.',
     },
     emailPref: 'email_course_updates',
+    smsPref: 'sms_course_updates',
+    inappPref: true, // Always show welcome in-app
   },
   purchase: {
     notification: {
-      type: 'new',
-      title: 'Purchase confirmed',
-      body: 'Your course purchase is complete. Start learning.',
+      type: 'purchase',
+      title: 'Course Purchased Successfully',
+      body: 'You have successfully purchased a course. It is now available in My Courses.',
     },
-    emailPref: 'email_course_updates',
+    emailPref: 'purchase.email',
+    smsPref: 'purchase.sms',
+    inappPref: 'purchase.inapp',
   },
   completion: {
     notification: {
@@ -274,7 +372,9 @@ const PREDEFINED_EVENTS = {
       title: 'Chapter complete',
       body: 'You completed a chapter! Keep going.',
     },
-    emailPref: 'email_completions',
+    emailPref: 'milestone.email',
+    smsPref: 'milestone.sms',
+    inappPref: 'milestone.inapp',
   },
   certificate: {
     notification: {
@@ -282,7 +382,9 @@ const PREDEFINED_EVENTS = {
       title: 'Certificate ready',
       body: 'Your certificate is ready. Download it now.',
     },
-    emailPref: 'email_completions',
+    emailPref: 'milestone.email',
+    smsPref: 'milestone.sms',
+    inappPref: 'milestone.inapp',
   },
   renewal: {
     notification: {
@@ -290,11 +392,33 @@ const PREDEFINED_EVENTS = {
       title: 'Renewal reminder',
       body: 'Your CE renewal deadline is approaching. Book now.',
     },
-    emailPref: 'email_reminders',
+    emailPref: 'renewal.email',
+    smsPref: 'renewal.sms',
+    inappPref: 'renewal.inapp',
+  },
+  quiz: {
+    notification: {
+      type: 'quiz',
+      title: 'Quiz Results',
+      body: 'Your quiz results are ready to view.',
+    },
+    emailPref: 'quiz.email',
+    smsPref: 'quiz.sms',
+    inappPref: 'quiz.inapp',
+  },
+  new_course: {
+    notification: {
+      type: 'new',
+      title: 'New Course Available',
+      body: 'A new course has been added to our catalog.',
+    },
+    emailPref: 'new_course.email',
+    smsPref: 'new_course.sms',
+    inappPref: 'new_course.inapp',
   },
 };
 
-// --- Routes ----------------------------------------------------------------
+//  Routes 
 
 router.get('/', authMiddleware, async (req, res) => {
   try {
@@ -345,13 +469,31 @@ router.post('/trigger', authMiddleware, async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const note = await createNotification(user, { type, title, body });
+    const normalizedType = normalizeNotificationEventType(String(type).toLowerCase());
+    const allowInApp = isNotificationAllowed(user, normalizedType, 'inapp');
+    const allowEmail = sendEmail
+      ? (normalizedType === 'custom'
+          ? (user.notification_prefs?.email_course_updates ?? false)
+          : isNotificationAllowed(user, normalizedType, 'email'))
+      : false;
 
-    if (sendEmail && user.notification_prefs?.email_course_updates) {
+    console.log(`[trigger/custom] type=${type} normalizedType=${normalizedType} user=${user.email} allowInApp=${allowInApp} allowEmail=${allowEmail}`);
+    console.log(`[trigger/custom] prefs:`, JSON.stringify(user.notification_prefs, null, 2));
+
+    let note = null;
+    if (allowInApp) {
+      note = await createNotification(user, { type, title, body });
+    } else {
+      console.log(`[trigger/custom] In-app notification skipped for ${user.email} (channel disabled)`);
+    }
+
+    if (allowEmail) {
       await sendNotificationEmail(user, title, body, {
-        eventType: 'custom',
+        eventType: normalizedType,
         icon: getIconForType(type),
       });
+    } else if (sendEmail) {
+      console.log(`[trigger/custom] Email skipped for ${user.email} (channel disabled)`);
     }
 
     res.json({ message: 'Notification created', notification: note });
@@ -374,15 +516,45 @@ router.post('/trigger/:event', authMiddleware, async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const note = await createNotification(user, event.notification);
+    console.log(`[trigger/${eventType}] user prefs:`, JSON.stringify(user.notification_prefs, null, 2));
 
-    if (user.notification_prefs?.[event.emailPref]) {
+    // Check if in-app notification should be created
+    const shouldCreateInApp = (typeof event.inappPref === 'boolean')
+      ? event.inappPref
+      : (typeof event.inappPref === 'string')
+        ? getPrefValue(user.notification_prefs, event.inappPref)
+        : getNotificationChannelStatus(user, eventType, 'inapp');
+
+    const shouldSendEmail = (typeof event.emailPref === 'string')
+      ? getPrefValue(user.notification_prefs, event.emailPref)
+      : getNotificationChannelStatus(user, eventType, 'email');
+
+    console.log(`[notifications] trigger ${eventType} user=${user.email} inappPref=${event.inappPref} emailPref=${event.emailPref}`);
+    console.log(`[notifications] trigger ${eventType} shouldCreateInApp=${shouldCreateInApp} shouldSendEmail=${shouldSendEmail}`);
+
+    let note = null;
+    if (shouldCreateInApp) {
+      note = await createNotification(user, event.notification);
+    }
+
+    if (shouldSendEmail) {
       await sendNotificationEmail(user, event.notification.title, event.notification.body, {
         eventType,
       });
     }
 
-    res.json({ message: `Event triggered: ${eventType}`, notification: note });
+    // TODO: SMS sending logic here
+    // const shouldSendSMS = getPrefValue(user.notification_prefs, event.smsPref);
+    // if (shouldSendSMS) {
+    //   // Send SMS logic
+    // }
+
+    res.json({
+      message: `Event triggered: ${eventType}`,
+      notification: note,
+      emailSent: shouldSendEmail,
+      inappCreated: !!note
+    });
   } catch (err) {
     console.error('[notifications] POST /trigger/:event', err);
     res.status(500).json({ message: 'Server error' });
@@ -459,8 +631,9 @@ router.post('/test-email', authMiddleware, async (req, res) => {
   }
 });
 
-module.exports = router;
+router.createNotification = createNotification;
+router.sendNotificationEmail = sendNotificationEmail;
+router.getNotificationChannelStatus = getNotificationChannelStatus;
+router.isNotificationAllowed = isNotificationAllowed;
 
-// Export functions for use in other routes
-module.exports.createNotification = createNotification;
-module.exports.sendNotificationEmail = sendNotificationEmail;
+module.exports = router;

@@ -5,6 +5,7 @@ const Course  = require('../models/Course');
 const Order   = require('../models/Order');
 const nodemailer = require('nodemailer');
 const authMiddleware = require('../middleware/auth');
+const { getNotificationChannelStatus } = require('./notifications');
 
 // Helper: Send completion email notification
 const sendCompletionEmail = async (user, courseName) => {
@@ -206,14 +207,24 @@ router.post('/complete', authMiddleware, async (req, res) => {
     // FIX: Create notification record and send email if preferences allow
     const notificationTitle = `Course Completed: ${course.title}`;
     const notificationBody = `Congratulations! You completed "${course.title}". Your certificate is ready.`;
-    
-    await createNotification(user, notificationTitle, notificationBody);
-    
-    // Send email notification if user has opted in
-    if (user.notification_prefs?.email_completions) {
+
+    console.log(`[POST /complete] user prefs:`, JSON.stringify(user.notification_prefs, null, 2));
+
+    const allowInApp = getNotificationChannelStatus(user, 'completion', 'inapp');
+    const allowEmail = getNotificationChannelStatus(user, 'completion', 'email');
+
+    console.log(`[POST /complete] preference milestone.inapp=${allowInApp} milestone.email=${allowEmail} for user=${user.email}`);
+
+    if (allowInApp) {
+      await createNotification(user, notificationTitle, notificationBody);
+    } else {
+      console.log(`[POST /complete] In-app completion notification skipped for ${user.email} (milestone.inapp disabled)`);
+    }
+
+    if (allowEmail) {
       await sendCompletionEmail(user, course.title);
     } else {
-      console.log(`[POST /complete] Email completion notification skipped for ${user.email} (preference disabled)`);
+      console.log(`[POST /complete] Email completion notification skipped for ${user.email} (milestone.email disabled)`);
     }
 
     await user.save();

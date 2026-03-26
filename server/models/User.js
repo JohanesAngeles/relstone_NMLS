@@ -24,6 +24,7 @@ const userSchema = new mongoose.Schema({
 
   // ── Notification Preferences ──────────────────────────────────────
   notification_prefs: {
+    // Legacy preferences (keeping for backward compatibility)
     email_course_updates: { type: Boolean, default: true  },
     email_promotions:     { type: Boolean, default: false },
     email_reminders:      { type: Boolean, default: true  },
@@ -32,6 +33,33 @@ const userSchema = new mongoose.Schema({
     sms_promotions:       { type: Boolean, default: false },
     sms_reminders:        { type: Boolean, default: false },
     sms_completions:      { type: Boolean, default: false },
+
+    // New granular preferences
+    purchase: {
+      email:   { type: Boolean, default: true  },
+      sms:     { type: Boolean, default: false },
+      inapp:   { type: Boolean, default: true  },
+    },
+    renewal: {
+      email:   { type: Boolean, default: true  },
+      sms:     { type: Boolean, default: false },
+      inapp:   { type: Boolean, default: true  },
+    },
+    new_course: {
+      email:   { type: Boolean, default: true  },
+      sms:     { type: Boolean, default: false },
+      inapp:   { type: Boolean, default: true  },
+    },
+    quiz: {
+      email:   { type: Boolean, default: true  },
+      sms:     { type: Boolean, default: false },
+      inapp:   { type: Boolean, default: true  },
+    },
+    milestone: {
+      email:   { type: Boolean, default: true  },
+      sms:     { type: Boolean, default: false },
+      inapp:   { type: Boolean, default: true  },
+    },
   },
   notifications: [
     {

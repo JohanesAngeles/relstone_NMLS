@@ -60,6 +60,7 @@ const Profile = () => {
   const [activeSection, setActiveSection] = useState("personal");
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState(null);
+  const [fullUserData, setFullUserData] = useState(null);
   const [orders, setOrders] = useState([]);
   const [toast, setToast] = useState({ msg:"", type:"success" });
 
@@ -68,11 +69,13 @@ const Profile = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [dashRes, ordersRes] = await Promise.all([
+        const [dashRes, userRes, ordersRes] = await Promise.all([
           API.get("/dashboard"),
+          API.get("/auth/me"),
           API.get("/dashboard"),
         ]);
         setProfileData(dashRes.data?.profile || {});
+        setFullUserData(userRes.data?.user || {});
         setOrders(dashRes.data?.orders || []);
       } catch { showToast("Failed to load profile", "error"); }
       finally { setLoading(false); }
@@ -137,7 +140,7 @@ const Profile = () => {
           <main style={S.main}>
             {activeSection === "personal"      && <PersonalInfo      profileData={profileData} user={user} login={login} showToast={showToast} />}
             {activeSection === "password"      && <ChangePassword    showToast={showToast} />}
-            {activeSection === "notifications" && <Notifications     showToast={showToast} />}
+            {activeSection === "notifications" && <Notifications     showToast={showToast} fullUserData={fullUserData} />}
             {activeSection === "license"       && <LicenseGoals      profileData={profileData} showToast={showToast} />}
             {activeSection === "payment"       && <PaymentMethods    showToast={showToast} />}
             {activeSection === "orders"        && <OrderHistory      orders={orders} navigate={navigate} />}
@@ -296,41 +299,65 @@ const ChangePassword = ({ showToast }) => {
 };
 
 /* ── Section: Notifications ──────────────────────────────────────── */
-const Notifications = ({ showToast }) => {
-  const { user } = useAuth();
+const Notifications = ({ showToast, fullUserData }) => {
   const [prefs, setPrefs] = useState({
-    email_course_updates:    true,
-    email_promotions:        false,
-    email_reminders:         true,
-    email_completions:       true,
-    sms_course_updates:      false,
-    sms_reminders:           true,
-    sms_promotions:          false,
-    sms_completions:         false,
+    // Legacy preferences (for backward compatibility)
+    email_course_updates: true,
+    email_promotions: false,
+    email_reminders: true,
+    email_completions: true,
+    sms_course_updates: false,
+    sms_reminders: true,
+    sms_promotions: false,
+    sms_completions: false,
+    // New granular preferences
+    purchase_email: true, purchase_sms: false, purchase_inapp: true,
+    renewal_email: true, renewal_sms: false, renewal_inapp: true,
+    new_course_email: true, new_course_sms: false, new_course_inapp: true,
+    quiz_email: true, quiz_sms: false, quiz_inapp: true,
+    milestone_email: true, milestone_sms: false, milestone_inapp: true,
   });
   const [saving, setSaving] = useState(false);
 
-  const NOTIF_ROWS = [
-    { key:"course_updates", label:"Course Updates",       sub:"New content, module releases" },
-    { key:"reminders",      label:"Learning Reminders",   sub:"Nudges to keep you on track" },
-    { key:"completions",    label:"Completion Alerts",    sub:"Certificate and progress updates" },
-    { key:"promotions",     label:"Promotions & Offers",  sub:"Discounts and new course announcements" },
+  const ALERT_TYPES = [
+    { key: "purchase", label: "Course Purchase", sub: "Confirmations when you buy courses" },
+    { key: "renewal", label: "CE Renewal Reminder", sub: "Alerts about upcoming renewal deadlines" },
+    { key: "new_course", label: "New Course Available", sub: "Notifications about new courses added" },
+    { key: "quiz", label: "Quiz Results", sub: "Results and feedback from quizzes" },
+    { key: "milestone", label: "Course Milestones", sub: "Progress updates and completions" },
   ];
 
   useEffect(() => {
-    if (user?.notification_prefs) {
+    if (fullUserData?.notification_prefs) {
       setPrefs({
-        email_course_updates:  user.notification_prefs.email_course_updates ?? true,
-        email_promotions:      user.notification_prefs.email_promotions ?? false,
-        email_reminders:       user.notification_prefs.email_reminders ?? true,
-        email_completions:     user.notification_prefs.email_completions ?? true,
-        sms_course_updates:    user.notification_prefs.sms_course_updates ?? false,
-        sms_reminders:         user.notification_prefs.sms_reminders ?? true,
-        sms_promotions:        user.notification_prefs.sms_promotions ?? false,
-        sms_completions:       user.notification_prefs.sms_completions ?? false,
+        // Legacy preferences
+        email_course_updates: fullUserData.notification_prefs.email_course_updates ?? true,
+        email_promotions: fullUserData.notification_prefs.email_promotions ?? false,
+        email_reminders: fullUserData.notification_prefs.email_reminders ?? true,
+        email_completions: fullUserData.notification_prefs.email_completions ?? true,
+        sms_course_updates: fullUserData.notification_prefs.sms_course_updates ?? false,
+        sms_reminders: fullUserData.notification_prefs.sms_reminders ?? true,
+        sms_promotions: fullUserData.notification_prefs.sms_promotions ?? false,
+        sms_completions: fullUserData.notification_prefs.sms_completions ?? false,
+        // New granular preferences
+        purchase_email: fullUserData.notification_prefs.purchase?.email ?? true,
+        purchase_sms: fullUserData.notification_prefs.purchase?.sms ?? false,
+        purchase_inapp: fullUserData.notification_prefs.purchase?.inapp ?? true,
+        renewal_email: fullUserData.notification_prefs.renewal?.email ?? true,
+        renewal_sms: fullUserData.notification_prefs.renewal?.sms ?? false,
+        renewal_inapp: fullUserData.notification_prefs.renewal?.inapp ?? true,
+        new_course_email: fullUserData.notification_prefs.new_course?.email ?? true,
+        new_course_sms: fullUserData.notification_prefs.new_course?.sms ?? false,
+        new_course_inapp: fullUserData.notification_prefs.new_course?.inapp ?? true,
+        quiz_email: fullUserData.notification_prefs.quiz?.email ?? true,
+        quiz_sms: fullUserData.notification_prefs.quiz?.sms ?? false,
+        quiz_inapp: fullUserData.notification_prefs.quiz?.inapp ?? true,
+        milestone_email: fullUserData.notification_prefs.milestone?.email ?? true,
+        milestone_sms: fullUserData.notification_prefs.milestone?.sms ?? false,
+        milestone_inapp: fullUserData.notification_prefs.milestone?.inapp ?? true,
       });
     }
-  }, [user]);
+  }, [fullUserData]);
 
   const toggle = (key) => setPrefs(p => ({ ...p, [key]: !p[key] }));
 
@@ -345,31 +372,38 @@ const Notifications = ({ showToast }) => {
   };
 
   return (
-    <SectionCard title="Notification Preferences" subtitle="Choose how and when we contact you">
+    <SectionCard title="Notification Preferences" subtitle="Choose how and when we contact you for each type of alert">
       <div style={S.notifTable}>
         {/* Header */}
         <div style={S.notifHeader}>
           <div style={{ flex:1 }} />
           <div style={S.notifColLabel}><Mail size={13} /> Email</div>
           <div style={S.notifColLabel}><Phone size={13} /> SMS</div>
+          <div style={S.notifColLabel}><Bell size={13} /> In-App</div>
         </div>
         {/* Rows */}
-        {NOTIF_ROWS.map((row) => (
-          <div key={row.key} style={S.notifRow}>
+        {ALERT_TYPES.map((alert) => (
+          <div key={alert.key} style={S.notifRow}>
             <div style={{ flex:1 }}>
-              <div style={S.notifLabel}>{row.label}</div>
-              <div style={S.notifSub}>{row.sub}</div>
+              <div style={S.notifLabel}>{alert.label}</div>
+              <div style={S.notifSub}>{alert.sub}</div>
             </div>
             <div style={S.notifToggleCell}>
               <Toggle
-                on={prefs[`email_${row.key}`]}
-                onChange={() => toggle(`email_${row.key}`)}
+                on={prefs[`${alert.key}_email`]}
+                onChange={() => toggle(`${alert.key}_email`)}
               />
             </div>
             <div style={S.notifToggleCell}>
               <Toggle
-                on={prefs[`sms_${row.key}`]}
-                onChange={() => toggle(`sms_${row.key}`)}
+                on={prefs[`${alert.key}_sms`]}
+                onChange={() => toggle(`${alert.key}_sms`)}
+              />
+            </div>
+            <div style={S.notifToggleCell}>
+              <Toggle
+                on={prefs[`${alert.key}_inapp`]}
+                onChange={() => toggle(`${alert.key}_inapp`)}
               />
             </div>
           </div>

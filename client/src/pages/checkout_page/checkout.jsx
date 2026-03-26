@@ -92,7 +92,7 @@ const Checkout = () => {
       }
 
       // ── Redirect to Dashboard: course(s) show under My Courses once order is completed ──
-      navigate("/dashboard", {
+      navigate(`/receipt/${orderId}`, {
         replace: true,
         state: {
           purchaseSuccess: true,

@@ -448,6 +448,7 @@ router.put('/change-password', authMiddleware, async (req, res) => {
 router.put('/notifications', authMiddleware, async (req, res) => {
   try {
     const {
+      // Legacy preferences
       email_course_updates,
       email_promotions,
       email_reminders,
@@ -456,18 +457,52 @@ router.put('/notifications', authMiddleware, async (req, res) => {
       sms_promotions,
       sms_reminders,
       sms_completions,
+      // New granular preferences
+      purchase_email, purchase_sms, purchase_inapp,
+      renewal_email, renewal_sms, renewal_inapp,
+      new_course_email, new_course_sms, new_course_inapp,
+      quiz_email, quiz_sms, quiz_inapp,
+      milestone_email, milestone_sms, milestone_inapp,
     } = req.body;
 
     await User.findByIdAndUpdate(req.user.id, {
       notification_prefs: {
-        email_course_updates: !!email_course_updates,
-        email_promotions:     !!email_promotions,
-        email_reminders:      !!email_reminders,
-        email_completions:    !!email_completions,
-        sms_course_updates:   !!sms_course_updates,
-        sms_promotions:       !!sms_promotions,
-        sms_reminders:        !!sms_reminders,
-        sms_completions:      !!sms_completions,
+        // Legacy preferences (keeping for backward compatibility)
+        email_course_updates: email_course_updates !== undefined ? !!email_course_updates : true,
+        email_promotions:     email_promotions !== undefined ? !!email_promotions : false,
+        email_reminders:      email_reminders !== undefined ? !!email_reminders : true,
+        email_completions:    email_completions !== undefined ? !!email_completions : (milestone_email !== undefined ? !!milestone_email : true),
+        sms_course_updates:   sms_course_updates !== undefined ? !!sms_course_updates : false,
+        sms_promotions:       sms_promotions !== undefined ? !!sms_promotions : false,
+        sms_reminders:        sms_reminders !== undefined ? !!sms_reminders : false,
+        sms_completions:      sms_completions !== undefined ? !!sms_completions : (milestone_sms !== undefined ? !!milestone_sms : false),
+
+        // New granular preferences
+        purchase: {
+          email: purchase_email !== undefined ? !!purchase_email : true,
+          sms:   purchase_sms !== undefined ? !!purchase_sms : false,
+          inapp: purchase_inapp !== undefined ? !!purchase_inapp : true,
+        },
+        renewal: {
+          email: renewal_email !== undefined ? !!renewal_email : true,
+          sms:   renewal_sms !== undefined ? !!renewal_sms : false,
+          inapp: renewal_inapp !== undefined ? !!renewal_inapp : true,
+        },
+        new_course: {
+          email: new_course_email !== undefined ? !!new_course_email : true,
+          sms:   new_course_sms !== undefined ? !!new_course_sms : false,
+          inapp: new_course_inapp !== undefined ? !!new_course_inapp : true,
+        },
+        quiz: {
+          email: quiz_email !== undefined ? !!quiz_email : true,
+          sms:   quiz_sms !== undefined ? !!quiz_sms : false,
+          inapp: quiz_inapp !== undefined ? !!quiz_inapp : true,
+        },
+        milestone: {
+          email: milestone_email !== undefined ? !!milestone_email : true,
+          sms:   milestone_sms !== undefined ? !!milestone_sms : false,
+          inapp: milestone_inapp !== undefined ? !!milestone_inapp : true,
+        },
       },
     });
 

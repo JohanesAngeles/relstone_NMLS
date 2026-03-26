@@ -5,7 +5,29 @@ const Order = require('../models/Order');
 const Course = require('../models/Course');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
-const { createNotification, sendNotificationEmail } = require('./notifications');
+const notificationService = require('./notifications');
+
+const sendOrderNotification = async (user, courseNames) => {
+  const shouldSendEmail = user.notification_prefs?.purchase?.email ?? true;
+  const shouldSendInApp = user.notification_prefs?.purchase?.inapp ?? true;
+
+  if (shouldSendInApp) {
+    const customTitle = 'Course Purchased Successfully';
+    const customBody = `You have successfully purchased ${courseNames}. It is now available in My Courses.`;
+    await notificationService.createNotification(user, {
+      type: 'purchase',
+      title: customTitle,
+      body: customBody,
+    });
+  }
+
+  if (shouldSendEmail) {
+    const emailBody = `You have successfully purchased ${courseNames}.\n\nYour course is now available in your dashboard under My Courses.`;
+    await notificationService.sendNotificationEmail(user, 'Course Purchase Confirmation', emailBody, {
+      eventType: 'purchase',
+    });
+  }
+};
 
 /**
  * POST /api/orders
@@ -72,35 +94,22 @@ router.post('/', authMiddleware, async (req, res) => {
       billing: billing && typeof billing === 'object' ? billing : undefined,
     });
 
-    // After successful purchase, create notification and send email
+    // After successful purchase, trigger notification and email based on user preferences
     try {
       const user = await User.findById(req.user.id);
       if (user) {
-        // Get course names for the notification
-        const courseIds = normalizedItems.map(item => item.course_id);
+        const courseIds = normalizedItems.map((item) => item.course_id);
         const courses = await Course.find({ _id: { $in: courseIds } }).select('title');
-        const courseNames = courses.map(course => course.title).join(', ');
+        const courseNames = courses.map((course) => course.title).join(', ');
 
-        // Create notification
-        const notificationTitle = 'Course Purchased Successfully';
-        const notificationBody = `You have successfully purchased ${courseNames}. It is now available in My Courses.`;
-        await createNotification(user, {
-          type: 'purchase',
-          title: notificationTitle,
-          body: notificationBody,
-        });
-
-        // Send email if user has email preferences enabled
-        if (user.notification_prefs?.email_course_updates) {
-          const emailBody = `You have successfully purchased ${courseNames}.\n\nYour course is now available in your dashboard under My Courses.`;
-          await sendNotificationEmail(user, 'Course Purchase Confirmation', emailBody, {
-            eventType: 'purchase',
-          });
+        try {
+          await sendOrderNotification(user, courseNames);
+        } catch (notifyError) {
+          console.error('[orders] Error sending notifications after purchase:', notifyError);
         }
       }
     } catch (notificationError) {
-      console.error('[orders] Error creating notification/email after purchase:', notificationError);
-      // Don't fail the purchase if notification/email fails
+      console.error('[orders] Error sending notifications after purchase:', notificationError);
     }
 
     return res.status(201).json(order);
@@ -123,6 +132,27 @@ router.get('/', authMiddleware, async (req, res) => {
     res.json({ orders });
   } catch (err) {
     console.error('[orders] GET /', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/:orderId', authMiddleware, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId || !orderId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
+
+    const order = await Order.findOne({ _id: orderId, user_id: req.user.id })
+      .populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url');
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    res.json({ order });
+  } catch (err) {
+    console.error('[orders] GET /:orderId', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

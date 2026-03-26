@@ -40,6 +40,8 @@ const NotificationsCenter = () => {
     triggerEvent,
   } = useNotifications();
   const [activeFilter, setActiveFilter] = useState("all");
+  const [isTriggering, setIsTriggering] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
 
   const filteredItems = useMemo(() => {
     if (activeFilter === "all") return notifications;
@@ -65,31 +67,78 @@ const NotificationsCenter = () => {
           </button>
         </div>
 
-        {/* QA / dev: exercises POST /notifications/trigger and /trigger/:event (email follows user prefs on server) */}
+        {/* QA / exercises POST /notifications/trigger and /trigger/:event (email follows user prefs on server) */}
         <div style={styles.qaSection} aria-label="Email notification tests">
           <div style={styles.qaLabel}>Test emails (staging / QA)</div>
           <div style={styles.qaButtons}>
             <button
               style={styles.triggerBtn}
               type="button"
-              onClick={() =>
-                triggerNotification({
-                  type: 'milestones',
-                  title: 'Milestone notification',
-                  body: 'You reached 75% progress!',
-                  sendEmail: true,
-                })
-              }
+              disabled={isTriggering}
+              onClick={async () => {
+                setStatusMessage('Triggering milestone test...');
+                setIsTriggering(true);
+                try {
+                  await triggerNotification({
+                    type: 'milestones',
+                    title: 'Milestone notification',
+                    body: 'You reached 75% progress!',
+                    sendEmail: true,
+                  });
+                  setStatusMessage('Milestone test triggered (server is enforcing prefs).');
+                } catch (err) {
+                  console.error(err);
+                  setStatusMessage('Failed to trigger milestone test');
+                } finally {
+                  setIsTriggering(false);
+                }
+              }}
             >
               Trigger milestone test
             </button>
-            <button style={styles.triggerBtn} type="button" onClick={() => triggerEvent('welcome')}>
+            <button
+              style={styles.triggerBtn}
+              type="button"
+              disabled={isTriggering}
+              onClick={async () => {
+                setStatusMessage('Triggering welcome event...');
+                setIsTriggering(true);
+                try {
+                  await triggerEvent('welcome');
+                  setStatusMessage('Welcome event triggered successfully.');
+                } catch (err) {
+                  console.error(err);
+                  setStatusMessage('Failed to trigger welcome event');
+                } finally {
+                  setIsTriggering(false);
+                }
+              }}
+            >
               Trigger welcome event
             </button>
-            <button style={styles.triggerBtn} type="button" onClick={() => triggerEvent('renewal')}>
+            <button
+              style={styles.triggerBtn}
+              type="button"
+              disabled={isTriggering}
+              onClick={async () => {
+                setStatusMessage('Triggering renewal event...');
+                setIsTriggering(true);
+                try {
+                  await triggerEvent('renewal');
+                  setStatusMessage('Renewal event triggered successfully.');
+                } catch (err) {
+                  console.error(err);
+                  setStatusMessage('Failed to trigger renewal event');
+                } finally {
+                  setIsTriggering(false);
+                }
+              }}
+            >
               Trigger renewal event
             </button>
           </div>
+          {statusMessage && <div style={styles.statusMessage}>{statusMessage}</div>}
+
         </div>
 
         <div style={styles.tabs}>
@@ -204,6 +253,12 @@ const styles = {
     borderRadius: 12,
     border: "1px dashed #93c5fd",
     background: "#f8fafc",
+  },
+  statusMessage: {
+    marginTop: 10,
+    color: "#1d4ed8",
+    fontSize: 13,
+    fontWeight: 700,
   },
   qaLabel: { fontSize: 12, fontWeight: 800, color: "#475569", marginBottom: 8, letterSpacing: "0.02em" },
   qaButtons: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" },

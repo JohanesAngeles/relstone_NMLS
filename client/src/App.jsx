@@ -18,6 +18,7 @@ import MyCourses from './pages/my_courses/MyCourses';
 import Profile from './pages/profile/Profile';
 import MyCertificates from './pages/certificates/MyCertificates';
 import NotificationsCenter from './pages/notifications/NotificationsCenter';
+import ReceiptPage from './pages/checkout_page/ReceiptPage';
 import OrdersBilling from './pages/OrdersBilling';
 
 
@@ -109,6 +110,12 @@ function App() {
           <Route path="/courses/:id/learn" element={
             <PrivateRoute>
               <CoursePortal />
+            </PrivateRoute>
+          } />
+
+          <Route path="/receipt/:orderId" element={
+            <PrivateRoute>
+              <ReceiptPage />
             </PrivateRoute>
           } />
 

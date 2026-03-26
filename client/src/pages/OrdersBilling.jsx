@@ -369,6 +369,10 @@ export default function OrdersBilling() {
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             Receipt
                           </button>
+                          <button className="ob-act" onClick={() => window.location.href = `/receipt/${o.id}`}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3h18v18H3V3z"/><path d="M3 8h18"/></svg>
+                            View
+                          </button>
                           {o.refundEligible && (
                             <button className="ob-act ob-act--red" onClick={() => setRefundTarget(o)}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.03"/></svg>
