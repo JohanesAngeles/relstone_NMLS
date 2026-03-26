@@ -2,6 +2,8 @@ const express = require('express');
 const router  = express.Router();
 const Course  = require('../models/Course');
 const authMiddleware = require('../middleware/auth');
+// Import the log model to record instructor/admin actions
+const InstructorLog = require('../models/InstructorLog');
 
 // @route   GET /api/courses
 // Get all active courses (with optional filters)
@@ -20,12 +22,10 @@ router.get('/', async (req, res) => {
 });
 
 // @route   GET /api/courses/:id
-// Get single course by MongoDB _id OR by nmls_course_id (e.g. CE-CA-DFPI-8HR)
+// Get single course by MongoDB _id OR by nmls_course_id
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-
-    // Try MongoDB ObjectId first, fallback to nmls_course_id slug
     const isObjectId = /^[a-fA-F0-9]{24}$/.test(id);
 
     const course = isObjectId
@@ -54,16 +54,40 @@ router.post('/', authMiddleware, async (req, res) => {
 });
 
 // @route   PUT /api/courses/:id
-// Update course (admin only)
+// Update course (admin and instructor)
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Admins only' });
+    // 1. Permission Check
+    if (req.user.role !== 'instructor' && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admins and instructors only' });
     }
-    const course = await Course.findByIdAndUpdate(req.params.id, req.body, { new: true });
+
+    // 2. Data Sanitization
+    const { nmls_course_id, ...updateData } = req.body;
+
+    // 3. Update Database
+    const course = await Course.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
     if (!course) return res.status(404).json({ message: 'Course not found' });
+
+    // 4. Activity Log Generation
+    await InstructorLog.create({
+      instructor_id:   req.user._id || req.user.id,
+      instructor_name: req.user.name,
+      action:          'edit_course',
+      course_id:       course._id,
+      course_title:    course.title,
+      details:         `Updated course details for "${course.title}"`,
+      timestamp:       new Date(),
+    });
+
     res.json(course);
   } catch (err) {
+    console.error('[PUT /api/courses/:id Error]', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
