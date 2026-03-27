@@ -82,6 +82,11 @@ const buildContent = (course) => {
   return content;
 };
 
+const toGDriveEmbed = (url) => {
+  const match = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? `https://drive.google.com/file/d/${match[1]}/preview` : null;
+};
+
 const buildReviewContent = (course) => {
   const base = buildContent(course);
   base.push({ id: "review-summary", type: "review_summary", title: "Course Summary", moduleOrder: 9999 });
@@ -577,12 +582,24 @@ const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds, review
       {pdfView && <PDFViewer url={item.pdf_url} />}
       {!pdfView && (
         <>
-          <AccessibleVideoPlayer
-            title={item.title}
-            videoUrl={item.video_url}
-            captionTracks={item.caption_tracks}
-            transcriptLines={item.sections || []}
-          />
+          {item.video_url && toGDriveEmbed(item.video_url) ? (
+            <div style={S.videoBox}>
+              <iframe 
+                src={toGDriveEmbed(item.video_url)} 
+                title={`${item.title} - Video Lesson`}
+                style={S.videoIframe}
+                allow="autoplay; fullscreen" 
+                allowFullScreen
+              />
+            </div>
+          ) : (
+            <AccessibleVideoPlayer
+              title={item.title}
+              videoUrl={item.video_url}
+              captionTracks={item.caption_tracks}
+              transcriptLines={item.sections || []}
+            />
+          )}
           {item.sections?.length > 0 && (
             <div style={S.lessonText}>
               <h3 style={{ ...S.lessonH3, marginTop: 0 }}>Topics Covered in This Module</h3>
@@ -591,6 +608,7 @@ const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds, review
           )}
         </>
       )}
+
       <div style={S.navRow}>
         {showPrev && <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>}
         <button style={{ ...S.nextBtn, ...(!seatMet ? S.nextBtnDim : {}) }} onClick={seatMet ? onComplete : undefined} disabled={!seatMet} type="button">
@@ -1299,6 +1317,7 @@ const S = {
   videoIconWrap:     { width:72,height:72,borderRadius:"50%",background:"rgba(46,171,254,0.20)",border:"2px solid rgba(46,171,254,0.35)",display:"grid",placeItems:"center",margin:"0 auto 14px",cursor:"pointer" },
   videoLabel:        { color:"#fff",fontWeight:800,fontSize:16,marginBottom:6 },
   videoSub:          { color:"rgba(255,255,255,0.45)",fontWeight:600,fontSize:13 },
+  videoIframe:       { width: "100%", height: "100%", border: "none", borderRadius: 18 },
   lessonText:        { background:"#fff",borderRadius:18,border:"1px solid rgba(2,8,23,0.08)",padding:"28px 32px",lineHeight:1.8 },
   lessonH3:          { fontWeight:800,fontSize:16,color:"var(--cp-dark)",margin:"20px 0 10px",fontFamily:"'DM Serif Display',serif" },
   lessonUl:          { paddingLeft:22,marginBottom:14 },

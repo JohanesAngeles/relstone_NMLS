@@ -5,7 +5,6 @@ import logo from '../../assets/images/RelstoneLogo.png';
 import landingBg from '../../assets/images/landing_page_bg.png';
 import AuthModal from '../../pages/auth_page/AuthModal';
 import API from '../../api/axios';
-
 // ─── Data ──────────────────────────────────────────────────────────────────────
 const FAQS = [
   { q: 'What is the SAFE Act and why does it require 20 hours of education?', a: 'The SAFE Mortgage Licensing Act (SAFE Act) is a federal law that established minimum standards for the licensing and registration of mortgage loan originators (MLOs). It requires all new MLOs to complete at least 20 hours of NMLS-approved pre-licensing education before sitting for the NMLS exam. This includes 3 hours of federal law, 3 hours of ethics, 2 hours of non-traditional lending, and 12 elective hours.' },
@@ -88,24 +87,32 @@ useEffect(() => {
         <div className="lp-hero-gradient" />
 
         <header className={`lp-topbar${scrolled ? ' lp-topbar--scrolled' : ''}`}>
-          <div className="lp-topbar-inner">
-            <div className="lp-brand" onClick={() => window.scrollTo(0, 0)} role="button" tabIndex={0}>
-              <img src={logo} alt="Relstone NMLS" className="lp-brand-logo" />
-            </div>
-            <nav className="lp-nav">
-              {NAV_LINKS.map((link, i) => (
-                <a key={link.href} href={link.href} className={`lp-nav-link${i === 0 ? ' lp-nav-link--active' : ''}`}>
-                  {link.label}
-                </a>
-              ))}
-            </nav>
-            <div className="lp-nav-right">
-              <button className="lp-nav-ghost" onClick={() => setModal('login')}>Sign In</button>
-              <button className="lp-nav-enroll" onClick={() => setModal('register')}>Enroll Now</button>
-            </div>
-          </div>
-          <div className="lp-topbar-border" />
-        </header>
+  <div className="lp-topbar-inner">
+    <div className="lp-topbar-left">
+      <div className="lp-brand" onClick={() => window.scrollTo(0, 0)} role="button" tabIndex={0}>
+        <img src={logo} alt="Relstone NMLS" className="lp-brand-logo" />
+        <div className="lp-brand-text hide-mobile">
+          <div className="lp-brand-nmls">RELSTONE</div>
+          <div className="lp-brand-sub">NMLS Mortgage Licensing</div>
+        </div>
+      </div>
+    </div>
+
+    <nav className="lp-nav hide-tablet">
+      {NAV_LINKS.map((link) => (
+        <a key={link.href} href={link.href} className="lp-nav-link">
+          {link.label}
+        </a>
+      ))}
+    </nav>
+
+    <div className="lp-nav-right">
+    
+      <button className="lp-nav-ghost" onClick={() => setModal('login')}>Sign In</button>
+      <button className="lp-nav-enroll" onClick={() => setModal('register')}>Enroll</button>
+    </div>
+  </div>
+</header>
 
         {/* ════════ HERO ════════ */}
         <section className="lp-hero">
@@ -542,53 +549,107 @@ body { font-family: 'Poppins', system-ui, sans-serif; background: #F2F6F9; }
 }
 
 /* ════ NAV ════ */
+/* ════ NAV ════ */
 .lp-topbar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-  background: rgba(9, 25, 37, 0.15);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
-  transition: background 0.3s ease, backdrop-filter 0.3s ease, box-shadow 0.3s ease;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: rgba(9, 25, 37, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  height: 80px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.lp-topbar--scrolled {
-  background: rgba(9, 25, 37, 0.97);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.07);
-}
-.lp-topbar-inner {
-  max-width: 1200px; margin: 0 auto; padding: 0 40px;
-  height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 24px;
-}
-.lp-topbar-border { width: 100%; height: 1px; background: rgba(255,255,255,0.5); }
-.lp-brand { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; border: none; background: none; padding: 0; }
-.lp-brand:focus { outline: none; }
-.lp-brand-logo { height: 30px; object-fit: contain; display: block; }
-.lp-nav { display: flex; align-items: center; gap: 2px; }
-.lp-nav-link {
-  padding: 7px 16px; font-size: 13px; font-weight: 500;
-  color: rgba(255,255,255,0.72); text-decoration: none;
-  border-radius: 6px; transition: color .15s;
-  font-family: 'Poppins', sans-serif; white-space: nowrap;
-}
-.lp-nav-link:hover { color: #fff; }
-.lp-nav-link--active { color: #2EABFE; font-weight: 600; }
-.lp-nav-right { display: flex; align-items: center; gap: 10px; }
-.lp-nav-ghost {
-  padding: 7px 18px; font-size: 13px; font-weight: 600;
-  color: #fff; border-radius: 7px;
-  border: 1px solid rgba(255,255,255,0.7);
-  background: transparent; cursor: pointer;
-  font-family: 'Poppins', sans-serif; transition: border-color .15s; white-space: nowrap;
-}
-.lp-nav-ghost:hover { border-color: #fff; }
-.lp-nav-enroll {
-  padding: 8px 20px; font-size: 13px; font-weight: 700;
-  color: #091925; background: #2EABFE; border-radius: 7px;
-  border: 0.5px solid #2EABFE; cursor: pointer;
-  font-family: 'Poppins', sans-serif; transition: background .15s; white-space: nowrap;
-}
-.lp-nav-enroll:hover { background: #1a9ee0; }
 
+.lp-topbar--scrolled {
+  background: rgba(9, 25, 37, 0.95);
+  height: 65px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  border-bottom-color: rgba(46, 171, 254, 0.2);
+}
+
+.lp-topbar-inner {
+  width: 100%;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.lp-topbar-left { display: flex; align-items: center; }
+
+.lp-brand { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.lp-brand-logo { height: 34px; width: auto; object-fit: contain; }
+
+.lp-brand-text { display: flex; flex-direction: column; line-height: 1.1; }
+.lp-brand-nmls { font-weight: 800; font-size: 18px; color: #fff; letter-spacing: -0.5px; }
+.lp-brand-sub { font-size: 10px; color: #2EABFE; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
+
+.lp-nav { display: flex; align-items: center; gap: 8px; }
+.lp-nav-link {
+  color: rgba(255,255,255,0.7);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+.lp-nav-link:hover { color: #fff; background: rgba(255,255,255,0.05); }
+
+.lp-nav-right { display: flex; align-items: center; gap: 12px; }
+
+/* Fixed Search in Header */
+.lp-topbar-search {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 12px;
+  height: 38px;
+  border-radius: 20px;
+  width: 200px;
+  transition: all 0.3s;
+}
+.lp-topbar-search:focus-within {
+  width: 260px;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #2EABFE;
+}
+.lp-search-input {
+  background: transparent; border: none; outline: none;
+  color: #fff; font-size: 13px; width: 100%; margin-left: 8px;
+}
+.lp-search-icon { color: rgba(255, 255, 255, 0.4); }
+
+.lp-nav-ghost {
+  color: #fff; font-weight: 600; font-size: 13px;
+  background: transparent; border: 1px solid rgba(255,255,255,0.2);
+  padding: 8px 18px; border-radius: 8px; cursor: pointer; transition: 0.2s;
+}
+.lp-nav-ghost:hover { border-color: #fff; background: rgba(255,255,255,0.05); }
+
+.lp-nav-enroll {
+  background: #2EABFE; color: #091925; font-weight: 700; font-size: 13px;
+  border: none; padding: 9px 20px; border-radius: 8px; cursor: pointer; transition: 0.2s;
+}
+.lp-nav-enroll:hover { background: #60C3FF; transform: translateY(-1px); }
+
+/* Helper Classes */
+@media (max-width: 1024px) {
+  .hide-tablet { display: none !important; }
+}
+@media (max-width: 640px) {
+  .hide-mobile { display: none !important; }
+  .lp-topbar { height: 70px; }
+  .lp-brand-logo { height: 28px; }
+  .lp-nav-right { gap: 8px; }
+  .lp-nav-enroll { padding: 8px 14px; }
+}
 /* ════ HERO ════ */
 .lp-hero {
   position: relative; background: transparent;

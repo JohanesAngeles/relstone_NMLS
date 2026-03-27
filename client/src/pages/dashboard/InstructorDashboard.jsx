@@ -3,13 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import API from "../../api/axios";
 import logo from "../../assets/images/Left Side Logo.png";
+import EditCourseModal from "./EditCourseModal"; 
 import {
   Users, BookOpen, CheckCircle, Clock, Award,
   ChevronRight, BarChart2, TrendingUp, Search,
   MoreHorizontal, PlayCircle, AlertCircle, Star,
   Eye, RefreshCw, GraduationCap, FileText,
   MessageSquare, ThumbsUp, ThumbsDown, Trash2,
-  UserCheck, UserX,
+  UserCheck, UserX, Activity, BookPlus, BookMinus,
+  Filter, Calendar, User, Pencil,
 } from "lucide-react";
 
 /* ─── Logout Confirm ─────────────────────────────────────────────── */
@@ -119,12 +121,239 @@ const ConfirmToggleModal = ({ student, onConfirm, onCancel, loading }) => {
   );
 };
 
+/* ─── Activity Log helpers ───────────────────────────────────────── */
+const LOG_META = {
+  add_course:     { icon: <BookPlus  size={15} />, label: "Course Added",     color: "rgba(0,140,140,1)",   bg: "rgba(0,180,180,0.10)", border: "rgba(0,180,180,0.25)" },
+  edit_course:    { icon: <Pencil    size={15} />, label: "Course Edited",    color: "rgba(79, 70, 229, 1)", bg: "rgba(79, 70, 229, 0.10)", border: "rgba(79, 70, 229, 0.25)" },
+  remove_course:  { icon: <BookMinus size={15} />, label: "Course Removed",   color: "rgba(185,28,28,1)",   bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.22)" },
+  assign_course:  { icon: <BookPlus  size={15} />, label: "Course Assigned",  color: "rgba(46,100,220,1)",  bg: "rgba(46,171,254,0.10)", border: "rgba(46,171,254,0.25)" },
+  toggle_active:  { icon: <UserCheck size={15} />, label: "Account Changed",  color: "rgba(146,84,0,1)",    bg: "rgba(245,158,11,0.10)", border: "rgba(245,158,11,0.28)" },
+};
+
+const formatLogDateTime = (ts) => {
+  const d = new Date(ts);
+  const date = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return { date, time, full: `${date} at ${time}` };
+};
+
+/* ─── ActivityLogPanel ───────────────────────────────────────────── */
+const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
+  const [actionFilter, setActionFilter] = useState("all");
+  const [logSearch, setLogSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    let list = logs;
+    if (actionFilter !== "all") list = list.filter(l => l.action === actionFilter);
+    if (logSearch.trim()) {
+      const needle = logSearch.toLowerCase();
+      list = list.filter(l =>
+        String(l.student_name  || "").toLowerCase().includes(needle) ||
+        String(l.student_email || "").toLowerCase().includes(needle) ||
+        String(l.course_title  || "").toLowerCase().includes(needle) ||
+        String(l.details       || "").toLowerCase().includes(needle) ||
+        String(l.instructor_name || "").toLowerCase().includes(needle)
+      );
+    }
+    return list;
+  }, [logs, actionFilter, logSearch]);
+
+  const grouped = useMemo(() => {
+    const map = {};
+    filtered.forEach(log => {
+      const { date } = formatLogDateTime(log.timestamp || log.createdAt);
+      if (!map[date]) map[date] = [];
+      map[date].push(log);
+    });
+    return Object.entries(map);
+  }, [filtered]);
+
+  return (
+    <div>
+      <div style={S.sectionHead}>
+        <div>
+          <div style={S.sectionTitle}>Activity Logs</div>
+          <div style={S.sectionSub}>
+            {filtered.length} event{filtered.length !== 1 ? "s" : ""}
+            {actionFilter !== "all" ? ` · ${LOG_META[actionFilter]?.label || actionFilter}` : " · all actions"}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={S.searchWrap}>
+            <Search size={15} style={{ color: "rgba(9,25,37,0.45)" }} />
+            <input
+              style={S.searchInput}
+              value={logSearch}
+              onChange={e => setLogSearch(e.target.value)}
+              placeholder="Search by student, course, instructor…"
+            />
+          </div>
+          <button style={S.refreshBtn} type="button" onClick={onRefresh}>
+            <RefreshCw size={13} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
+        <button type="button"
+          style={{ ...S.filterChip, ...(actionFilter === "all" ? S.filterChipActive : {}) }}
+          onClick={() => setActionFilter("all")}>
+          All Actions
+        </button>
+        {Object.entries(LOG_META).map(([key, meta]) => (
+          <button key={key} type="button"
+            style={{ ...S.filterChip, ...(actionFilter === key ? S.filterChipActive : {}) }}
+            onClick={() => setActionFilter(key)}>
+            {meta.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{ ...S.center, minHeight: 200 }}><div className="rs-spinner" /></div>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={<Activity size={18} />}
+          title="No activity logs found"
+          subtitle={logSearch || actionFilter !== "all" ? "Try adjusting your filters." : "Instructor actions (course edits, assignments, activations) will appear here."}
+          actionLabel="Clear filters"
+          onAction={() => { setActionFilter("all"); setLogSearch(""); }}
+        />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {grouped.map(([date, dayLogs]) => (
+            <div key={date} style={{ marginBottom: 22 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "5px 12px", borderRadius: 999,
+                  background: "rgba(2,8,23,0.04)", border: "1px solid rgba(2,8,23,0.09)",
+                  fontSize: 11, fontWeight: 900, color: "rgba(11,18,32,0.55)",
+                  letterSpacing: "0.04em",
+                }}>
+                  <Calendar size={12} />
+                  {date}
+                </div>
+                <div style={{ flex: 1, height: 1, background: "rgba(2,8,23,0.07)" }} />
+                <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(11,18,32,0.38)" }}>
+                  {dayLogs.length} event{dayLogs.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              <div style={{ position: "relative", paddingLeft: 32 }}>
+                <div style={{
+                  position: "absolute", left: 11, top: 0, bottom: 0,
+                  width: 2, background: "rgba(2,8,23,0.07)", borderRadius: 99,
+                }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {dayLogs.map((log, i) => {
+                    const meta = LOG_META[log.action] || LOG_META.toggle_active;
+                    const { time } = formatLogDateTime(log.timestamp || log.createdAt);
+                    return (
+                      <div key={log._id || i} style={{ position: "relative" }}>
+                        <div style={{
+                          position: "absolute", left: -27, top: 14,
+                          width: 18, height: 18, borderRadius: "50%",
+                          background: meta.bg, border: `2px solid ${meta.border}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          color: meta.color, flexShrink: 0,
+                          boxShadow: `0 0 0 3px rgba(255,255,255,1)`,
+                        }} />
+                        <div style={{
+                          borderRadius: 14, background: "#fff",
+                          border: `1px solid ${meta.border}`,
+                          boxShadow: "0 2px 10px rgba(2,8,23,0.05)",
+                          padding: "12px 14px", transition: "box-shadow .15s",
+                        }} className="rs-log-card">
+                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{
+                                width: 30, height: 30, borderRadius: 10,
+                                background: meta.bg, border: `1px solid ${meta.border}`,
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                color: meta.color, flexShrink: 0,
+                              }}>
+                                {meta.icon}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.88)" }}>
+                                  {meta.label}
+                                </div>
+                                {log.course_title && (
+                                  <div style={{ fontSize: 12, fontWeight: 700, color: meta.color, marginTop: 1 }}>
+                                    {log.course_title}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div style={{
+                              fontSize: 11, fontWeight: 800, color: "rgba(11,18,32,0.42)",
+                              whiteSpace: "nowrap", marginTop: 2,
+                              display: "flex", alignItems: "center", gap: 4,
+                            }}>
+                              <Clock size={11} />
+                              {time}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                            {log.student_name && (
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", gap: 5,
+                                fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.65)",
+                              }}>
+                                <User size={12} style={{ color: "rgba(11,18,32,0.38)" }} />
+                                {log.student_name}
+                                {log.student_email && (
+                                  <span style={{ fontWeight: 600, color: "rgba(11,18,32,0.42)" }}>
+                                    · {log.student_email}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                            {log.details && (
+                              <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(11,18,32,0.52)", fontStyle: "italic" }}>
+                                {log.details}
+                              </span>
+                            )}
+                          </div>
+                          {log.instructor_name && (
+                            <div style={{
+                              marginTop: 10, paddingTop: 9,
+                              borderTop: "1px solid rgba(2,8,23,0.06)",
+                              display: "flex", alignItems: "center", gap: 6,
+                              fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.40)",
+                            }}>
+                              <div style={{
+                                width: 18, height: 18, borderRadius: "50%",
+                                background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.25)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                color: "var(--rs-teal)", fontSize: 9, fontWeight: 900,
+                              }}>
+                                {(log.instructor_name || "I")[0].toUpperCase()}
+                              </div>
+                              By {log.instructor_name}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ─── InstructorDashboard ────────────────────────────────────────── */
 const InstructorDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [data,         setData]         = useState(null);
+  const [data,          setData]          = useState(null);
   const [allStudents,  setAllStudents]  = useState([]);
   const [allCourses,   setAllCourses]   = useState([]);
   const [activeTab,    setActiveTab]    = useState("overview");
@@ -140,10 +369,17 @@ const InstructorDashboard = () => {
   const [testimonialsLoading,  setTestimonialsLoading]  = useState(false);
   const [testimonialFilter,    setTestimonialFilter]    = useState("pending");
 
+  // ── Activity logs ─────────────────────────────────────────────────
+  const [activityLogs,    setActivityLogs]    = useState([]);
+  const [logsLoading,     setLogsLoading]     = useState(false);
+
   // ── Toggle active state ───────────────────────────────────────────
-  const [toggleTarget,  setToggleTarget]  = useState(null); // student object
+  const [toggleTarget,  setToggleTarget]  = useState(null);
   const [toggleLoading, setToggleLoading] = useState(false);
-  const [statusFilter,  setStatusFilter]  = useState("all"); // "all" | "active" | "inactive"
+  const [statusFilter,  setStatusFilter]  = useState("all");
+
+  // ── Edit course state ───────────────────────────────────────
+  const [editingCourse, setEditingCourse] = useState(null);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -200,32 +436,77 @@ const InstructorDashboard = () => {
     fetchCourses();
   }, [activeTab, data]);
 
-  // ── Handle toggle confirm ─────────────────────────────────────────
+  useEffect(() => {
+    if (activeTab !== "logs") return;
+    fetchLogs();
+  }, [activeTab]);
+
+  const fetchLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const res = await API.get("/instructor/logs?limit=200");
+      setActivityLogs(res.data?.logs || []);
+    } catch {
+      setActivityLogs([]);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
   const handleToggleActive = async () => {
     if (!toggleTarget) return;
     setToggleLoading(true);
     try {
       const res = await API.put(`/instructor/students/${toggleTarget._id}/toggle-active`);
       const newStatus = res.data.is_active;
-
-      // Update both lists
       const update = (list) => list.map(s =>
         String(s._id) === String(toggleTarget._id)
           ? { ...s, is_active: newStatus, deactivated_at: newStatus ? null : new Date().toISOString() }
           : s
       );
       setAllStudents(prev => update(prev));
-      setData(prev => prev ? {
-        ...prev,
-        students: update(prev.students || []),
-      } : prev);
-
+      setData(prev => prev ? { ...prev, students: update(prev.students || []) } : prev);
+      const newLog = {
+        _id:             Date.now(),
+        action:          "toggle_active",
+        instructor_name: user?.name,
+        student_name:    toggleTarget.name,
+        student_email:    toggleTarget.email,
+        details:          `Account ${newStatus ? "activated" : "deactivated"}`,
+        timestamp:        new Date().toISOString(),
+      };
+      setActivityLogs(prev => [newLog, ...prev]);
       setToggleTarget(null);
     } catch (err) {
       console.error("Toggle failed:", err);
     } finally {
       setToggleLoading(false);
     }
+  };
+
+  // ── Updated Handle course saved to include log ────────────────────
+  const handleCourseSaved = (updated) => {
+    // 1. Update lists
+    setAllCourses(prev =>
+      prev.map(c => String(c._id) === String(updated._id) ? { ...c, ...updated } : c)
+    );
+    setData(prev => prev ? {
+      ...prev,
+      courses: (prev.courses || []).map(c =>
+        String(c._id) === String(updated._id) ? { ...c, ...updated } : c
+      ),
+    } : prev);
+
+    // 2. Add manual log for UI
+    const editLog = {
+      _id:             Date.now(),
+      action:          "edit_course",
+      instructor_name: user?.name || "Instructor",
+      course_title:    updated.title,
+      details:         `Updated course details for "${updated.title}"`,
+      timestamp:       new Date().toISOString(),
+    };
+    setActivityLogs(prev => [editLog, ...prev]);
   };
 
   const handleLogout = () => { logout(); window.location.href = "/"; };
@@ -240,7 +521,6 @@ const InstructorDashboard = () => {
   const displayStudents = allStudents.length > 0 ? allStudents : dashStudents;
   const displayCourses  = allCourses.length  > 0 ? allCourses  : dashCourses;
 
-  // ── Inactive count for badge ──────────────────────────────────────
   const inactiveCount = useMemo(
     () => displayStudents.filter(s => s.is_active === false).length,
     [displayStudents]
@@ -248,12 +528,8 @@ const InstructorDashboard = () => {
 
   const filteredStudents = useMemo(() => {
     let list = displayStudents;
-
-    // Status filter
     if (statusFilter === "active")   list = list.filter(s => s.is_active !== false);
     if (statusFilter === "inactive") list = list.filter(s => s.is_active === false);
-
-    // Search filter
     if (!q.trim()) return list;
     const needle = q.toLowerCase();
     return list.filter(s =>
@@ -310,7 +586,7 @@ const InstructorDashboard = () => {
     ? testimonials
     : testimonials.filter(t => t.status === testimonialFilter);
 
-  const pendingCount = testimonials.filter(t => t.status === "pending").length;
+  const pendingCount  = testimonials.filter(t => t.status === "pending").length;
   const recentCourses = useMemo(() => displayCourses.slice(0, 3), [displayCourses]);
 
   if (loading) return (
@@ -338,7 +614,6 @@ const InstructorDashboard = () => {
 
       {showLogout && <LogoutConfirm onConfirm={handleLogout} onCancel={() => setShowLogout(false)} />}
 
-      {/* ── Toggle Active Confirm Modal ──────────────────────────── */}
       {toggleTarget && (
         <ConfirmToggleModal
           student={toggleTarget}
@@ -348,7 +623,16 @@ const InstructorDashboard = () => {
         />
       )}
 
-      {/* ── Top bar ───────────────────────────────────────────────── */}
+      {/* ── Edit Course Modal ── */}
+      {editingCourse && (
+        <EditCourseModal
+          course={editingCourse}
+          onClose={() => setEditingCourse(null)}
+          onSaved={handleCourseSaved}
+        />
+      )}
+
+      {/* ── Top bar ── */}
       <header style={S.topbar}>
         <div style={S.topbarInner}>
           <div style={S.brandLeft}>
@@ -374,7 +658,7 @@ const InstructorDashboard = () => {
 
       <div style={S.shell}>
 
-        {/* ── Hero ──────────────────────────────────────────────── */}
+        {/* ── Hero ── */}
         <section style={S.hero}>
           <div style={S.heroBg} aria-hidden="true" />
           <div style={S.heroInner}>
@@ -403,7 +687,7 @@ const InstructorDashboard = () => {
           </div>
         </section>
 
-        {/* ── Tab card ──────────────────────────────────────────── */}
+        {/* ── Tab card ── */}
         <section style={S.card}>
           <div style={S.tabRow}>
             <div style={S.tabs}>
@@ -424,6 +708,11 @@ const InstructorDashboard = () => {
                 highlight={pendingCount > 0}
               />
               <TabButton
+                label={activityLogs.length > 0 ? `Activity Logs (${activityLogs.length})` : "Activity Logs"}
+                active={activeTab === "logs"}
+                onClick={() => setActiveTab("logs")}
+              />
+              <TabButton
                 label="Support Inbox"
                 active={false}
                 onClick={() => navigate("/instructor/support")}
@@ -432,10 +721,9 @@ const InstructorDashboard = () => {
 
             {activeTab === "students" && (
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                {/* ── Status filter chips ── */}
                 <div style={{ display: "flex", gap: 6 }}>
                   {[
-                    { key: "all",      label: "All" },
+                    { key: "all",       label: "All" },
                     { key: "active",   label: "Active" },
                     { key: "inactive", label: "Inactive", highlight: inactiveCount > 0 },
                   ].map(f => (
@@ -483,7 +771,7 @@ const InstructorDashboard = () => {
 
           <div style={S.cardBody}>
 
-            {/* ── OVERVIEW ──────────────────────────────────────── */}
+            {/* ── OVERVIEW ── */}
             {activeTab === "overview" && (
               <div style={S.gridTwo}>
                 <div style={S.panel}>
@@ -497,7 +785,13 @@ const InstructorDashboard = () => {
                     <EmptyState icon={<BookOpen size={18} />} title="No courses yet" subtitle="Courses will appear here." actionLabel="Refresh" onAction={() => window.location.reload()} />
                   ) : (
                     <div style={{ display: "grid", gap: 10 }}>
-                      {recentCourses.map((c, i) => <CourseMiniRow key={i} course={c} />)}
+                      {recentCourses.map((c, i) => (
+                        <CourseMiniRow
+                          key={i}
+                          course={c}
+                          onEdit={() => setEditingCourse(c)}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -506,16 +800,17 @@ const InstructorDashboard = () => {
                   <div style={S.panelHead}><div style={S.panelTitle}>Quick Actions</div></div>
                   <div style={S.quickActions}>
                     <ActionCard icon={<BookOpen size={17} />}  title="All Courses"      sub={`${displayCourses.length} courses available`}   onClick={() => setActiveTab("courses")} />
-                    <ActionCard icon={<Users size={17} />}      title="All Students"     sub={`${displayStudents.length} students enrolled`}   onClick={() => setActiveTab("students")} />
+                    <ActionCard icon={<Users size={17} />}      title="All Students"      sub={`${displayStudents.length} students enrolled`}   onClick={() => setActiveTab("students")} />
                     <ActionCard icon={<UserX size={17} />}      title="Inactive Students" sub={`${inactiveCount} student${inactiveCount !== 1 ? "s" : ""} deactivated`} onClick={() => { setActiveTab("students"); setStatusFilter("inactive"); }} />
-                    <ActionCard icon={<BarChart2 size={17} />}  title="Completions"      sub={`${totalCompletions} completions across all courses`} onClick={() => {}} />
+                    <ActionCard icon={<BarChart2 size={17} />}  title="Completions"       sub={`${totalCompletions} completions across all courses`} onClick={() => {}} />
+                    <ActionCard icon={<Activity size={17} />}   title="Activity Logs"     sub="View all course edits and assignments"           onClick={() => setActiveTab("logs")} />
                     <ActionCard icon={<MessageSquare size={17} />} title="Support Inbox" sub="View and respond to student tickets" onClick={() => navigate("/instructor/support")} />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* ── ALL COURSES ───────────────────────────────────── */}
+            {/* ── ALL COURSES ── */}
             {activeTab === "courses" && (
               <div>
                 <div style={S.sectionHead}>
@@ -538,13 +833,19 @@ const InstructorDashboard = () => {
                   <EmptyState icon={<BookOpen size={18} />} title="No courses found" subtitle="Try a different search term." actionLabel="Clear search" onAction={() => setCourseSearch("")} />
                 ) : (
                   <div style={S.courseGrid}>
-                    {filteredCourses.map((c, i) => <CourseCard key={c._id || i} course={c} />)}
+                    {filteredCourses.map((c, i) => (
+                      <CourseCard
+                        key={c._id || i}
+                        course={c}
+                        onEdit={() => setEditingCourse(c)}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
             )}
 
-            {/* ── ALL STUDENTS ──────────────────────────────────── */}
+            {/* ── ALL STUDENTS ── */}
             {activeTab === "students" && (
               <div>
                 <div style={S.sectionHead}>
@@ -606,7 +907,7 @@ const InstructorDashboard = () => {
               </div>
             )}
 
-            {/* ── REVIEWS ──────────────────────────────────────── */}
+            {/* ── REVIEWS ── */}
             {activeTab === "reviews" && (
               <div>
                 <div style={S.sectionHead}>
@@ -650,6 +951,15 @@ const InstructorDashboard = () => {
               </div>
             )}
 
+            {/* ── ACTIVITY LOGS ── */}
+            {activeTab === "logs" && (
+              <ActivityLogPanel
+                logs={activityLogs}
+                loading={logsLoading}
+                onRefresh={() => { setActivityLogs([]); fetchLogs(); }}
+              />
+            )}
+
           </div>
         </section>
       </div>
@@ -657,7 +967,7 @@ const InstructorDashboard = () => {
   );
 };
 
-/* ─── Sub-components ─────────────────────────────────────────────── */
+/* ─── Sub-components ─── */
 
 const TabButton = ({ label, active, onClick, highlight }) => (
   <button type="button" onClick={onClick} style={{
@@ -689,15 +999,18 @@ const KpiCard = ({ icon, title, value, caption, tone }) => {
   );
 };
 
-const CourseMiniRow = ({ course }) => {
+const CourseMiniRow = ({ course, onEdit }) => {
   const navigate  = useNavigate();
   const type      = String(course?.type || "").toUpperCase();
   const enrolled  = course?.enrollment_count ?? course?.enrolled ?? 0;
   const completed = course?.completion_count  ?? course?.completed ?? 0;
   const active    = course?.active ?? true;
   return (
-    <div style={{ ...S.rowCard, cursor: "pointer" }} onClick={() => navigate(`/instructor/course/${course._id}`)}>
-      <div style={{ display: "grid", gap: 6, flex: 1 }}>
+    <div style={{ ...S.rowCard, cursor: "pointer" }}>
+      <div
+        style={{ display: "grid", gap: 6, flex: 1 }}
+        onClick={() => navigate(`/instructor/course/${course._id}`)}
+      >
         <div style={S.rowTop}>
           <div style={S.rowTitle}>{course?.title || "Course"}</div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -714,12 +1027,29 @@ const CourseMiniRow = ({ course }) => {
           </span>
         </div>
       </div>
-      <ChevronRight size={17} style={{ color: "rgba(9,25,37,0.35)" }} />
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onEdit(); }}
+        title="Edit course"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+          border: "1px solid rgba(0,180,180,0.28)", background: "rgba(0,180,180,0.07)",
+          cursor: "pointer", color: "#00B4B4",
+        }}
+      >
+        <Pencil size={14} />
+      </button>
+      <ChevronRight
+        size={17}
+        style={{ color: "rgba(9,25,37,0.35)", cursor: "pointer", flexShrink: 0 }}
+        onClick={() => navigate(`/instructor/course/${course._id}`)}
+      />
     </div>
   );
 };
 
-const CourseCard = ({ course }) => {
+const CourseCard = ({ course, onEdit }) => {
   const navigate  = useNavigate();
   const type      = String(course?.type || "").toUpperCase();
   const creditHrs = course?.credit_hours ?? 0;
@@ -728,14 +1058,31 @@ const CourseCard = ({ course }) => {
   const active    = course?.active ?? true;
   const passRate  = enrolled > 0 ? `${Math.round((completed / enrolled) * 100)}%` : "—";
   return (
-    <div style={{ ...S.courseCard, cursor: "pointer" }} className="rs-course-card"
-      onClick={() => navigate(`/instructor/course/${course._id}`)}>
+    <div
+      style={{ ...S.courseCard, cursor: "pointer" }}
+      className="rs-course-card"
+      onClick={() => navigate(`/instructor/course/${course._id}`)}
+    >
       <div style={S.courseCardTop}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={typeBadge(type)}>{type || "—"}</span>
           <span style={activeBadge(active)}>{active ? "Active" : "Inactive"}</span>
         </div>
-        <button style={S.moreBtn} type="button"><MoreHorizontal size={16} /></button>
+        <button
+          type="button"
+          title="Edit course"
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            padding: "5px 10px", borderRadius: 8,
+            border: "1px solid rgba(0,180,180,0.28)",
+            background: "rgba(0,180,180,0.07)",
+            cursor: "pointer", color: "#00B4B4",
+            fontSize: 12, fontWeight: 800,
+          }}
+        >
+          <Pencil size={13} /> Edit
+        </button>
       </div>
       <div style={S.courseCardTitle}>{course?.title || "Course"}</div>
       <div style={S.courseCardMeta}>
@@ -762,7 +1109,6 @@ const CourseStat = ({ icon, label, value, color }) => (
   </div>
 );
 
-/* ─── StudentRow ─────────────────────────────────────────────────── */
 const StudentRow = ({ student, expanded, onToggle, onToggleActive }) => {
   const navigate = useNavigate();
   const status   = String(student?.status || "enrolled").toLowerCase();
@@ -825,7 +1171,6 @@ const StudentRow = ({ student, expanded, onToggle, onToggleActive }) => {
         </td>
         <td style={S.td}>{enrolled}</td>
 
-        {/* ── Account Status Cell ── */}
         <td style={S.td}>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <span style={{
@@ -858,7 +1203,6 @@ const StudentRow = ({ student, expanded, onToggle, onToggleActive }) => {
             <button style={S.viewBtn} type="button" onClick={onToggle}>
               <Eye size={13} /> {expanded ? "Hide" : "Details"}
             </button>
-            {/* ── Toggle Active Button ── */}
             <button
               type="button"
               onClick={onToggleActive}
@@ -1005,7 +1349,7 @@ const TestimonialCard = ({ testimonial: t, onApprove, onReject, onDelete, onFeat
   );
 };
 
-/* ─── Style helpers ──────────────────────────────────────────────── */
+/* ─── Style helpers ─── */
 const typeBadge = (type) => {
   const isPE = type === "PE", isCE = type === "CE";
   const base = { display: "inline-flex", alignItems: "center", padding: "4px 9px", borderRadius: 999, fontSize: 11, fontWeight: 900, border: "1px solid transparent" };
@@ -1018,7 +1362,7 @@ const activeBadge = (active) => ({
   display: "inline-flex", alignItems: "center", padding: "4px 9px", borderRadius: 999, fontSize: 11, fontWeight: 900,
   color:      active ? "rgba(22,163,74,1)"    : "rgba(120,120,120,1)",
   background: active ? "rgba(34,197,94,0.10)" : "rgba(0,0,0,0.04)",
-  border:     `1px solid ${active ? "rgba(34,197,94,0.22)" : "rgba(0,0,0,0.08)"}`,
+  border:      `1px solid ${active ? "rgba(34,197,94,0.22)" : "rgba(0,0,0,0.08)"}`,
 });
 
 const studentStatusStyle = (status) => {
@@ -1028,7 +1372,7 @@ const studentStatusStyle = (status) => {
   return { ...base, color: "rgba(180,120,0,1)", background: "rgba(245,158,11,0.12)", borderColor: "rgba(245,158,11,0.22)" };
 };
 
-/* ─── CSS ────────────────────────────────────────────────────────── */
+/* ─── CSS ─── */
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 :root {
@@ -1049,9 +1393,10 @@ body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:va
 .rs-tr:hover{background:rgba(0,180,180,0.04);}
 .rs-course-card{transition:box-shadow .2s,transform .2s;}
 .rs-course-card:hover{box-shadow:0 12px 36px rgba(2,8,23,0.12);transform:translateY(-2px);}
+.rs-log-card:hover{box-shadow:0 4px 18px rgba(2,8,23,0.09);}
 `;
 
-/* ─── Styles ─────────────────────────────────────────────────────── */
+/* ─── Styles ─── */
 const S = {
   page:   { minHeight: "100vh", background: "var(--rs-bg)" },
   center: { minHeight: "60vh", display: "grid", placeItems: "center" },
@@ -1063,35 +1408,35 @@ const S = {
   brandSubtitle:{ fontSize: 11, color: "var(--rs-muted)", marginTop: 2, fontWeight: 700 },
   topbarRight:  { display: "flex", alignItems: "center", gap: 10 },
   instructorPill: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(0,180,180,0.28)", background: "rgba(0,180,180,0.08)" },
-  userPill:    { display: "inline-flex", alignItems: "center", gap: 9, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", boxShadow: "0 4px 14px rgba(2,8,23,0.06)" },
+  userPill:     { display: "inline-flex", alignItems: "center", gap: 9, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", boxShadow: "0 4px 14px rgba(2,8,23,0.06)" },
   userAvatar:  { width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg,#091925,#054040)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rs-teal)", fontWeight: 900, fontSize: 12 },
   userName:    { fontWeight: 800, fontSize: 13, color: "rgba(11,18,32,0.80)" },
   logoutBtn:   { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.72)" },
-  shell:       { maxWidth: 1200, margin: "0 auto", padding: "18px 18px 40px" },
-  hero:        { position: "relative", borderRadius: 24, overflow: "hidden", background: "var(--rs-grad)", boxShadow: "0 22px 60px rgba(2,8,23,0.18)" },
-  heroBg:      { position: "absolute", inset: 0, background: "radial-gradient(900px 500px at 18% 28%,rgba(0,180,180,0.22),transparent 60%)", pointerEvents: "none" },
-  heroInner:   { position: "relative", padding: 22 },
-  heroTop:     { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", paddingBottom: 16 },
-  heroKicker:  { color: "rgba(255,255,255,0.72)", fontWeight: 800, fontSize: 11, letterSpacing: "0.6px" },
+  shell:        { maxWidth: 1200, margin: "0 auto", padding: "18px 18px 40px" },
+  hero:         { position: "relative", borderRadius: 24, overflow: "hidden", background: "var(--rs-grad)", boxShadow: "0 22px 60px rgba(2,8,23,0.18)" },
+  heroBg:       { position: "absolute", inset: 0, background: "radial-gradient(900px 500px at 18% 28%,rgba(0,180,180,0.22),transparent 60%)", pointerEvents: "none" },
+  heroInner:    { position: "relative", padding: 22 },
+  heroTop:      { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", paddingBottom: 16 },
+  heroKicker:   { color: "rgba(255,255,255,0.72)", fontWeight: 800, fontSize: 11, letterSpacing: "0.6px" },
   heroHeadline:{ color: "#fff", fontWeight: 950, fontSize: 20, letterSpacing: "-0.3px", marginTop: 5 },
-  heroSub:     { color: "rgba(255,255,255,0.65)", fontWeight: 700, fontSize: 13, marginTop: 4 },
+  heroSub:      { color: "rgba(255,255,255,0.65)", fontWeight: 700, fontSize: 13, marginTop: 4 },
   heroActions: { display: "flex", gap: 10, flexWrap: "wrap" },
-  heroBtn:     { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(9,25,37,0.32)", color: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, boxShadow: "0 8px 22px rgba(2,8,23,0.18)" },
-  heroBtnAlt:  { background: "rgba(0,180,180,0.22)", borderColor: "rgba(0,180,180,0.35)" },
-  kpiGrid:     { display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 12, paddingTop: 4 },
-  kpiCard:     { display: "flex", alignItems: "center", gap: 13, padding: 14, borderRadius: 18, border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.10)" },
-  kpiIcon:     { width: 44, height: 44, borderRadius: 16, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.14)", display: "grid", placeItems: "center", color: "#fff", flexShrink: 0 },
-  kpiText:     { display: "grid", gap: 2 },
-  kpiTitle:    { color: "rgba(255,255,255,0.72)", fontWeight: 800, fontSize: 11 },
-  kpiValue:    { color: "#fff", fontWeight: 950, fontSize: 26, letterSpacing: "-0.5px" },
-  kpiCaption:  { color: "rgba(255,255,255,0.62)", fontWeight: 700, fontSize: 11 },
-  card:        { marginTop: 14, borderRadius: 22, background: "rgba(255,255,255,0.82)", border: "1px solid rgba(2,8,23,0.08)", boxShadow: "var(--rs-shadow)", backdropFilter: "blur(10px)", overflow: "hidden" },
-  tabRow:      { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "14px 14px 10px", borderBottom: "1px solid rgba(2,8,23,0.06)" },
-  tabs:        { display: "flex", gap: 8 },
-  tabBtn:      { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.65)" },
+  heroBtn:      { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(9,25,37,0.32)", color: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, boxShadow: "0 8px 22px rgba(2,8,23,0.18)" },
+  heroBtnAlt:   { background: "rgba(0,180,180,0.22)", borderColor: "rgba(0,180,180,0.35)" },
+  kpiGrid:      { display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 12, paddingTop: 4 },
+  kpiCard:      { display: "flex", alignItems: "center", gap: 13, padding: 14, borderRadius: 18, border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.10)" },
+  kpiIcon:      { width: 44, height: 44, borderRadius: 16, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.14)", display: "grid", placeItems: "center", color: "#fff", flexShrink: 0 },
+  kpiText:      { display: "grid", gap: 2 },
+  kpiTitle:     { color: "rgba(255,255,255,0.72)", fontWeight: 800, fontSize: 11 },
+  kpiValue:     { color: "#fff", fontWeight: 950, fontSize: 26, letterSpacing: "-0.5px" },
+  kpiCaption:   { color: "rgba(255,255,255,0.62)", fontWeight: 700, fontSize: 11 },
+  card:         { marginTop: 14, borderRadius: 22, background: "rgba(255,255,255,0.82)", border: "1px solid rgba(2,8,23,0.08)", boxShadow: "var(--rs-shadow)", backdropFilter: "blur(10px)", overflow: "hidden" },
+  tabRow:       { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "14px 14px 10px", borderBottom: "1px solid rgba(2,8,23,0.06)" },
+  tabs:         { display: "flex", gap: 8, flexWrap: "wrap" },
+  tabBtn:       { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.65)" },
   tabBtnActive:{ borderColor: "rgba(0,180,180,0.35)", boxShadow: "0 0 0 4px var(--rs-ring)", color: "var(--rs-dark)" },
   tabBtnHighlight: { borderColor: "rgba(245,158,11,0.45)", color: "rgba(146,84,0,1)", background: "rgba(245,158,11,0.06)" },
-  searchWrap:  { display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", minWidth: 280 },
+  searchWrap:   { display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", minWidth: 280 },
   searchInput: { border: "none", outline: "none", width: "100%", fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.80)", background: "transparent" },
   cardBody:    { padding: 14 },
   gridTwo:     { display: "grid", gridTemplateColumns: "1.3fr 0.9fr", gap: 12 },
@@ -1125,7 +1470,6 @@ const S = {
   courseStatIcon:  { display: "flex" },
   courseStatValue: { fontWeight: 900, fontSize: 18, letterSpacing: "-0.3px" },
   courseStatLabel: { fontSize: 10, fontWeight: 800, color: "rgba(11,18,32,0.50)" },
-  moreBtn:     { width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(11,18,32,0.50)" },
   tableWrap:   { overflowX: "auto", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", background: "#fff" },
   table:       { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 1000 },
   th:          { textAlign: "left", fontSize: 11, fontWeight: 950, color: "rgba(11,18,32,0.55)", padding: "12px 14px", borderBottom: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)" },
