@@ -9,6 +9,14 @@ const questionSchema = new mongoose.Schema({
   explanation:   { type: String },
 }, { _id: false });
 
+const captionTrackSchema = new mongoose.Schema({
+  src:      { type: String, required: true },
+  srclang:  { type: String, default: 'en' },
+  label:    { type: String, default: 'English' },
+  kind:     { type: String, default: 'captions' },
+  default:  { type: Boolean, default: false },
+}, { _id: false });
+
 // ── Module ────────────────────────────────────────────────────────────
 const moduleSchema = new mongoose.Schema({
   order:        { type: Number, required: true },
@@ -22,6 +30,7 @@ const moduleSchema = new mongoose.Schema({
   // Used by CoursePortal to optionally force a PDF gate step before quizzes.
   show_pdf_before_quiz: { type: Boolean, default: false },
   video_url:    { type: String, default: null },
+  caption_tracks: [captionTrackSchema],
   quiz:         [questionSchema],
 }, { _id: false });
 
@@ -68,6 +77,7 @@ const courseSchema = new mongoose.Schema({
   // ── Course-level PDF / Video (fallback for all modules) ───────────
   pdf_url:   { type: String, default: null },
   video_url: { type: String, default: null },
+  caption_tracks: [captionTrackSchema],
 
   // ── Modules (each has its own pdf_url / video_url override) ───────
   modules: [moduleSchema],

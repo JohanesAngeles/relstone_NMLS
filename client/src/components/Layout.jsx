@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, BookOpen, ShoppingCart, HelpCircle,
@@ -57,6 +58,7 @@ const SideNavItem = ({ icon, label, sub, active, danger, onClick }) => (
 /* ─── Layout ─────────────────────────────────────────────────────── */
 const Layout = ({ children, pageTitle, pageSubtitle }) => {
   const { user, logout } = useAuth();
+  const { t }             = useTranslation();
   const navigate          = useNavigate();
   const location          = useLocation();
   const [showLogout,     setShowLogout]     = useState(false);
@@ -91,7 +93,7 @@ const Layout = ({ children, pageTitle, pageSubtitle }) => {
 
       {/* Mobile Backdrop Overlay */}
       <div 
-        className={`mobile-overlay ${sidebarOpen ? 'visible' : ''}`} 
+        className={`mobile-overlay ${sidebarOpen && window.innerWidth <= 1024 ? 'visible' : ''}`} 
         onClick={() => setSidebarOpen(false)} 
       />
 
@@ -108,14 +110,14 @@ const Layout = ({ children, pageTitle, pageSubtitle }) => {
               <span style={S.logoSub}>Mortgage Licensing Education</span>
             </div>
             <div style={S.logoDivider} className="hide-mobile" />
-            <span style={S.logoTagline} className="hide-tablet">Student Portal</span>
+            <span style={S.logoTagline} className="hide-tablet">{t('layout.studentPortal')}</span>
           </div>
         </div>
 
         {/* ── Search bar ── */}
         <div style={S.topSearch} className="top-search">
           <Search size={15} style={{ color: "rgba(255,255,255,0.55)", flexShrink: 0 }} />
-          <input style={S.topSearchInput} placeholder="Search Courses..." />
+          <input style={S.topSearchInput} placeholder={t('layout.searchPlaceholder')} aria-label={t('layout.searchPlaceholder')} />
         </div>
 
         <div style={S.topbarRight}>
@@ -149,25 +151,25 @@ const Layout = ({ children, pageTitle, pageSubtitle }) => {
 
           <div style={S.sideDivider} />
 
-          <div style={S.sideSection}>MY ACCOUNT</div>
-          <SideNavItem icon={<LayoutDashboard size={20} />} label="Dashboard"      sub="Home / Overview & Summary"              active={isActive('/dashboard')}    onClick={() => navigate('/dashboard')} />
-          <SideNavItem icon={<BookOpen size={20} />}        label="My Courses"     sub="Progress & Certificates"                active={isActive('/my-courses')}   onClick={() => navigate('/my-courses')} />
-          <SideNavItem icon={<Award size={20} />}           label="Certificates"   sub="Download & Verify"                      active={isActive('/certificates')} onClick={() => navigate('/certificates')} />
-          <SideNavItem icon={<GraduationCap size={20} />}   label="Browse Courses" sub="Find PE and CE courses"                 active={isActive('/courses')}      onClick={() => navigate('/courses')} />
+          <div style={S.sideSection}>{t('layout.myAccount')}</div>
+          <SideNavItem icon={<LayoutDashboard size={20} />} label={t('layout.dashboard')} sub="Home / Overview & Summary"              active={isActive('/dashboard')}    onClick={() => navigate('/dashboard')} />
+          <SideNavItem icon={<BookOpen size={20} />}        label={t('layout.myCourses')} sub="Progress & Certificates"                active={isActive('/my-courses')}   onClick={() => navigate('/my-courses')} />
+          <SideNavItem icon={<Award size={20} />}           label={t('layout.certificates')} sub="Download & Verify"                   active={isActive('/certificates')} onClick={() => navigate('/certificates')} />
+          <SideNavItem icon={<GraduationCap size={20} />}   label={t('layout.browseCourses')} sub="Find PE and CE courses"              active={isActive('/courses')}      onClick={() => navigate('/courses')} />
 
           <div style={S.sideDivider} />
 
-          <div style={S.sideSection}>SETTINGS & SUPPORT</div>
-          <SideNavItem icon={<User size={20} />}         label="My Profile"      sub="Personal info & preferences"            active={isActive('/profile')}        onClick={() => navigate('/profile')} />
-          <SideNavItem icon={<Settings size={20} />}     label="Account Setup"   sub="NMLS ID, license goals & notifications" active={isActive('/account-setup')} onClick={() => navigate('/account-setup')} />
-          <SideNavItem icon={<ShoppingCart size={20} />} label="My Orders"       sub="Purchase History & Receipts"            active={isActive('/orders')}         onClick={() => navigate('/orders')} />
-          <SideNavItem icon={<HelpCircle size={20} />}   label="Contact Support" sub="Get Help from RELS NMLS"                active={isActive('/support')}        onClick={() => navigate('/support')} />
+          <div style={S.sideSection}>{t('layout.settingsSupport')}</div>
+          <SideNavItem icon={<User size={20} />}         label={t('layout.myProfile')} sub="Personal info & preferences"             active={isActive('/profile')}        onClick={() => navigate('/profile')} />
+          <SideNavItem icon={<Settings size={20} />}     label={t('layout.accountSetup')} sub="NMLS ID, license goals & notifications" active={isActive('/account-setup')} onClick={() => navigate('/account-setup')} />
+          <SideNavItem icon={<ShoppingCart size={20} />} label={t('layout.myOrders')} sub="Purchase History & Receipts"             active={isActive('/orders')}         onClick={() => navigate('/orders')} />
+          <SideNavItem icon={<HelpCircle size={20} />}   label={t('layout.contactSupport')} sub="Get Help from RELS NMLS"             active={isActive('/support')}        onClick={() => navigate('/support')} />
 
           <div style={S.sideDivider} />
 
           <SideNavItem
             icon={<LogOut size={20} style={{ color: "#EF4444" }} />}
-            label="Sign out" sub="End Your Session"
+            label={t('layout.signOut')} sub="End Your Session"
             danger
             onClick={() => setShowLogout(true)}
           />

@@ -1,0 +1,48 @@
+const es = {
+  common: {
+    appName: "Relstone NMLS",
+    skipToMain: "Saltar al contenido principal",
+  },
+  accessibility: {
+    title: "Accesibilidad",
+    openPanel: "Abrir controles de accesibilidad",
+    closePanel: "Cerrar controles de accesibilidad",
+    language: "Idioma",
+    highContrast: "Alto contraste",
+    highContrastOn: "Activado",
+    highContrastOff: "Desactivado",
+    keyboardNav: "Anillo de enfoque del teclado",
+    keyboardNavOn: "Habilitado",
+    keyboardNavOff: "Deshabilitado",
+    fontScale: "Tamano de texto",
+    reset: "Restablecer",
+    english: "Ingles",
+    spanish: "Espanol",
+    shortcutHint: "Atajo: Alt + H activa/desactiva alto contraste",
+  },
+  layout: {
+    studentPortal: "Portal del Estudiante",
+    searchPlaceholder: "Buscar estados o cursos...",
+    myAccount: "Mi Cuenta",
+    settingsSupport: "Configuracion y Soporte",
+    dashboard: "Panel",
+    myCourses: "Mis Cursos",
+    certificates: "Certificados",
+    browseCourses: "Explorar Cursos",
+    myProfile: "Mi Perfil",
+    accountSetup: "Configuracion de Cuenta",
+    myOrders: "Mis Pedidos",
+    contactSupport: "Contactar Soporte",
+    signOut: "Cerrar sesion",
+  },
+  video: {
+    lessonVideo: "Leccion en video",
+    captionsRequired: "Se requieren subtitulos para esta leccion.",
+    captionsMissing: "No se proporciono una pista de subtitulos para este video.",
+    transcript: "Transcripcion",
+    noTranscript: "No hay transcripcion disponible para esta leccion.",
+    externalVideoHint: "Si no ves subtitulos, usa el control CC del reproductor.",
+  },
+};
+
+export default es;

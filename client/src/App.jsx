@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import AccessibilityControls from './components/AccessibilityControls';
 import PrivateRoute from './components/PrivateRoute';
 import LandingPage from './pages/landing_page/LandingPage';
 import AuthModal from './pages/auth_page/AuthModal';
@@ -80,134 +81,48 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
-          {/* ── Public ── */}
-          <Route path="/"                   element={<LandingWrapper />} />
-          <Route path="/certificate-test"   element={<Certificate />} />
+        <div id="app-main-content" tabIndex={-1}>
+          <Routes>
+            {/* ── Public ── */}
+            <Route path="/" element={<LandingWrapper />} />
+            <Route path="/certificate-test" element={<Certificate />} />
+            <Route path="/resources" element={<ResourcesHub />} />
+            <Route path="/resources/:slug" element={<ResourceArticlePage />} />
 
-          {/* Public resources */}
-          <Route path="/resources" element={<ResourcesHub />} />
-          <Route path="/resources/:slug" element={<ResourceArticlePage />} />
+            {/* ── /home — role-aware entry point ── */}
+            <Route path="/home" element={<PrivateRoute><RoleHomeRedirect /></PrivateRoute>} />
 
-          {/* ── /home — role-aware entry point ── */}
-          <Route path="/home" element={
-            <PrivateRoute>
-              <RoleHomeRedirect />
-            </PrivateRoute>
-          } />
+            {/* ── Student-only pages ── */}
+            <Route path="/dashboard" element={<StudentRoute><Dashboard /></StudentRoute>} />
+            <Route path="/my-courses" element={<StudentRoute><MyCourses /></StudentRoute>} />
+            <Route path="/account-setup" element={<StudentRoute><AccountSetup /></StudentRoute>} />
+            <Route path="/testimonials" element={<StudentRoute><Testimonials /></StudentRoute>} />
+            <Route path="/profile" element={<StudentRoute><Profile /></StudentRoute>} />
+            <Route path="/certificates" element={<StudentRoute><MyCertificates /></StudentRoute>} />
+            <Route path="/orders" element={<StudentRoute><OrdersBilling /></StudentRoute>} />
+            <Route path="/support" element={<StudentRoute><ContactSupport /></StudentRoute>} />
+            <Route path="/ce-tracker" element={<StudentRoute><CETracker /></StudentRoute>} />
 
-          {/* ── Student-only pages ── */}
-          <Route path="/dashboard" element={<StudentRoute><Dashboard /></StudentRoute>} />
-          <Route path="/my-courses" element={<StudentRoute><MyCourses /></StudentRoute>} />
-          <Route path="/account-setup" element={<StudentRoute><AccountSetup /></StudentRoute>} />
-          <Route path="/testimonials" element={<StudentRoute><Testimonials /></StudentRoute>} />
-          <Route path="/profile" element={<StudentRoute><Profile /></StudentRoute>} />
-          <Route path="/certificates" element={<StudentRoute><MyCertificates /></StudentRoute>} />
-          <Route path="/orders" element={<StudentRoute><OrdersBilling /></StudentRoute>} />
-          <Route path="/support" element={<StudentRoute><ContactSupport /></StudentRoute>} />
+            {/* ── Instructor-only pages ── */}
+            <Route path="/instructor/dashboard" element={<InstructorRoute><InstructorDashboard /></InstructorRoute>} />
+            <Route path="/instructor/students" element={<InstructorRoute><ViewStudents /></InstructorRoute>} />
+            <Route path="/instructor/testimonials" element={<InstructorRoute><TestimonialApproval /></InstructorRoute>} />
+            <Route path="/instructor/course/:courseId" element={<InstructorRoute><CourseDetail /></InstructorRoute>} />
+            <Route path="/instructor/students/:studentId" element={<InstructorRoute><StudentDetail /></InstructorRoute>} />
+            <Route path="/instructor/support" element={<InstructorRoute><SupportInbox /></InstructorRoute>} />
+            <Route path="/instructor/course/:courseId/edit" element={<InstructorRoute><EditCourseModal /></InstructorRoute>} />
 
-          {/* CE Tracker */}
-          <Route path="/ce-tracker" element={
-            <PrivateRoute>
-              <CETracker />
-            </PrivateRoute>
-          } />
-
-          {/* Instructor dashboard */}
-          <Route path="/instructor/dashboard" element={
-            <PrivateRoute>
-              <InstructorDashboard />
-            </PrivateRoute>
-          } />
-
-          {/* Instructor students */}
-          <Route path="/instructor/students" element={
-            <PrivateRoute>
-              <ViewStudents />
-            </PrivateRoute>
-          } />
-
-          {/* Checkout */}
-          <Route path="/checkout" element={
-            <PrivateRoute>
-              <Checkout />
-            </PrivateRoute>
-          } />
-
-          {/* Courses */}
-          <Route path="/courses" element={
-            <PrivateRoute>
-              <Courses />
-            </PrivateRoute>
-          } />
-
-          {/* Discover pages */}
-          <Route path="/state-requirements" element={
-            <PrivateRoute>
-              <StateRequirements />
-            </PrivateRoute>
-          } />
-
-          <Route path="/pricing" element={
-            <PrivateRoute>
-              <PricingPage />
-            </PrivateRoute>
-          } />
-
-          {/* Course detail */}
-          <Route path="/courses/:id" element={
-            <PrivateRoute>
-              <CourseDetails />
-            </PrivateRoute>
-          } />
-
-          {/* Course portal / LMS */}
-          <Route path="/courses/:id/learn" element={
-            <PrivateRoute>
-              <CoursePortal />
-            </PrivateRoute>
-          } />
-
-          {/* Certificate */}
-          <Route path="/certificate/:courseId" element={
-            <PrivateRoute>
-              <Certificate />
-            </PrivateRoute>
-          } />
-          <Route path="/my-courses" element={
-            <PrivateRoute>
-              <MyCourses />
-            </PrivateRoute>
-          } />
-          <Route path="/profile" element={
-            <PrivateRoute>
-              <Profile />
-            </PrivateRoute>
-          } />
-          <Route path="/certificates" element={
-            <PrivateRoute>
-              <MyCertificates />
-            </PrivateRoute>
-          } />
-          <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
-=======
-          {/* ── Instructor-only pages ── */}
-          <Route path="/instructor/dashboard" element={<InstructorRoute><InstructorDashboard /></InstructorRoute>} />
-          <Route path="/instructor/students" element={<InstructorRoute><ViewStudents /></InstructorRoute>} />
-          <Route path="/instructor/testimonials" element={<InstructorRoute><TestimonialApproval /></InstructorRoute>} />
-          <Route path="/instructor/course/:courseId" element={<InstructorRoute><CourseDetail /></InstructorRoute>} />
-          <Route path="/instructor/students/:studentId" element={<InstructorRoute><StudentDetail /></InstructorRoute>} />
-          <Route path="/instructor/support" element={<InstructorRoute><SupportInbox /></InstructorRoute>} />
-          <Route path="/instructor/course/:courseId/edit" element={<InstructorRoute><EditCourseModal /></InstructorRoute>} />
-
-          {/* ── Shared private pages ── */}
-          <Route path="/courses" element={<PrivateRoute><Courses /></PrivateRoute>} />
-          <Route path="/courses/:id" element={<PrivateRoute><CourseDetails /></PrivateRoute>} />
-          <Route path="/courses/:id/learn" element={<PrivateRoute><CoursePortal /></PrivateRoute>} />
-          <Route path="/certificate/:courseId" element={<PrivateRoute><Certificate /></PrivateRoute>} />
-          <Route path="/checkout" element={<PrivateRoute><Checkout /></PrivateRoute>} />
->>>>>>> main
-        </Routes>
+            {/* ── Shared private pages ── */}
+            <Route path="/courses" element={<PrivateRoute><Courses /></PrivateRoute>} />
+            <Route path="/state-requirements" element={<PrivateRoute><StateRequirements /></PrivateRoute>} />
+            <Route path="/pricing" element={<PrivateRoute><PricingPage /></PrivateRoute>} />
+            <Route path="/courses/:id" element={<PrivateRoute><CourseDetails /></PrivateRoute>} />
+            <Route path="/courses/:id/learn" element={<PrivateRoute><CoursePortal /></PrivateRoute>} />
+            <Route path="/certificate/:courseId" element={<PrivateRoute><Certificate /></PrivateRoute>} />
+            <Route path="/checkout" element={<PrivateRoute><Checkout /></PrivateRoute>} />
+          </Routes>
+        </div>
+        <AccessibilityControls />
       </Router>
     </AuthProvider>
   );
