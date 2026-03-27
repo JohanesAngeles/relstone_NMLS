@@ -11,7 +11,7 @@ import {
   Eye, RefreshCw, GraduationCap, FileText,
   MessageSquare, ThumbsUp, ThumbsDown, Trash2,
   UserCheck, UserX, Activity, BookPlus, BookMinus,
-  Filter, Calendar, User, Pencil,
+  Filter, Calendar, User, Pencil, Bell,
 } from "lucide-react";
 
 /* ─── Logout Confirm ─────────────────────────────────────────────── */
@@ -373,6 +373,10 @@ const InstructorDashboard = () => {
   const [activityLogs,    setActivityLogs]    = useState([]);
   const [logsLoading,     setLogsLoading]     = useState(false);
 
+  // ── Support Tickets ───────────────────────────────────────────────
+  const [supportTickets,  setSupportTickets]  = useState([]);
+  const [supportLoading,  setSupportLoading]  = useState(false);
+
   // ── Toggle active state ───────────────────────────────────────────
   const [toggleTarget,  setToggleTarget]  = useState(null);
   const [toggleLoading, setToggleLoading] = useState(false);
@@ -387,6 +391,14 @@ const InstructorDashboard = () => {
         setLoading(true);
         const res = await API.get("/instructor/dashboard");
         setData(res.data);
+        
+        // Fetch support tickets for badge count
+        try {
+          const ticketRes = await API.get("/support/admin/all?status=open&status=in_progress");
+          setSupportTickets(ticketRes.data?.tickets || []);
+        } catch {
+          setSupportTickets([]);
+        }
       } catch (err) {
         if (err.response?.status === 404) setData({});
         else setError("Failed to load instructor dashboard");
@@ -395,6 +407,19 @@ const InstructorDashboard = () => {
       }
     };
     fetchAll();
+  }, []);
+
+  // Refresh support tickets periodically
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const ticketRes = await API.get("/support/admin/all?status=open&status=in_progress");
+        setSupportTickets(ticketRes.data?.tickets || []);
+      } catch {
+        setSupportTickets([]);
+      }
+    }, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -587,6 +612,10 @@ const InstructorDashboard = () => {
     : testimonials.filter(t => t.status === testimonialFilter);
 
   const pendingCount  = testimonials.filter(t => t.status === "pending").length;
+  const openTicketCount = supportTickets.filter(t => t.status === "open").length;
+  const inProgressCount = supportTickets.filter(t => t.status === "in_progress").length;
+  const urgentTicketCount = supportTickets.filter(t => t.priority === "urgent" && t.status !== "closed" && t.status !== "resolved").length;
+  const totalOpenSupport = openTicketCount + inProgressCount;
   const recentCourses = useMemo(() => displayCourses.slice(0, 3), [displayCourses]);
 
   if (loading) return (
@@ -716,6 +745,10 @@ const InstructorDashboard = () => {
                 label="Support Inbox"
                 active={false}
                 onClick={() => navigate("/instructor/support")}
+                icon={<MessageSquare size={15} />}
+                badge={totalOpenSupport}
+                highlight={totalOpenSupport > 0 || urgentTicketCount > 0}
+                urgent={urgentTicketCount > 0}
               />
             </div>
 
@@ -804,7 +837,7 @@ const InstructorDashboard = () => {
                     <ActionCard icon={<UserX size={17} />}      title="Inactive Students" sub={`${inactiveCount} student${inactiveCount !== 1 ? "s" : ""} deactivated`} onClick={() => { setActiveTab("students"); setStatusFilter("inactive"); }} />
                     <ActionCard icon={<BarChart2 size={17} />}  title="Completions"       sub={`${totalCompletions} completions across all courses`} onClick={() => {}} />
                     <ActionCard icon={<Activity size={17} />}   title="Activity Logs"     sub="View all course edits and assignments"           onClick={() => setActiveTab("logs")} />
-                    <ActionCard icon={<MessageSquare size={17} />} title="Support Inbox" sub="View and respond to student tickets" onClick={() => navigate("/instructor/support")} />
+                    <ActionCard icon={<MessageSquare size={17} />} title="Support Inbox" sub={totalOpenSupport > 0 ? `${totalOpenSupport} open ticket${totalOpenSupport !== 1 ? "s" : ""} waiting` : "View and respond to student tickets"} onClick={() => navigate("/instructor/support")} />
                   </div>
                 </div>
               </div>
@@ -969,13 +1002,21 @@ const InstructorDashboard = () => {
 
 /* ─── Sub-components ─── */
 
-const TabButton = ({ label, active, onClick, highlight }) => (
+const TabButton = ({ label, active, onClick, highlight, badge, icon, urgent }) => (
   <button type="button" onClick={onClick} style={{
     ...S.tabBtn,
     ...(active ? S.tabBtnActive : {}),
     ...(highlight && !active ? S.tabBtnHighlight : {}),
+    ...(urgent ? S.tabBtnUrgent : {}),
+    position: "relative",
   }}>
-    {label}
+    {icon && <span style={{ display: "flex", alignItems: "center", marginRight: 6 }}>{icon}</span>}
+    <span>{label}</span>
+    {badge !== undefined && badge > 0 && (
+      <span style={S.badgeNotification}>
+        {badge > 9 ? "9+" : badge}
+      </span>
+    )}
   </button>
 );
 
@@ -1394,6 +1435,8 @@ body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:va
 .rs-course-card{transition:box-shadow .2s,transform .2s;}
 .rs-course-card:hover{box-shadow:0 12px 36px rgba(2,8,23,0.12);transform:translateY(-2px);}
 .rs-log-card:hover{box-shadow:0 4px 18px rgba(2,8,23,0.09);}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.rs-badge-pulse { animation: pulse 1.5s ease-in-out infinite; }
 `;
 
 /* ─── Styles ─── */
@@ -1433,9 +1476,11 @@ const S = {
   card:         { marginTop: 14, borderRadius: 22, background: "rgba(255,255,255,0.82)", border: "1px solid rgba(2,8,23,0.08)", boxShadow: "var(--rs-shadow)", backdropFilter: "blur(10px)", overflow: "hidden" },
   tabRow:       { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "14px 14px 10px", borderBottom: "1px solid rgba(2,8,23,0.06)" },
   tabs:         { display: "flex", gap: 8, flexWrap: "wrap" },
-  tabBtn:       { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.65)" },
+  tabBtn:       { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.65)", display: "inline-flex", alignItems: "center", gap: 6 },
   tabBtnActive:{ borderColor: "rgba(0,180,180,0.35)", boxShadow: "0 0 0 4px var(--rs-ring)", color: "var(--rs-dark)" },
   tabBtnHighlight: { borderColor: "rgba(245,158,11,0.45)", color: "rgba(146,84,0,1)", background: "rgba(245,158,11,0.06)" },
+  tabBtnUrgent: { borderColor: "rgba(239,68,68,0.45)", color: "rgba(185,28,28,1)", background: "rgba(239,68,68,0.06)" },
+  badgeNotification: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, background: "rgba(239,68,68,0.90)", color: "#fff", fontSize: 10, fontWeight: 900, padding: "0 4px", marginLeft: 4, boxShadow: "0 2px 8px rgba(239,68,68,0.30)" },
   searchWrap:   { display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", minWidth: 280 },
   searchInput: { border: "none", outline: "none", width: "100%", fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.80)", background: "transparent" },
   cardBody:    { padding: 14 },
