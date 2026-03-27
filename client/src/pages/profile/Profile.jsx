@@ -573,28 +573,149 @@ const css = `
 .pf-spinner { width:34px;height:34px;border-radius:999px;border:3px solid rgba(2,8,23,0.10);border-top-color:#2EABFE;animation:pf-spin 1s linear infinite; }
 @keyframes pf-spin { to{transform:rotate(360deg);} }
 select.pf-select { appearance:none; }
-`;
+
+/* Enhanced Mobile Responsive */
+@media (max-width: 1024px) {
+  .pf-shell { padding: 20px 16px 40px !important; }
+  .pf-layout { grid-template-columns: 240px 1fr !important; gap: 16px !important; }
+  .pf-avatar { width: 56px !important; height: 56px !important; }
+  .pf-avatar-initial { font-size: 22px !important; }
+}
+
+@media (max-width: 768px) {
+  .pf-shell { padding: 12px 12px 32px !important; }
+  .pf-layout { 
+    grid-template-columns: 1fr !important; 
+    gap: 24px !important; 
+    align-items: stretch !important;
+  }
+  .pf-sidebar { 
+    order: 2; 
+    position: static !important; 
+    top: auto !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+  .pf-avatar-card { 
+    margin-bottom: 16px !important; 
+    text-align: center !important;
+    width: 100% !important;
+  }
+  .pf-main { order: 1; }
+  .pf-page-title { font-size: 24px !important; line-height: 1.2 !important; }
+  .pf-avatar { width: 64px !important; height: 64px !important; margin: 0 auto 12px !important; }
+  .pf-avatar-initial { font-size: 24px !important; }
+  .pf-avatar-name { font-size: 16px !important; }
+  .pf-side-nav { 
+    width: 100% !important;
+    padding: 12px !important; 
+    gap: 8px !important; 
+    display: grid !important;
+  }
+  .pf-side-nav-btn { 
+    padding: 14px 16px !important; 
+    justify-content: space-between !important; 
+    min-height: 52px !important; 
+    font-size: 15px !important;
+    gap: 8px !important;
+    border-radius: 12px !important;
+  }
+  .pf-side-nav-btn svg { width: 18px !important; height: 18px !important; }
+  .pf-two-col { grid-template-columns: 1fr !important; gap: 16px !important; }
+  .pf-input, select, input[type="date"] { 
+    height: 52px !important; 
+    padding-left: 46px !important; 
+    padding-right: 46px !important; 
+    font-size: 16px !important; /* iOS zoom prevent */
+  }
+  .pf-save-btn, .pf-browse-btn { 
+    min-height: 52px !important; 
+    padding: 14px 28px !important; 
+    font-size: 15px !important;
+  }
+  .pf-section-card-head { padding: 20px 16px 14px !important; }
+  .pf-section-card-body { padding: 16px 16px 24px !important; }
+  .pf-notif-table { display: block !important; }
+  .pf-notif-header { display: none !important; }
+  .pf-notif-row { 
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 16px !important;
+    padding: 20px 16px !important;
+  }
+  .pf-notif-row > div:first-child { margin-bottom: 12px !important; }
+  .pf-notif-toggle-cell { width: 100% !important; justify-content: center !important; }
+  .pf-notif-label { font-size: 16px !important; }
+  .pf-order-top { 
+    flex-direction: column !important; 
+    align-items: stretch !important; 
+    gap: 12px !important;
+  }
+  .pf-order-total { font-size: 20px !important; text-align: center !important; }
+  .pf-goal-card { padding: 20px !important; }
+}
+
+@media (max-width: 480px) {
+  .pf-shell { padding: 12px 8px 28px !important; }
+  .pf-page-title { font-size: 22px !important; }
+  .pf-page-kicker { font-size: 11px !important; }
+  .pf-section-card-head { padding: 20px 16px 14px !important; }
+  .pf-section-card-body { padding: 20px 16px 24px !important; }
+  .pf-side-nav-btn { padding: 18px 20px !important; font-size: 15px !important; }
+  .pf-side-nav { gap: 6px !important; padding: 12px !important; }
+  .pf-notif-row { padding: 16px 12px !important; gap: 20px !important; }
+  .pf-label { font-size: 12px !important; }
+  .pf-avatar-email, .pf-avatar-nmls { font-size: 12px !important; }
+  .pf-order-item-title { font-size: 14px !important; }
+  /* Full-width toast */
+  div[style*="position:fixed"][style*="bottom:24"] { 
+    bottom: 12px !important; 
+    right: 12px !important; 
+    left: 12px !important; 
+    max-width: none !important; 
+    padding: 16px 20px !important;
+  }
+  /* Larger toggle for tiny screens */
+  div[style*="width:40"][style*="height:22"] { 
+    width: 52px !important; 
+    height: 28px !important; 
+  }
+  div[style*="position:absolute"][style*="top:3"] { 
+    width: 20px !important; 
+    height: 20px !important; 
+    top: 4px !important;
+  }
+}
+
+/* Additional utility for inputs/buttons */
+.pf-input, .pf-select, input[type="date"], .pf-input { min-height: 52px !important; }
+.pf-save-btn, .pf-browse-btn { min-height: 52px !important; touch-action: manipulation; }
+.pf-shell * { box-sizing: border-box !important; }
+@media (hover: none) { .pf-side-nav-btn { min-height: 52px !important; } }
+`
 
 /* ── Styles ──────────────────────────────────────────────────────── */
 const S = {
-  shell:            { maxWidth:1180, margin:"0 auto", padding:"24px 18px 48px" },
+  shell:            { maxWidth:1180, margin:"0 auto", padding:"24px 18px 48px", className:"pf-shell" },
   center:           { minHeight:"60vh", display:"grid", placeItems:"center" },
   pageKicker:       { fontSize:12, fontWeight:800, color:"#2EABFE", textTransform:"uppercase", letterSpacing:".06em", marginBottom:4 },
-  pageTitle:        { fontSize:26, fontWeight:950, color:"#091925", letterSpacing:"-0.4px", marginBottom:22 },
+  pageTitle:        { fontSize:26, fontWeight:950, color:"#091925", letterSpacing:"-0.4px", marginBottom:22, className:"pf-page-title" },
   pageHeader:       { marginBottom:4 },
 
-  layout:           { display:"grid", gridTemplateColumns:"260px 1fr", gap:20, alignItems:"start" },
+  layout:           { display:"grid", gridTemplateColumns:"260px 1fr", gap:20, alignItems:"start", className:"pf-layout" },
 
   // Sidebar
-  sidebar:          { display:"grid", gap:14, position:"sticky", top:78 },
-  avatarCard:       { borderRadius:18, background:"#fff", border:"1px solid rgba(2,8,23,0.08)", padding:"22px 18px", textAlign:"center" },
+  sidebar:          { display:"grid", gap:20, position:"sticky", top:78, '@media (max-width: 768px)': { flexDirection: 'column', alignItems: 'center' } },
+  avatarCard:       { borderRadius:18, background:"#fff", border:"1px solid rgba(2,8,23,0.08)", padding:"22px 18px", textAlign:"center", className: "pf-avatar-card" },
   avatar:           { width:64, height:64, borderRadius:999, background:"linear-gradient(135deg,#2EABFE,#00B4B4)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 12px" },
   avatarInitial:    { fontSize:26, fontWeight:900, color:"#fff" },
   avatarName:       { fontWeight:900, fontSize:15, color:"#091925", marginBottom:4 },
   avatarEmail:      { fontSize:12, color:"rgba(9,25,37,0.50)", fontWeight:600, marginBottom:6 },
   avatarNmls:       { display:"inline-block", padding:"3px 10px", borderRadius:999, background:"rgba(46,171,254,0.10)", border:"1px solid rgba(46,171,254,0.22)", fontSize:11, fontWeight:800, color:"#2EABFE" },
   sideNav:          { borderRadius:18, background:"#fff", border:"1px solid rgba(2,8,23,0.08)", padding:8, display:"grid", gap:2 },
-  sideNavBtn:       { display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:12, border:"none", background:"transparent", cursor:"pointer", fontWeight:700, fontSize:13, color:"rgba(9,25,37,0.65)", textAlign:"left", transition:"all .15s", fontFamily:"inherit" },
+  sideNavBtn:       { display:"flex", alignItems:"center", gap:10, padding:"10px 12px", borderRadius:12, border:"none", background:"transparent", cursor:"pointer", fontWeight:700, fontSize:13, color:"rgba(9,25,37,0.65)", textAlign:"left", transition:"all .15s", fontFamily:"inherit", className:"pf-side-nav-btn" },
   sideNavBtnActive: { background:"rgba(46,171,254,0.08)", color:"#091925", border:"1px solid rgba(46,171,254,0.18)" },
 
   // Main
@@ -607,7 +728,7 @@ const S = {
 
   // Form
   form:             { display:"grid", gap:16 },
-  twoCol:           { display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 },
+  twoCol:           { display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, className:"pf-two-col" },
   field:            { display:"grid", gap:7 },
   label:            { fontSize:12, fontWeight:700, color:"rgba(9,25,37,0.65)" },
   fieldHint:        { fontSize:11, color:"rgba(9,25,37,0.42)", fontWeight:600, marginTop:3 },
@@ -616,13 +737,13 @@ const S = {
   saveBtn:          { display:"inline-flex", alignItems:"center", gap:7, padding:"11px 20px", borderRadius:12, border:"none", background:"#091925", color:"#fff", cursor:"pointer", fontWeight:800, fontSize:13, transition:"all .18s" },
 
   // Notifications
-  notifTable:       { display:"grid", gap:0, border:"1px solid rgba(2,8,23,0.07)", borderRadius:14, overflow:"hidden" },
-  notifHeader:      { display:"flex", alignItems:"center", gap:8, padding:"10px 16px", background:"rgba(2,8,23,0.03)", borderBottom:"1px solid rgba(2,8,23,0.07)" },
+  notifTable:       { display:"grid", gap:0, border:"1px solid rgba(2,8,23,0.07)", borderRadius:14, overflow:"hidden", className:"pf-notif-table" },
+  notifHeader:      { display:"flex", alignItems:"center", gap:8, padding:"10px 16px", background:"rgba(2,8,23,0.03)", borderBottom:"1px solid rgba(2,8,23,0.07)", className:"pf-notif-header" },
   notifColLabel:    { width:80, textAlign:"center", fontSize:11, fontWeight:800, color:"rgba(9,25,37,0.55)", display:"flex", alignItems:"center", justifyContent:"center", gap:5 },
-  notifRow:         { display:"flex", alignItems:"center", gap:8, padding:"14px 16px", borderBottom:"1px solid rgba(2,8,23,0.05)" },
+  notifRow:         { display:"flex", alignItems:"center", gap:8, padding:"14px 16px", borderBottom:"1px solid rgba(2,8,23,0.05)", className:"pf-notif-row" },
   notifLabel:       { fontWeight:800, fontSize:13, color:"rgba(9,25,37,0.85)", marginBottom:2 },
   notifSub:         { fontSize:11, fontWeight:600, color:"rgba(9,25,37,0.45)" },
-  notifToggleCell:  { width:80, display:"flex", justifyContent:"center" },
+  notifToggleCell:  { width:80, display:"flex", justifyContent:"center", className:"pf-notif-toggle-cell" },
 
   // License goals
   goalCard:         { borderRadius:14, border:"1px solid rgba(46,171,254,0.20)", background:"rgba(46,171,254,0.04)", padding:"14px 16px" },
@@ -639,7 +760,7 @@ const S = {
 
   // Orders
   orderCard:        { borderRadius:14, border:"1px solid rgba(2,8,23,0.08)", background:"#fff", padding:"14px 16px" },
-  orderTop:         { display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:10, marginBottom:12 },
+  orderTop:         { display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:10, marginBottom:12, className:"pf-order-top" },
   orderNum:         { fontWeight:900, fontSize:14, color:"rgba(9,25,37,0.85)" },
   orderDate:        { fontSize:12, fontWeight:600, color:"rgba(9,25,37,0.45)", marginTop:3 },
   orderTotal:       { fontWeight:900, fontSize:16, color:"#091925" },
@@ -651,4 +772,4 @@ const S = {
   orderItemBadge:   { padding:"2px 7px", borderRadius:999, background:"rgba(46,171,254,0.10)", color:"#2EABFE", border:"1px solid rgba(46,171,254,0.20)" },
 };
 
-export default Profile;
+export default Profile; 
