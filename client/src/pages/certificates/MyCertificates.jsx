@@ -213,8 +213,8 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
 
   return (
     <>
-      <div style={M.backdrop} onClick={onClose} />
-      <div style={M.modal} role="dialog" aria-modal="true">
+      <div style={M.backdrop} onClick={onClose} className="cert-modal-backdrop" /> 
+      <div style={M.modal} role="dialog" aria-modal="true" className="cert-modal"> 
 
         <div style={M.modalHead}>
           <div style={M.modalHeadLeft}>
@@ -234,7 +234,7 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
           </div>
         </div>
 
-        <div style={M.modalBody}>
+        <div style={M.modalBody} className="cert-modal-body"> 
 
           {/* ── Certificate preview ── */}
           <div style={M.certWrap}>
@@ -268,7 +268,7 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
                 <div style={M.certHasCompleted}>has successfully completed</div>
                 <div style={M.certCourseName}>{cert.course_title}</div>
 
-                <div style={M.certDetails}>
+  <div style={M.certDetails} className="cert-details"> 
                   <CertDetail label="Credit Hours"     value={cert.credit_hours ? `${cert.credit_hours} Hours` : "—"} />
                   <CertDetail label="Completion Date"  value={completedAt ? completedAt.toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" }) : "—"} />
                   <CertDetail label="State"            value={cert.state || user?.state || "—"} />
@@ -278,7 +278,7 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
                 </div>
               </div>
 
-              <div style={M.certSignRow}>
+  <div style={M.certSignRow} className="cert-sign-row"> 
                 <div style={M.certSigBlock}>
                   <div style={M.certSigLine} />
                   <div style={M.certSigLabel}>Authorized Signature</div>
@@ -318,7 +318,7 @@ const CertificatePreviewModal = ({ cert, user, onClose, onLinkedIn, onViewFull, 
           </div>
 
           {/* ── Side panel ── */}
-          <div style={M.sidePanel}>
+          <div style={M.sidePanel} className="cert-modal-side"> 
 
             <div style={M.sideSect}>
               <div style={M.sideSectTitle}>Certificate ID</div>
@@ -456,11 +456,29 @@ const SUBMISSION_STEPS = [
 ];
 
 /* ── CSS ─────────────────────────────────────────────────────────── */
-const css = `
+  const css = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 *{box-sizing:border-box}
 .mc-spinner{width:34px;height:34px;border-radius:999px;border:3px solid rgba(2,8,23,0.10);border-top-color:#2EABFE;animation:mc-spin 1s linear infinite;}
 @keyframes mc-spin{to{transform:rotate(360deg);}}
+
+.cert-modal-backdrop { position: fixed !important; inset: 0 !important; z-index: 200 !important; background: rgba(9,25,37,0.75) !important; backdrop-filter: blur(8px) !important; }
+.cert-modal { position: fixed !important; z-index: 201 !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; width: min(1020px, 96vw) !important; max-height: 92vh !important; max-width: 95vw !important; background: #fff !important; border-radius: 24px !important; box-shadow: 0 40px 100px rgba(9,25,37,0.3) !important; display: flex !important; flex-direction: column !important; overflow: hidden !important; }
+@media (max-width: 768px) {
+  .cert-modal { width: 95vw !important; height: 90vh !important; border-radius: 20px !important; }
+  .cert-modal-body { display: block !important; overflow: auto !important; }
+  .cert-modal-side { display: none !important; }
+  .cert-wrap { padding: 12px !important; }
+  .cert { width: 100% !important; min-width: unset !important; }
+  .cert-details { grid-template-columns: 1fr !important; }
+  .cert-sign-row { flex-direction: column !important; gap: 20px !important; padding: 20px 20px 16px !important; }
+  .modal-head-actions { flex-wrap: wrap !important; gap: 8px !important; }
+}
+@media (max-width: 480px) {
+  .modal-head { padding: 12px 16px !important; flex-direction: column !important; gap: 12px !important; align-items: stretch !important; }
+  .modal-head-left { justify-content: center !important; }
+  .download-btn, .linkedin-btn-sm { justify-content: center !important; width: 100% !important; }
+}
 `;
 
 /* ── Page Styles ─────────────────────────────────────────────────── */

@@ -80,10 +80,10 @@ const Courses = () => {
     <Layout>
       <style>{css}</style>
 
-      <div style={S.shell}>
+<div style={S.shell} className="shell">
 
         {/* ── Page header ── */}
-        <div style={S.pageHeader}>
+<div style={S.pageHeader} className="pageHeader">
           <div style={S.pageHeaderLeft}>
             <button style={S.backBtn} onClick={() => navigate("/dashboard")} type="button">
               <ArrowLeft size={15} /><span>Dashboard</span>
@@ -107,7 +107,7 @@ const Courses = () => {
 
         {/* ── Order success toast ── */}
         {orderSuccess && (
-          <div style={S.toastWrap}>
+<div style={S.toastWrap} className="toastWrap">
             <div style={S.toast}>
               <div style={S.toastLeft}>
                 <div style={S.toastIcon}><CheckCircle2 size={18} /></div>
@@ -124,7 +124,7 @@ const Courses = () => {
         )}
 
         {/* ── Filters ── */}
-        <section style={S.filtersCard}>
+<section style={S.filtersCard} className="filtersCard">
           <div style={S.filtersLeft}>
             <div style={S.searchWrap}>
               <Search size={15} style={{ opacity:0.6, flexShrink:0 }} />
@@ -166,7 +166,7 @@ const Courses = () => {
         </section>
 
         {/* ── Course grid ── */}
-        <section style={S.grid}>
+<section style={S.grid} className="grid">
           {loading ? (
             <div style={S.centerMsg}>Loading courses…</div>
           ) : error ? (
@@ -271,8 +271,8 @@ const Courses = () => {
       {/* ── Cart drawer ── */}
       {showCart && (
         <>
-          <div style={S.overlay} onClick={() => setShowCart(false)} />
-          <aside style={S.drawer}>
+<div style={S.overlay} className="overlay" onClick={() => setShowCart(false)} />
+<aside style={S.drawer} className="drawer">
             <div style={S.drawerHead}>
               <div style={S.drawerTitle}><ShoppingCart size={18} /><span>Your Cart</span></div>
               <button style={S.iconBtn} onClick={() => setShowCart(false)} type="button"><X size={18} /></button>
@@ -340,7 +340,122 @@ const badgeStyle = (type) => {
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 *{box-sizing:border-box}
+
+@media (max-width: 768px) {
+  .shell {
+    max-width: none !important;
+    padding: 16px 12px 40px !important;
+  }
+  
+  .pageHeader {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+  
+  .filtersCard {
+    flex-direction: column !important;
+    gap: 16px !important;
+    padding: 16px !important;
+  }
+  
+  .filtersLeft {
+    width: 100% !important;
+  }
+  
+  .searchWrap {
+    min-width: auto !important;
+    width: 100% !important;
+  }
+  
+  .filterWrap {
+    flex-wrap: wrap !important;
+  }
+  
+  .grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+  
+  .courseCard {
+    padding: 14px !important;
+    gap: 10px !important;
+  }
+  
+  .courseTitleRow {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  
+  .courseIcon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  
+  .detailsBox {
+    min-height: 120px !important;
+    padding: 8px !important;
+  }
+  
+  .modulesScroll {
+    max-height: 80px !important;
+  }
+  
+  .courseFooter {
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: stretch !important;
+  }
+  
+  .priceBlock {
+    order: 2 !important;
+  }
+  
+  .detailsBtn, .addBtn, .addedBtn {
+    width: 100% !important;
+    min-width: auto !important;
+  }
+  
+  .drawer {
+    width: 100vw !important;
+    max-width: none !important;
+  }
+  
+  .toastWrap {
+    left: 0 !important;
+    transform: none !important;
+    width: 100vw !important;
+    padding: 0 12px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .shell {
+    padding: 12px 8px 32px !important;
+  }
+  
+  .backBtn span, .cartBtn span:not(.cartCount):not(.cartTotalPill) {
+    display: none !important;
+  }
+  
+  .pageTitle {
+    font-size: 16px !important;
+  }
+  
+  .filterWrap {
+    flex-direction: column !important;
+  }
+  
+  .select {
+    width: 100% !important;
+    text-align: center !important;
+  }
+  
+  .courseTitle {
+    font-size: 15px !important;
+  }
+}
 `;
+
 
 const S = {
   shell:            { maxWidth:1180, margin:"0 auto", padding:"20px 18px 48px" },

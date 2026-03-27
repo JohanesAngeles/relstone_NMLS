@@ -98,7 +98,7 @@ const Dashboard = () => {
   return (
     <Layout>
       <style>{CSS}</style>
-      <div style={S.wrap}>
+<div style={S.wrap} className="dash-wrap">
 
         {/* Page header */}
         <div style={S.pageHead}>
@@ -109,7 +109,7 @@ const Dashboard = () => {
         </div>
 
         {/* Stat cards */}
-        <div style={S.statGrid}>
+<div style={S.statGrid} className="dash-stat-grid">
           <StatCard color="#2EABFE" icon={<BookOpen size={24} style={{color:"#2EABFE"}}/>} value={availableCourses.length} label="Courses Enrolled" badge="TOTAL" badgeColor="#2EABFE"/>
           <StatCard color="#008000" icon={<Award size={24} style={{color:"#008000"}}/>}    value={certificates.length}     label="Certificates Earned" badge={certificates.length > 0 ? `+${certificates.length}` : "0"} badgeColor="#008000"/>
           <StatCard color="#F59E0B" icon={<Clock size={24} style={{color:"#F59E0B"}}/>}    value={inProgressCount}          label="In Progress" badge={inProgressCount > 0 ? "Active" : "None"} badgeColor="#F59E0B"/>
@@ -117,7 +117,7 @@ const Dashboard = () => {
         </div>
 
         {/* Middle row */}
-        <div style={S.midRow}>
+        <div style={S.midRow} className="dash-mid-row">
           <div style={S.panel}>
             <div style={S.panelHdr}>
               <div style={S.panelHdrLeft}>
@@ -182,7 +182,7 @@ const Dashboard = () => {
         </div>
 
         {/* Bottom row */}
-        <div style={S.midRow}>
+        <div style={S.midRow} className="dash-mid-row">
           {/* CE Tracker */}
           <div style={{...S.panel,border:"0.5px solid #F59E0B",background:"rgba(245,158,11,0.03)"}}>
             <div style={S.panelHdr}>
@@ -196,7 +196,7 @@ const Dashboard = () => {
                 </div>
               </div>
               {ceDaysLeft !== null && (
-                <div style={{padding:"3px 10px",borderRadius:999,background:"rgba(46,171,254,0.10)",border:"0.5px solid #2EABFE",color:"#2EABFE",fontSize:10,fontWeight:800}}>
+                <div style={{padding:"3px 10px",borderRadius:999,background:"rgba(46,171,254,0.10)",border:"0.5px solid #2EABFE",color:"#2EABFE",fontSize:10,fontWeight:800,flexShrink:0}}>
                   {ceDaysLeft} days left
                 </div>
               )}
@@ -251,22 +251,22 @@ const Dashboard = () => {
 
         {/* Tabs */}
         <div style={S.tabsCard}>
-          <div style={S.tabBar}>
+          <div style={S.tabBar} className="dash-tab-bar">
             <TabBtn label="Overview"   active={activeTab==="overview"}   onClick={() => setActiveTab("overview")}/>
             <TabBtn label="Transcript" active={activeTab==="transcript"} onClick={() => setActiveTab("transcript")}/>
             <TabBtn label="Orders"     active={activeTab==="orders"}     onClick={() => setActiveTab("orders")}/>
             <button style={S.backBtn} onClick={() => navigate("/my-courses")} type="button">My Courses ›</button>
             {activeTab === "transcript" && (
               <div style={S.tabSearch}>
-                <Search size={13} style={{color:"rgba(9,25,37,0.55)"}}/>
-                <input style={S.tabSearchInput} value={q} onChange={e => setQ(e.target.value)} placeholder="Search transcript…"/>
+                <Search size={13} style={{color:"rgba(9,25,37,0.55)",flexShrink:0}}/>
+                <input style={S.tabSearchInput} value={q} onChange={e => setQ(e.target.value)} placeholder="Search…"/>
               </div>
             )}
           </div>
 
           {activeTab === "overview" && (
             <div style={S.tabBody}>
-              <div style={{display:"grid",gridTemplateColumns:"1.4fr 0.8fr",gap:14}}>
+              <div style={S.overviewGrid} className="dash-overview-grid">
                 <div style={S.innerPanel}>
                   <div style={S.innerHdr}>
                     <div style={S.innerTitle}>Recent completions</div>
@@ -280,33 +280,25 @@ const Dashboard = () => {
                   }
                 </div>
                 <div style={S.panel}>
-                  <div style={S.panelHead}><div style={S.panelTitle}>Quick actions</div></div>
-                  <div style={S.quickActions}>
-                    <button style={S.actionCard} type="button" onClick={() => navigate("/courses")}>
-                      <div style={S.actionIcon}><BookOpen size={18} /></div>
-                      <div style={S.actionText}><div style={S.actionTitle}>Browse courses</div><div style={S.actionSub}>Find PE and CE courses</div></div>
-                      <ChevronRight size={18} />
-                    </button>
-                    <button style={S.actionCard} type="button" onClick={() => navigate("/ce-tracker")}>
-                      <div style={S.actionIcon}><TrendingUp size={18} /></div>
-                      <div style={S.actionText}><div style={S.actionTitle}>CE Tracker</div><div style={S.actionSub}>Track renewal progress</div></div>
-                      <ChevronRight size={18} />
-                    </button>
-                    <button style={S.actionCard} type="button" onClick={() => setActiveTab("transcript")}>
-                      <div style={S.actionIcon}><FileText size={18} /></div>
-                      <div style={S.actionText}><div style={S.actionTitle}>View transcript</div><div style={S.actionSub}>Download and verify details</div></div>
-                      <ChevronRight size={18} />
-                    </button>
-                    <button style={S.actionCard} type="button" onClick={() => setActiveTab("orders")}>
-                      <div style={S.actionIcon}><Clock size={18} /></div>
-                      <div style={S.actionText}><div style={S.actionTitle}>My orders</div><div style={S.actionSub}>Track payment and status</div></div>
-                      <ChevronRight size={18} />
-                    </button>
-                    <button style={S.actionCard} type="button" onClick={() => navigate("/state-requirements")}>
-                      <div style={S.actionIcon}><MapPin size={18} /></div>
-                      <div style={S.actionText}><div style={S.actionTitle}>State requirements</div><div style={S.actionSub}>View state licensing and CE rules</div></div>
-                      <ChevronRight size={18} />
-                    </button>
+                  <div style={S.panelHdr}><div style={S.panelTitle}>Quick actions</div></div>
+                  <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
+                    {[
+                      {icon:<BookOpen size={18}/>, title:"Browse courses",       sub:"Find PE and CE courses",            path:"/courses"},
+                      {icon:<TrendingUp size={18}/>,title:"CE Tracker",          sub:"Track renewal progress",            path:"/ce-tracker"},
+                      {icon:<FileText size={18}/>,  title:"View transcript",     sub:"Download and verify details",       tab:"transcript"},
+                      {icon:<Clock size={18}/>,     title:"My orders",           sub:"Track payment and status",          tab:"orders"},
+                      {icon:<MapPin size={18}/>,    title:"State requirements",  sub:"View state licensing and CE rules", path:"/state-requirements"},
+                    ].map((a,i) => (
+                      <button key={i} style={S.actionCard} type="button"
+                        onClick={() => a.tab ? setActiveTab(a.tab) : navigate(a.path)}>
+                        <div style={S.actionIcon}>{a.icon}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={S.actionTitle}>{a.title}</div>
+                          <div style={S.actionSub}>{a.sub}</div>
+                        </div>
+                        <ChevronRight size={18} style={{flexShrink:0}}/>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -375,10 +367,10 @@ const Dashboard = () => {
                       const isPaid = String(order?.status||"").toLowerCase()==="paid";
                       return (
                         <div key={i} style={S.orderCard}>
-                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-                            <div>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10,gap:8}}>
+                            <div style={{minWidth:0}}>
                               <div style={{fontWeight:700,color:"#091925",display:"flex",alignItems:"center",gap:7,fontSize:12}}>
-                                <FileText size={13}/> Order #{String(order?._id||"").slice(-6).toUpperCase()}
+                                <FileText size={13} style={{flexShrink:0}}/> Order #{String(order?._id||"").slice(-6).toUpperCase()}
                               </div>
                               <div style={{fontSize:11,color:"#7FA8C4",marginTop:3,display:"flex",alignItems:"center",gap:4}}>
                                 <Clock size={10}/> {order?.createdAt?new Date(order.createdAt).toLocaleDateString():"—"}
@@ -389,7 +381,7 @@ const Dashboard = () => {
                           <div style={{display:"flex",flexDirection:"column",gap:7}}>
                             {(order?.items||[]).map((item,j) => (
                               <div key={j} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 11px",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.07)",background:"rgba(2,8,23,0.01)"}}>
-                                <div style={{width:30,height:30,borderRadius:7,background:"rgba(46,171,254,0.10)",border:"0.5px solid rgba(46,171,254,0.18)",display:"grid",placeItems:"center"}}>
+                                <div style={{width:30,height:30,borderRadius:7,background:"rgba(46,171,254,0.10)",border:"0.5px solid rgba(46,171,254,0.18)",display:"grid",placeItems:"center",flexShrink:0}}>
                                   <BookOpen size={12} style={{color:"#2EABFE"}}/>
                                 </div>
                                 <div style={{flex:1,minWidth:0}}>
@@ -399,7 +391,7 @@ const Dashboard = () => {
                                 </div>
                                 {isPaid&&item?.course_id?._id
                                   ? <button style={S.startBtn} onClick={() => navigate(`/courses/${item.course_id._id}/learn`)} type="button"><PlayCircle size={11}/> Start</button>
-                                  : <div style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 9px",borderRadius:6,border:"0.5px solid rgba(245,158,11,0.28)",background:"rgba(245,158,11,0.08)",color:"rgba(140,90,0,1)",fontSize:10,fontWeight:700}}><Lock size={9}/> Pending</div>
+                                  : <div style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 9px",borderRadius:6,border:"0.5px solid rgba(245,158,11,0.28)",background:"rgba(245,158,11,0.08)",color:"rgba(140,90,0,1)",fontSize:10,fontWeight:700,flexShrink:0}}><Lock size={9}/> Pending</div>
                                 }
                               </div>
                             ))}
@@ -428,11 +420,11 @@ const StatCard = ({ color, icon, value, label, badge, badgeColor }) => (
   <div style={{background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:`0 3px 0 0 ${color},0 2px 10px rgba(2,8,23,0.07)`}}>
     <div style={{padding:"16px 15px 13px"}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:11}}>
-        <div style={{width:50,height:50,borderRadius:11,border:`1px solid ${color}30`,background:`${color}15`,display:"grid",placeItems:"center"}}>{icon}</div>
-        <div style={{padding:"3px 8px",borderRadius:999,background:`${badgeColor}18`,fontSize:9,fontWeight:800,color:badgeColor}}>{badge}</div>
+        <div style={{width:46,height:46,borderRadius:11,border:`1px solid ${color}30`,background:`${color}15`,display:"grid",placeItems:"center",flexShrink:0}}>{icon}</div>
+        <div style={{padding:"3px 8px",borderRadius:999,background:`${badgeColor}18`,fontSize:9,fontWeight:800,color:badgeColor,textAlign:"center"}}>{badge}</div>
       </div>
-      <div style={{fontSize:30,fontWeight:800,color:"#091925",lineHeight:1.1,fontFamily:"'Poppins',sans-serif"}}>{value}</div>
-      <div style={{fontSize:12,color:"rgba(9,25,37,0.55)",marginTop:3,fontFamily:"'Poppins',sans-serif"}}>{label}</div>
+      <div style={{fontSize:26,fontWeight:800,color:"#091925",lineHeight:1.1,fontFamily:"'Poppins',sans-serif",wordBreak:"break-all"}}>{value}</div>
+      <div style={{fontSize:11,color:"rgba(9,25,37,0.55)",marginTop:3,fontFamily:"'Poppins',sans-serif"}}>{label}</div>
     </div>
   </div>
 );
@@ -519,11 +511,11 @@ const StatusBadge = ({ status }) => {
   const st=s==="paid"||s==="completed"?{color:"rgba(0,140,140,1)",background:"rgba(0,180,180,0.12)",border:"0.5px solid rgba(0,180,180,0.20)"}
     :s==="pending"?{color:"rgba(180,120,0,1)",background:"rgba(245,158,11,0.12)",border:"0.5px solid rgba(245,158,11,0.22)"}
     :{color:"rgba(200,50,50,1)",background:"rgba(239,68,68,0.10)",border:"0.5px solid rgba(239,68,68,0.20)"};
-  return <span style={{...st,display:"inline-flex",alignItems:"center",padding:"4px 9px",borderRadius:999,fontSize:11,fontWeight:700,textTransform:"capitalize"}}>{status}</span>;
+  return <span style={{...st,display:"inline-flex",alignItems:"center",padding:"4px 9px",borderRadius:999,fontSize:11,fontWeight:700,textTransform:"capitalize",whiteSpace:"nowrap"}}>{status}</span>;
 };
 
 const TabBtn = ({ label, active, onClick }) => (
-  <button onClick={onClick} type="button" style={{padding:"12px 16px",border:"none",background:active?"#2EABFE":"transparent",color:active?"#091925":"#5B7384",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"'Poppins',sans-serif",borderRadius:0}}>
+  <button onClick={onClick} type="button" style={{padding:"12px 14px",border:"none",background:active?"#2EABFE":"transparent",color:active?"#091925":"#5B7384",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Poppins',sans-serif",borderRadius:0,whiteSpace:"nowrap",flexShrink:0}}>
     {label}
   </button>
 );
@@ -532,52 +524,70 @@ const CSS = `
 .dash-spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(2,8,23,0.10);border-top-color:#2EABFE;animation:dspin 1s linear infinite;}
 @keyframes dspin{to{transform:rotate(360deg);}}
 .tr-hover:hover{background:rgba(46,171,254,0.04);}
+
+/* ── Responsive overrides ── */
+@media (max-width: 640px) {
+  .dash-wrap        { padding: 14px 14px 32px !important; }
+  .dash-page-title  { font-size: 22px !important; }
+  .dash-stat-grid   { grid-template-columns: repeat(2,1fr) !important; gap: 9px !important; }
+  .dash-mid-row     { grid-template-columns: 1fr !important; }
+  .dash-overview-grid { grid-template-columns: 1fr !important; }
+  .dash-tab-bar     { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .dash-tab-search  { min-width: 0; max-width: none !important; flex:1; }
+  .dash-back-btn    { margin-left: 0 !important; }
+}
+@media (min-width: 641px) and (max-width: 900px) {
+  .dash-stat-grid   { grid-template-columns: repeat(2,1fr) !important; }
+  .dash-mid-row     { grid-template-columns: 1fr !important; }
+  .dash-overview-grid { grid-template-columns: 1fr !important; }
+}
 `;
 
 const S = {
-  fullCenter:  {minHeight:"60vh",display:"grid",placeItems:"center"},
-  wrap:        {padding:"20px 24px 40px"},
-  pageHead:    {marginBottom:18},
-  breadcrumb:  {fontSize:12,fontWeight:600,color:"#2EABFE",fontFamily:"'Poppins',sans-serif",marginBottom:4},
-  pageTitle:   {fontSize:30,fontWeight:800,color:"#091925",fontFamily:"'Poppins',sans-serif",lineHeight:1.1,marginBottom:4,margin:0},
-  pageSubtitle:{fontSize:13,fontWeight:500,color:"#5B7384",fontFamily:"'Poppins',sans-serif",marginBottom:10,marginTop:4},
-  headDivider: {height:"1.5px",background:"linear-gradient(90deg,#2EABFE,transparent)",borderRadius:99,marginBottom:16},
-  statGrid:    {display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11,marginBottom:14},
-  midRow:      {display:"grid",gridTemplateColumns:"1fr 1fr",gap:13,marginBottom:14},
-  panel:       {background:"#fff",borderRadius:10,padding:"15px 17px",display:"flex",flexDirection:"column",boxShadow:"0 2px 8px rgba(2,8,23,0.06)",border:"0.5px solid rgba(2,8,23,0.07)"},
-  panelHdr:    {display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:9},
-  panelHdrLeft:{display:"flex",alignItems:"center",gap:9},
-  panelIcon:   {width:32,height:32,borderRadius:8,background:"rgba(208,235,255,0.25)",border:"0.5px solid #2EABFE",display:"grid",placeItems:"center",flexShrink:0},
-  panelTitle:  {fontSize:13,fontWeight:700,color:"#091925",fontFamily:"'Poppins',sans-serif"},
-  panelSub:    {fontSize:10,color:"#7FA8C4",fontFamily:"'Poppins',sans-serif",marginTop:1},
-  divider:     {height:"0.5px",background:"#7FA8C4",opacity:0.3,margin:"3px 0"},
-  viewAllBtn:  {padding:"5px 11px",borderRadius:6,background:"rgba(46,171,254,0.10)",border:"1px solid rgba(46,171,254,0.22)",color:"#2EABFE",fontWeight:700,fontSize:11,cursor:"pointer"},
+  fullCenter:   {minHeight:"60vh",display:"grid",placeItems:"center"},
+  wrap:         {padding:"20px 24px 40px"},
+  pageHead:     {marginBottom:18},
+  breadcrumb:   {fontSize:12,fontWeight:600,color:"#2EABFE",fontFamily:"'Poppins',sans-serif",marginBottom:4},
+  pageTitle:    {fontSize:30,fontWeight:800,color:"#091925",fontFamily:"'Poppins',sans-serif",lineHeight:1.1,marginBottom:4,margin:0},
+  pageSubtitle: {fontSize:13,fontWeight:500,color:"#5B7384",fontFamily:"'Poppins',sans-serif",marginBottom:10,marginTop:4},
+  headDivider:  {height:"1.5px",background:"linear-gradient(90deg,#2EABFE,transparent)",borderRadius:99,marginBottom:16},
+  statGrid:     {display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:11,marginBottom:14},
+  midRow:       {display:"grid",gridTemplateColumns:"1fr 1fr",gap:13,marginBottom:14},
+  overviewGrid: {display:"grid",gridTemplateColumns:"1.4fr 0.8fr",gap:14},
+  panel:        {background:"#fff",borderRadius:10,padding:"15px 17px",display:"flex",flexDirection:"column",boxShadow:"0 2px 8px rgba(2,8,23,0.06)",border:"0.5px solid rgba(2,8,23,0.07)"},
+  panelHdr:     {display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:9,flexWrap:"wrap"},
+  panelHdrLeft: {display:"flex",alignItems:"center",gap:9,minWidth:0},
+  panelIcon:    {width:32,height:32,borderRadius:8,background:"rgba(208,235,255,0.25)",border:"0.5px solid #2EABFE",display:"grid",placeItems:"center",flexShrink:0},
+  panelTitle:   {fontSize:13,fontWeight:700,color:"#091925",fontFamily:"'Poppins',sans-serif"},
+  panelSub:     {fontSize:10,color:"#7FA8C4",fontFamily:"'Poppins',sans-serif",marginTop:1},
+  divider:      {height:"0.5px",background:"#7FA8C4",opacity:0.3,margin:"3px 0"},
+  viewAllBtn:   {padding:"5px 11px",borderRadius:6,background:"rgba(46,171,254,0.10)",border:"1px solid rgba(46,171,254,0.22)",color:"#2EABFE",fontWeight:700,fontSize:11,cursor:"pointer",flexShrink:0},
   progressTrack:{height:6,borderRadius:999,background:"rgba(9,25,37,0.07)",overflow:"hidden"},
   progressFill: {height:"100%",borderRadius:999,transition:"width 0.4s"},
   ctaBlue:  {display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:7,border:"none",background:"#2EABFE",color:"#091925",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"'Poppins',sans-serif",marginTop:"auto"},
   ctaGreen: {display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:7,border:"none",background:"#008000",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"'Poppins',sans-serif"},
   ctaAmber: {display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"11px",borderRadius:7,border:"none",background:"#F59E0B",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"'Poppins',sans-serif",marginTop:10},
-  tabsCard:      {background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 2px 8px rgba(2,8,23,0.06)",border:"0.5px solid rgba(2,8,23,0.07)"},
-  tabBar:        {display:"flex",alignItems:"center",borderBottom:"0.5px solid rgba(2,8,23,0.08)"},
-  tabSearch:     {display:"flex",alignItems:"right",gap:7,padding:"0 11px",height:46,borderLeft:"0.5px solid rgba(2,8,23,0.08)",maxWidth:300},
-  tabSearchInput:{flex:1,border:"none",outline:"none",fontSize:12,fontFamily:"'Poppins',sans-serif",background:"transparent",color:"#091925"},
-  backBtn:       {marginLeft:"auto",padding:"0 16px",height:46,border:"none",borderLeft:"0.5px solid rgba(2,8,23,0.08)",background:"transparent",color:"#5B7384",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Poppins',sans-serif"},
-  tabBody:       {padding:"14px"},
-  innerPanel:    {background:"#fff",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.08)",padding:"12px"},
-  innerHdr:      {display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:9},
-  innerTitle:    {fontSize:12,fontWeight:700,color:"#091925",fontFamily:"'Poppins',sans-serif"},
-  ghostBtn:      {display:"inline-flex",alignItems:"center",gap:4,padding:"4px 9px",borderRadius:999,border:"0.5px solid rgba(2,8,23,0.10)",background:"rgba(2,8,23,0.02)",cursor:"pointer",fontWeight:700,fontSize:11,color:"rgba(11,18,32,0.65)",fontFamily:"'Poppins',sans-serif"},
-  actionCard:    {display:"flex",alignItems:"center",gap:11,padding:"9px 11px",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.07)",background:"rgba(2,8,23,0.01)",cursor:"pointer",width:"100%",textAlign:"left"},
-  actionIcon:    {width:32,height:32,borderRadius:7,background:"rgba(46,171,254,0.10)",border:"0.5px solid rgba(46,171,254,0.15)",display:"grid",placeItems:"center",color:"#091925",flexShrink:0},
-  actionTitle:   {fontSize:12,fontWeight:700,color:"rgba(11,18,32,0.85)",fontFamily:"'Poppins',sans-serif"},
-  actionSub:     {fontSize:10,fontWeight:500,color:"rgba(11,18,32,0.50)",fontFamily:"'Poppins',sans-serif",marginTop:2},
-  tableWrap:     {overflowX:"auto",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.08)"},
-  table:         {width:"100%",borderCollapse:"separate",borderSpacing:0,minWidth:640},
-  th:            {textAlign:"left",fontSize:10,fontWeight:700,color:"rgba(11,18,32,0.55)",padding:"8px 11px",borderBottom:"0.5px solid rgba(2,8,23,0.08)",background:"rgba(2,8,23,0.02)",fontFamily:"'Poppins',sans-serif"},
-  td:            {padding:"8px 11px",borderBottom:"0.5px solid rgba(2,8,23,0.05)",fontSize:12,color:"rgba(11,18,32,0.78)",fontFamily:"'Poppins',sans-serif"},
-  orderCard:     {borderRadius:8,border:"0.5px solid rgba(2,8,23,0.08)",background:"#fff",padding:12},
-  startBtn:      {display:"inline-flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:6,border:"none",background:"#2EABFE",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:10,flexShrink:0},
-  emptyMsg:      {fontSize:12,color:"#7FA8C4",padding:"16px 0",textAlign:"center",fontFamily:"'Poppins',sans-serif"},
+  tabsCard:     {background:"#fff",borderRadius:10,overflow:"hidden",boxShadow:"0 2px 8px rgba(2,8,23,0.06)",border:"0.5px solid rgba(2,8,23,0.07)"},
+  tabBar:       {display:"flex",alignItems:"center",borderBottom:"0.5px solid rgba(2,8,23,0.08)",overflowX:"auto",WebkitOverflowScrolling:"touch"},
+  tabSearch:    {display:"flex",alignItems:"center",gap:7,padding:"0 11px",height:46,borderLeft:"0.5px solid rgba(2,8,23,0.08)",minWidth:120,maxWidth:240,flex:1},
+  tabSearchInput:{flex:1,border:"none",outline:"none",fontSize:12,fontFamily:"'Poppins',sans-serif",background:"transparent",color:"#091925",minWidth:0},
+  backBtn:      {marginLeft:"auto",padding:"0 14px",height:46,border:"none",borderLeft:"0.5px solid rgba(2,8,23,0.08)",background:"transparent",color:"#5B7384",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"'Poppins',sans-serif",whiteSpace:"nowrap",flexShrink:0},
+  tabBody:      {padding:"14px"},
+  innerPanel:   {background:"#fff",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.08)",padding:"12px"},
+  innerHdr:     {display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:9,flexWrap:"wrap"},
+  innerTitle:   {fontSize:12,fontWeight:700,color:"#091925",fontFamily:"'Poppins',sans-serif"},
+  ghostBtn:     {display:"inline-flex",alignItems:"center",gap:4,padding:"4px 9px",borderRadius:999,border:"0.5px solid rgba(2,8,23,0.10)",background:"rgba(2,8,23,0.02)",cursor:"pointer",fontWeight:700,fontSize:11,color:"rgba(11,18,32,0.65)",fontFamily:"'Poppins',sans-serif",whiteSpace:"nowrap"},
+  actionCard:   {display:"flex",alignItems:"center",gap:11,padding:"9px 11px",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.07)",background:"rgba(2,8,23,0.01)",cursor:"pointer",width:"100%",textAlign:"left"},
+  actionIcon:   {width:32,height:32,borderRadius:7,background:"rgba(46,171,254,0.10)",border:"0.5px solid rgba(46,171,254,0.15)",display:"grid",placeItems:"center",color:"#091925",flexShrink:0},
+  actionTitle:  {fontSize:12,fontWeight:700,color:"rgba(11,18,32,0.85)",fontFamily:"'Poppins',sans-serif"},
+  actionSub:    {fontSize:10,fontWeight:500,color:"rgba(11,18,32,0.50)",fontFamily:"'Poppins',sans-serif",marginTop:2},
+  tableWrap:    {overflowX:"auto",borderRadius:7,border:"0.5px solid rgba(2,8,23,0.08)",WebkitOverflowScrolling:"touch"},
+  table:        {width:"100%",borderCollapse:"separate",borderSpacing:0,minWidth:560},
+  th:           {textAlign:"left",fontSize:10,fontWeight:700,color:"rgba(11,18,32,0.55)",padding:"8px 11px",borderBottom:"0.5px solid rgba(2,8,23,0.08)",background:"rgba(2,8,23,0.02)",fontFamily:"'Poppins',sans-serif",whiteSpace:"nowrap"},
+  td:           {padding:"8px 11px",borderBottom:"0.5px solid rgba(2,8,23,0.05)",fontSize:12,color:"rgba(11,18,32,0.78)",fontFamily:"'Poppins',sans-serif"},
+  orderCard:    {borderRadius:8,border:"0.5px solid rgba(2,8,23,0.08)",background:"#fff",padding:12},
+  startBtn:     {display:"inline-flex",alignItems:"center",gap:4,padding:"5px 10px",borderRadius:6,border:"none",background:"#2EABFE",color:"#fff",cursor:"pointer",fontWeight:700,fontSize:10,flexShrink:0},
+  emptyMsg:     {fontSize:12,color:"#7FA8C4",padding:"16px 0",textAlign:"center",fontFamily:"'Poppins',sans-serif"},
 };
 
 export default Dashboard;
