@@ -24,11 +24,8 @@ const orderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    // ── FIX: added 'completed' to enum so it saves correctly.
-    // 'paid' is kept for backward compat with existing orders.
-    // Going forward all new orders will be 'completed'.
-    enum: ['pending', 'paid', 'completed', 'cancelled'],
-    default: 'completed',  // ← new orders default to completed (no payment gateway)
+    enum: ['pending', 'paid', 'completed', 'cancelled', 'refund_approved', 'refund_rejected', 'refund_processed'],
+    default: 'completed',
   },
   payment_reference: {
     type: String,
@@ -44,6 +41,28 @@ const orderSchema = new mongoose.Schema({
   billing: {
     type: mongoose.Schema.Types.Mixed,
     default: undefined,
+  },
+  /** Refund request fields */
+  refund_request: {
+    reason: {
+      type: String,
+      enum: ['Course not as described', 'Technical issues prevented access', 'Purchased by mistake', 'Duplicate purchase', 'Other'],
+    },
+    details: {
+      type: String,
+      default: '',
+    },
+    requested_at: {
+      type: Date,
+    },
+  },
+  refund_status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'processed'],
+    default: null,
+  },
+  refund_processed_at: {
+    type: Date,
   },
 }, { timestamps: true });
 

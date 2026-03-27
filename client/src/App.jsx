@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import PrivateRoute from './components/PrivateRoute';
+import AdminRoute from './components/AdminRoute';
 import LandingPage from './pages/landing_page/LandingPage';
 import AuthModal from './pages/auth_page/AuthModal';
 import Dashboard from './pages/dashboard/Dashboard';
@@ -20,6 +21,7 @@ import MyCertificates from './pages/certificates/MyCertificates';
 import NotificationsCenter from './pages/notifications/NotificationsCenter';
 import ReceiptPage from './pages/checkout_page/ReceiptPage';
 import OrdersBilling from './pages/OrdersBilling';
+import AdminRefunds from './pages/AdminRefunds';
 
 
 // ── Landing wrapper — if already logged in, skip to home ──────────
@@ -146,6 +148,7 @@ function App() {
             </PrivateRoute>
           } />
           <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
+          <Route path="/admin/refunds" element={<AdminRoute><AdminRefunds /></AdminRoute>} />
         </Routes>
       </Router>
       </NotificationProvider>

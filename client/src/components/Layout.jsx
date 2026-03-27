@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
-import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Home, GraduationCap, Award, Bell, Trophy, FileText, Clock3, Sparkles } from 'lucide-react';
+import { User, LogOut, LayoutDashboard, BookOpen, ShoppingCart, Home, GraduationCap, Award, Bell, Trophy, FileText, Clock3, Sparkles, Settings } from 'lucide-react';
 import logo from '../assets/images/Left Side Logo.png';
 
 /* ─── Logout Confirm Dialog ─────────────────────────────────────── */
@@ -61,6 +61,7 @@ const Layout = ({ children, title, subtitle, actions }) => {
     { path: '/courses',    label: 'Courses',    icon: <BookOpen size={15} /> },
     { path: '/certificates', label: 'Certificates', icon: <Award size={15} /> },
     { path: '/checkout',   label: 'Checkout',   icon: <ShoppingCart size={15} /> },
+    ...(user?.role === 'admin' ? [{ path: '/admin/refunds', label: 'Admin', icon: <Settings size={15} /> }] : []),
   ];
 
   const isActive = (path) => location.pathname === path;

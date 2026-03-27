@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '../components/Layout';
+import API from '../api/axios';
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
 const MOCK_ORDERS = [
@@ -8,6 +9,9 @@ const MOCK_ORDERS = [
   { id: 'INV-2025-0052', date: '2025-03-01', course: 'SAFE Act Pre-Licensing Education (PE)', type: 'PE', hours: 20, amount: 149.00, status: 'pending',   refundEligible: true  },
   { id: 'INV-2024-0089', date: '2024-11-05', course: 'Annual Continuing Education – 8 Hour CE', type: 'CE', hours: 8,  amount: 79.00,  status: 'refunded',  refundEligible: false },
   { id: 'INV-2024-0067', date: '2024-08-17', course: 'SAFE Act Pre-Licensing Education (PE)', type: 'PE', hours: 20, amount: 149.00, status: 'completed', refundEligible: false },
+  { id: 'INV-2025-0060', date: '2025-02-28', course: 'SAFE Act Pre-Licensing Education (PE)', type: 'PE', hours: 20, amount: 149.00, status: 'refund_pending', refundEligible: false },
+  { id: 'INV-2025-0058', date: '2025-02-25', course: 'Annual Continuing Education – 8 Hour CE', type: 'CE', hours: 8,  amount: 79.00,  status: 'refund_approved', refundEligible: false },
+  { id: 'INV-2025-0055', date: '2025-02-20', course: 'SAFE Act Pre-Licensing Education (PE)', type: 'PE', hours: 20, amount: 149.00, status: 'refund_rejected', refundEligible: false },
 ];
 
 const MOCK_CARDS = [
@@ -16,8 +20,26 @@ const MOCK_CARDS = [
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const fmt     = (n) => `$${Number(n).toFixed(2)}`;
-const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+const fmt = (n) => {
+  const num = Number(n);
+  if (Number.isNaN(num)) return '$0.00';
+  return `$${num.toFixed(2)}`;
+};
+const fmtDate = (d) => {
+  if (!d) return 'N/A';
+  const dateValue = typeof d === 'string' && d.length === 24 && !d.includes('T') ? `${d}T00:00:00` : d;
+  const date = new Date(dateValue);
+  return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+const getOrderDisplayStatus = (o) => {
+  if (!o) return 'unknown';
+  if (o.refund_status) return `refund_${o.refund_status}`;
+  if (o.status && o.status.startsWith('refund_')) return o.status;
+  if (o.status) return o.status;
+  return 'unknown';
+};
+
 const BRAND_COLORS = { Visa: '#1A1F71', Mastercard: '#252525', Amex: '#007BC1', Discover: '#E65C00' };
 
 // ─── Download HTML Receipt ───────────────────────────────────────────────────
@@ -76,8 +98,15 @@ const StatusBadge = ({ status }) => {
     pending:   { bg: 'rgba(245,158,11,.1)',  color: '#b45309', border: 'rgba(245,158,11,.3)',  label: 'Pending'   },
     refunded:  { bg: 'rgba(100,116,139,.1)', color: '#475569', border: 'rgba(100,116,139,.2)', label: 'Refunded'  },
     failed:    { bg: 'rgba(239,68,68,.1)',   color: '#dc2626', border: 'rgba(239,68,68,.25)',  label: 'Failed'    },
+    refund_pending:   { bg: 'rgba(245,158,11,.1)',  color: '#b45309', border: 'rgba(245,158,11,.3)',  label: 'Refund Pending'   },
+    refund_approved:  { bg: 'rgba(34,197,94,.1)',   color: '#16a34a', border: 'rgba(34,197,94,.25)',  label: 'Refund Approved' },
+    refund_rejected:  { bg: 'rgba(239,68,68,.1)',   color: '#dc2626', border: 'rgba(239,68,68,.25)',  label: 'Refund Rejected'  },
+    refund_processed: { bg: 'rgba(100,116,139,.1)', color: '#475569', border: 'rgba(100,116,139,.2)', label: 'Refund Processed' },
+    unknown:          { bg: 'rgba(148,163,184,.1)', color: '#64748b', border: 'rgba(148,163,184,.2)', label: 'Unknown' },
   };
-  const s = cfg[status] || cfg.pending;
+
+  const key = String(status || 'unknown').toLowerCase();
+  const s = cfg[key] || cfg.unknown;
   return <span style={{ display:'inline-flex', alignItems:'center', padding:'3px 11px', borderRadius:999, fontSize:11.5, fontWeight:700, background:s.bg, color:s.color, border:`1px solid ${s.border}` }}>{s.label}</span>;
 };
 
@@ -164,9 +193,10 @@ const AddCardModal = ({ onClose, onAdd }) => {
 // ─── Refund Modal ─────────────────────────────────────────────────────────────
 const REFUND_REASONS = ['Course not as described','Technical issues prevented access','Purchased by mistake','Duplicate purchase','Other'];
 
-const RefundModal = ({ order, onClose, onSubmit }) => {
+const RefundModal = ({ order, onClose, onSubmit, submitting }) => {
   const [reason,  setReason]  = useState('');
   const [details, setDetails] = useState('');
+  const [autoApprove, setAutoApprove] = useState(false);
 
   return (
     <>
@@ -210,11 +240,15 @@ const RefundModal = ({ order, onClose, onSubmit }) => {
           <textarea value={details} onChange={e => setDetails(e.target.value)} rows={3} placeholder="Describe your issue..."
             style={{ width:'100%', padding:'10px 14px', borderRadius:11, border:'1.5px solid rgba(9,25,37,.1)', background:'#f8fafc', fontSize:13, color:'#091925', outline:'none', fontFamily:'inherit', resize:'vertical', boxSizing:'border-box' }} />
         </div>
+        <div style={{ marginBottom:14, display:'flex', alignItems:'center', gap:8 }}>
+          <input id="autoApprove" type="checkbox" checked={autoApprove} onChange={e => setAutoApprove(e.target.checked)} />
+          <label htmlFor="autoApprove" style={{ fontSize:12, color:'#475569' }}>Auto-approve this refund (test mode only)</label>
+        </div>
         <div style={{ display:'flex', gap:10 }}>
           <button onClick={onClose} style={{ flex:1, height:44, background:'#f8fafc', border:'1px solid rgba(9,25,37,.1)', borderRadius:11, cursor:'pointer', fontSize:13, fontWeight:700, color:'#64748b', fontFamily:'inherit' }}>Cancel</button>
-          <button onClick={() => { if (reason) { onSubmit(order.id); onClose(); } }} disabled={!reason}
-            style={{ flex:2, height:44, border:'none', borderRadius:11, fontFamily:'inherit', fontSize:13, fontWeight:700, cursor:reason?'pointer':'not-allowed', transition:'all .2s', background:reason?'#dc2626':'#e2e8f0', color:reason?'#fff':'#94a3b8' }}>
-            Submit Refund Request
+          <button onClick={() => { if (reason && !submitting) { onSubmit(order.id, reason, details, autoApprove); onClose(); } }} disabled={!reason || submitting}
+            style={{ flex:2, height:44, border:'none', borderRadius:11, fontFamily:'inherit', fontSize:13, fontWeight:700, cursor:(reason && !submitting)?'pointer':'not-allowed', transition:'all .2s', background:(reason && !submitting)?'#dc2626':'#e2e8f0', color:(reason && !submitting)?'#fff':'#94a3b8' }}>
+            {submitting ? 'Submitting...' : 'Submit Refund Request'}
           </button>
         </div>
       </div>
@@ -223,6 +257,42 @@ const RefundModal = ({ order, onClose, onSubmit }) => {
 };
 
 // ─── Confirm Dialog ───────────────────────────────────────────────────────────
+const OrderDetailModal = ({ order, onClose }) => {
+  if (!order) return null;
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:500, background:'rgba(9,25,37,.6)', backdropFilter:'blur(6px)' }} />
+      <div style={{ position:'fixed', zIndex:501, top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:'100%', maxWidth:560, background:'#fff', borderRadius:20, padding:'28px 24px', fontFamily:"'Poppins',sans-serif", boxShadow:'0 28px 70px rgba(9,25,37,.22)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+          <div>
+            <div style={{ fontSize:18, fontWeight:800, color:'#091925' }}>Order Details</div>
+            <div style={{ fontSize:12, color:'#64748b' }}>#{order.id}</div>
+          </div>
+          <button onClick={onClose} style={{ border:'none', background:'transparent', color:'#64748b', cursor:'pointer', fontSize:16, fontWeight:700 }}>✕</button>
+        </div>
+
+        <div style={{ display:'grid', gap:10, marginBottom:18 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:'#091925' }}>Status: <span style={{ fontWeight:600 }}>{getOrderDisplayStatus(order)}</span></div>
+          <div style={{ fontSize:13, color:'#475569' }}>Date: {fmtDate(order.date)}</div>
+          <div style={{ fontSize:13, color:'#475569' }}>Amount: {fmt(order.amount)}</div>
+          {order.refund_status && <div style={{ fontSize:13, color:'#475569' }}>Refund status: {order.refund_status}</div>}
+        </div>
+
+        <div style={{ border: '1px solid #e2e8f0', borderRadius:12, padding:12, background:'#f8fafc' }}>
+          <div style={{ fontSize:12, color:'#64748b', textTransform:'uppercase', letterSpacing:0.6, marginBottom:8 }}>Purchased Courses</div>
+          <ul style={{ margin:0, paddingLeft:18, color:'#344054', fontSize:13 }}>
+            {(order.items || []).map((item, idx) => {
+              const course = item.course_id || {};
+              return <li key={idx}>{course.title || item.title || 'N/A'} — {course.type || item.type || 'N/A'} — {item.price ? fmt(item.price) : ''}</li>;
+            })}
+          </ul>
+        </div>
+      </div>
+    </>
+  );
+};
+
 const ConfirmDialog = ({ onConfirm, onCancel }) => (
   <>
     <div onClick={onCancel} style={{ position:'fixed', inset:0, zIndex:500, background:'rgba(9,25,37,.6)', backdropFilter:'blur(6px)' }} />
@@ -243,31 +313,133 @@ const ConfirmDialog = ({ onConfirm, onCancel }) => (
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function OrdersBilling() {
   const [tab,          setTab]          = useState('orders');
-  const [orders,       setOrders]       = useState(MOCK_ORDERS);
+  const [orders,       setOrders]       = useState([]);
   const [cards,        setCards]        = useState(MOCK_CARDS);
   const [filterStatus, setFilterStatus] = useState('all');
   const [showAddCard,  setShowAddCard]  = useState(false);
   const [refundTarget, setRefundTarget] = useState(null);
   const [removeTarget, setRemoveTarget] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [toast,        setToast]        = useState(null);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [refundInProgress, setRefundInProgress] = useState(false); // used to disable request button while API call is in flight
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 4000); };
 
-  const filtered      = filterStatus === 'all' ? orders : orders.filter(o => o.status === filterStatus);
-  const totalSpent    = orders.filter(o => o.status === 'completed').reduce((s, o) => s + o.amount, 0);
+  const normalize = (o) => {
+    const computedStatus = getOrderDisplayStatus(o);
+    const dateValue = o.date || o.createdAt;
+    const parsedDate = dateValue ? new Date(dateValue) : null;
+    const isRefundEligible = computedStatus === 'completed' && parsedDate
+      ? ((new Date() - parsedDate) / (1000 * 60 * 60 * 24)) <= 7
+      : Boolean(o.refundEligible);
+
+    const firstItem = (o.items && o.items[0]) || {};
+    const firstCourse = firstItem.course_id || {};
+
+    return {
+      ...o,
+      id: o._1 || o._id || o.id,
+      date: o.date || o.createdAt || null,
+      course: o.course || firstCourse.title || firstItem.title || 'N/A',
+      type: o.type || firstCourse.type || firstItem.type || 'N/A',
+      hours: o.hours || firstCourse.credit_hours || firstItem.hours || 0,
+      amount: o.total_amount ?? o.amount ?? (Array.isArray(o.items) ? o.items.reduce((sum, item) => sum + (Number(item.price)||0) + (Number(item.textbook_price)||0), 0) : 0),
+      refundEligible: isRefundEligible,
+      status: computedStatus,
+      displayStatus: computedStatus,
+      parsedDate,
+    };
+  };
+
+  const loadOrders = async () => {
+    setLoadingOrders(true);
+    try {
+      const res = await API.get('/orders');
+      const ordersFromAPI = (res.data?.orders || []).map(normalize);
+      setOrders(ordersFromAPI);
+    } catch (err) {
+      console.error('Failed to fetch orders:', err);
+      setOrders(MOCK_ORDERS.map(normalize));
+      showToast('Unable to load live orders, using sample data.');
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const sortedOrders = [...orders].sort((a, b) => {
+    const dateA = a.parsedDate ? new Date(a.parsedDate) : new Date(a.date || 0);
+    const dateB = b.parsedDate ? new Date(b.parsedDate) : new Date(b.date || 0);
+    return dateB - dateA;
+  });
+
+  const filtered = filterStatus === 'all'
+    ? sortedOrders
+    : sortedOrders.filter((o) => {
+      const currentStatus = getOrderDisplayStatus(o);
+      const refundStatus = o.refund_status || (o.status && o.status.startsWith('refund_') ? o.status.replace('refund_', '') : null);
+
+      if (filterStatus === 'refunded') {
+        return ['refunded','refund_approved','refund_rejected','refund_processed'].includes(currentStatus)
+          || ['approved','rejected','processed'].includes(refundStatus);
+      }
+      if (filterStatus === 'refund_pending') {
+        return currentStatus === 'refund_pending' || refundStatus === 'pending';
+      }
+      if (filterStatus === 'refund_approved') {
+        return currentStatus === 'refund_approved' || refundStatus === 'approved';
+      }
+      if (filterStatus === 'refund_rejected') {
+        return currentStatus === 'refund_rejected' || refundStatus === 'rejected';
+      }
+      if (filterStatus === 'refund_processed') {
+        return currentStatus === 'refund_processed' || refundStatus === 'processed';
+      }
+      return currentStatus === filterStatus;
+    });
+
+  const totalSpent = orders.filter(o => o.status === 'completed').reduce((s, o) => s + Number(o.amount || 0), 0);
   const completedCount = orders.filter(o => o.status === 'completed').length;
 
   const handleAddCard    = (card) => { setCards(p => [...p, card]); showToast('Card added successfully.'); };
   const handleSetDefault = (id)   => setCards(p => p.map(c => ({ ...c, isDefault: c.id === id })));
   const handleRemove     = ()     => { setCards(p => p.filter(c => c.id !== removeTarget)); setRemoveTarget(null); showToast('Card removed.'); };
-  const handleRefund     = (id)   => { setOrders(p => p.map(o => o.id === id ? { ...o, status:'refunded', refundEligible:false } : o)); showToast('Refund request submitted. Confirmation email sent shortly.'); };
+  const handleRefund     = async (id, reason, details, autoApprove = false) => {
+    setRefundInProgress(true);
+    try {
+      const query = autoApprove ? '?autoApprove=true' : '';
+      const res = await API.post(`/orders/${id}/refund${query}`, { reason, details });
+      const updatedOrder = res.data?.order;
+      if (updatedOrder) {
+        const desiredStatus = getOrderDisplayStatus(updatedOrder);
+        setOrders(p => p.map(o => o.id === id ? { ...o, ...updatedOrder, status: desiredStatus, displayStatus: desiredStatus, refund_status: updatedOrder.refund_status, refundEligible: false } : o));
+      } else {
+        const desiredStatus = autoApprove ? 'refund_approved' : 'refund_pending';
+        setOrders(p => p.map(o => o.id === id ? { ...o, status: desiredStatus, displayStatus: desiredStatus, refund_status: autoApprove ? 'approved' : 'pending', refundEligible:false } : o));
+      }
+      setFilterStatus(autoApprove ? 'refund_approved' : 'refund_pending');
+      showToast(autoApprove ? 'Refund auto-approved for testing.' : 'Refund request submitted. You will be notified once reviewed.');
+    } catch (error) {
+      const serverMessage = error?.response?.data?.message || error?.message || 'Failed to submit refund request. Please try again.';
+      showToast(serverMessage);
+      console.error('Refund request error:', error);
+    } finally {
+      setRefundInProgress(false);
+    }
+  };
 
   return (
     <Layout>
       <style>{CSS}</style>
 
       {showAddCard  && <AddCardModal onClose={() => setShowAddCard(false)} onAdd={handleAddCard} />}
-      {refundTarget && <RefundModal  order={refundTarget} onClose={() => setRefundTarget(null)} onSubmit={handleRefund} />}
+      {refundTarget && <RefundModal order={refundTarget} onClose={() => setRefundTarget(null)} onSubmit={handleRefund} submitting={refundInProgress} />}
+      {selectedOrder && <OrderDetailModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
       {removeTarget && <ConfirmDialog onConfirm={handleRemove} onCancel={() => setRemoveTarget(null)} />}
 
       <div className="ob-page">
@@ -319,80 +491,95 @@ export default function OrdersBilling() {
         </div>
 
         {/* ════ ORDER HISTORY ════ */}
-        {tab === 'orders' && (
-          <div className="ob-panel">
-            <div className="ob-panel-head">
-              <div>
-                <div className="ob-panel-title">Purchase History</div>
-                <div className="ob-panel-sub">Download receipts or request refunds within the policy window</div>
-              </div>
-              <div className="ob-filters">
-                {['all','completed','pending','refunded'].map(f => (
-                  <button key={f} className={`ob-filter${filterStatus===f?' ob-filter--on':''}`} onClick={() => setFilterStatus(f)}>
-                    {f.charAt(0).toUpperCase()+f.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="ob-table-wrap">
-              <table className="ob-table">
-                <thead>
-                  <tr>
-                    <th>Order ID</th>
-                    <th>Date</th>
-                    <th>Course</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length === 0 ? (
-                    <tr><td colSpan={6} style={{ textAlign:'center', padding:'52px 0', color:'#94a3b8', fontSize:14 }}>No orders match this filter.</td></tr>
-                  ) : filtered.map(o => (
-                    <tr key={o.id} className="ob-tr">
-                      <td><span className="ob-oid">{o.id}</span></td>
-                      <td className="ob-date">{fmtDate(o.date)}</td>
-                      <td>
-                        <div className="ob-cname">{o.course}</div>
-                        <div className="ob-cmeta">
-                          <span className={`ob-type ob-type--${o.type.toLowerCase()}`}>{o.type}</span>
-                          {o.hours} hrs
-                        </div>
-                      </td>
-                      <td className="ob-amt">{fmt(o.amount)}</td>
-                      <td><StatusBadge status={o.status} /></td>
-                      <td>
-                        <div className="ob-acts">
-                          <button className="ob-act" onClick={() => downloadReceipt(o)}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            Receipt
-                          </button>
-                          <button className="ob-act" onClick={() => window.location.href = `/receipt/${o.id}`}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3h18v18H3V3z"/><path d="M3 8h18"/></svg>
-                            View
-                          </button>
-                          {o.refundEligible && (
-                            <button className="ob-act ob-act--red" onClick={() => setRefundTarget(o)}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.03"/></svg>
-                              Refund
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+        {tab === 'orders' ? (
+          loadingOrders ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Loading orders...</div>
+          ) : (
+            <div className="ob-panel">
+              <div className="ob-panel-head">
+                <div>
+                  <div className="ob-panel-title">Purchase History</div>
+                  <div className="ob-panel-sub">Download receipts or request refunds within the policy window</div>
+                </div>
+                <div className="ob-filters">
+                  {[
+                    {key:'all', label:'All'},
+                    {key:'completed', label:'Completed'},
+                    {key:'pending', label:'Pending'},
+                    {key:'refunded', label:'Refunded'},
+                    {key:'refund_pending', label:'Refund Pending'}
+                  ].map(f => (
+                    <button key={f.key} className={`ob-filter${filterStatus===f.key?' ob-filter--on':''}`} onClick={() => setFilterStatus(f.key)}>
+                      {f.label}
+                    </button>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
 
-            <div className="ob-note">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span><strong>Refund Policy:</strong> Refunds are available within 7 days of purchase if the course has not been started. Once any module is accessed, refunds are not available per NMLS provider policy.</span>
+              <div className="ob-table-wrap">
+                <table className="ob-table">
+                  <thead>
+                    <tr>
+                      <th>Order ID</th>
+                      <th>Date</th>
+                      <th>Course</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr><td colSpan={6} style={{ textAlign:'center', padding:'52px 0', color:'#94a3b8', fontSize:14 }}>No orders match this filter.</td></tr>
+                    ) : filtered.map(o => (
+                      <tr
+                        key={o.id}
+                        className="ob-tr"
+                        onClick={() => setSelectedOrder(o)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td><span className="ob-oid">{o.id}</span></td>
+                        <td className="ob-date">{fmtDate(o.date)}</td>
+                        <td>
+                          <div className="ob-cname">{o.course}</div>
+                          <div className="ob-cmeta">
+                          <span className={`ob-type ob-type--${(o.type||'unknown').toLowerCase()}`}>{o.type||'N/A'}</span>
+                          {o.hours || 0} hrs
+                          </div>
+                        </td>
+                        <td className="ob-amt">{fmt(o.amount)}</td>
+                        <td><StatusBadge status={getOrderDisplayStatus(o)} /></td>
+                        <td>
+                          <div className="ob-acts">
+                            <button className="ob-act" onClick={(e) => { e.stopPropagation(); downloadReceipt(o); }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                              Receipt
+                            </button>
+                            <button className="ob-act" onClick={(e) => { e.stopPropagation(); window.location.href = `/receipt/${o.id}`; }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3h18v18H3V3z"/><path d="M3 8h18"/></svg>
+                              View
+                            </button>
+                            {o.refundEligible && !o.status.startsWith('refund_') && (
+                              <button className="ob-act ob-act--red" onClick={(e) => { e.stopPropagation(); setRefundTarget(o); }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.03"/></svg>
+                                Refund
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="ob-note">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span><strong>Refund Policy:</strong> Refunds are available within 7 days of purchase if the course has not been started. Once any module is accessed, refunds are not available per NMLS provider policy.</span>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        ) : null}
 
         {/* ════ PAYMENT METHODS ════ */}
         {tab === 'payments' && (
