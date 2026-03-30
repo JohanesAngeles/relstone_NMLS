@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Award, User, Hash, BookOpen, Clock, Calendar, ArrowLeft, Download, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Download, AlertCircle } from 'lucide-react';
 import API from '../../api/axios';
 import Layout from '../../components/Layout';
 import TestimonialGateModal from "../../components/TempModal";
@@ -17,47 +17,35 @@ const Certificate = () => {
   const [cert, setCert]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
-  
-  // ── Testimonial Gate State ──
-  const [showGate, setShowGate] = useState(false); //
-  const [gateChecked, setGateChecked] = useState(false); //
-  
+  const [showGate, setShowGate]       = useState(false);
+  const [gateChecked, setGateChecked] = useState(false);
   const printRef = useRef();
 
   useEffect(() => {
     const fetchCert = async () => {
       try {
-        // ── Strategy 1: try the dedicated endpoint first ──────────────
         try {
           const res = await API.get(`/certificates/${courseId}`);
           if (res.data?.certificate) {
             const builtCert = buildCertFromEndpoint(res.data.certificate, user);
             setCert(builtCert);
-            checkTestimonial(builtCert.course_title); //
+            checkTestimonial(builtCert.course_title);
             return;
           }
-        } catch {
-          // endpoint doesn't exist or returned 404 — fall through to transcript
-        }
+        } catch { /* fall through */ }
 
-        // ── Strategy 2: pull from transcript (always works) ───────────
         const transcriptRes = await API.get('/dashboard/transcript');
         const transcript    = transcriptRes.data?.transcript || [];
-
         const entry = transcript.find((t) => {
           const id = t.course_id?._id || t.course_id;
           return String(id) === String(courseId);
         });
 
-        if (!entry) {
-          setError('Certificate not found. Make sure you have completed this course.');
-          return;
-        }
+        if (!entry) { setError('Certificate not found. Make sure you have completed this course.'); return; }
 
         const builtCert = buildCertFromTranscript(entry, user);
         setCert(builtCert);
-        checkTestimonial(builtCert.course_title); //
-
+        checkTestimonial(builtCert.course_title);
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to load certificate.');
       } finally {
@@ -66,17 +54,13 @@ const Certificate = () => {
     };
 
     const checkTestimonial = async (title) => {
-      if (gateChecked) return; //
+      if (gateChecked) return;
       try {
-        const res = await API.get("/testimonials/mine"); //
-        const reviews = res.data?.testimonials || []; //
-        const already = reviews.some(r => String(r.course_id) === String(courseId)); //
-        if (!already) setShowGate(true); //
-      } catch (err) {
-        console.error("Testimonial check failed", err);
-      } finally {
-        setGateChecked(true); //
-      }
+        const res = await API.get("/testimonials/mine");
+        const already = (res.data?.testimonials || []).some(r => String(r.course_id) === String(courseId));
+        if (!already) setShowGate(true);
+      } catch {}
+      finally { setGateChecked(true); }
     };
 
     fetchCert();
@@ -84,69 +68,48 @@ const Certificate = () => {
 
   const handlePrint = () => window.print();
 
-  /* ── Loading ── */
   if (loading) return (
     <Layout>
       <style>{spinnerCss}</style>
-      <div style={S.center}>
-        <div className="cert-spinner" />
-        <div style={{ marginTop: 12, fontSize: 13, color: 'rgba(9,25,37,0.50)', fontWeight: 600 }}>
-          Loading certificate…
-        </div>
-      </div>
+      <div style={S.center}><div className="cert-spinner" /><p style={S.loadText}>Loading certificate…</p></div>
     </Layout>
   );
 
-  /* ── Error ── */
   if (error) return (
     <Layout>
       <div style={S.center}>
         <div style={S.errorCard}>
           <AlertCircle size={32} color="#ef4444" style={{ margin: '0 auto 12px', display: 'block' }} />
-          <div style={{ fontWeight: 800, fontSize: 15, color: '#091925', marginBottom: 8, textAlign: 'center' }}>
-            Certificate Not Found
-          </div>
-          <div style={{ fontSize: 13, color: 'rgba(9,25,37,0.55)', textAlign: 'center', marginBottom: 20, lineHeight: 1.6 }}>
-            {error}
-          </div>
+          <div style={{ fontWeight: 800, fontSize: 15, color: '#091925', marginBottom: 8, textAlign: 'center' }}>Certificate Not Found</div>
+          <div style={{ fontSize: 13, color: 'rgba(9,25,37,0.55)', textAlign: 'center', marginBottom: 20, lineHeight: 1.6 }}>{error}</div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-            <button style={S.backBtn} onClick={() => navigate('/my-certificates')} type="button">
-              <ArrowLeft size={15} /> My Certificates
-            </button>
-            <button style={S.backBtn} onClick={() => navigate('/my-courses')} type="button">
-              My Courses
-            </button>
+            <button style={S.backBtn} onClick={() => navigate('/my-certificates')} type="button"><ArrowLeft size={15} /> My Certificates</button>
+            <button style={S.backBtn} onClick={() => navigate('/my-courses')} type="button">My Courses</button>
           </div>
         </div>
       </div>
     </Layout>
   );
 
-  /* ── Certificate ── */
   return (
     <Layout>
       <style>{`
         ${spinnerCss}
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700;800&display=swap');
         @media print {
           .no-print { display: none !important; }
-          header, nav, aside { display: none !important; }
+          header, nav, aside, .layout-nav { display: none !important; }
           body { margin: 0; background: #fff; }
-          .cert-doc { box-shadow: none !important; border-radius: 0 !important; }
+          #cert-doc { box-shadow: none !important; page-break-inside: avoid; }
         }
       `}</style>
 
-      {/* ── Testimonial Gate ── */}
       {showGate && cert && (
-        <TestimonialGateModal
-          courseId={courseId}
-          courseName={cert.course_title}
-          onDone={() => setShowGate(false)}
-        />
+        <TestimonialGateModal courseId={courseId} courseName={cert.course_title} onDone={() => setShowGate(false)} />
       )}
 
-      <div style={S.container}>
-
-        {/* ── Action bar ── */}
+      <div style={S.page}>
+        {/* Action bar */}
         <div style={S.actionBar} className="no-print">
           <button style={S.backBtn} onClick={() => navigate('/my-certificates')} type="button">
             <ArrowLeft size={15} /> Back to Certificates
@@ -156,92 +119,89 @@ const Certificate = () => {
           </button>
         </div>
 
-        {/* ── Certificate document ── */}
-        <div style={S.certWrapper} ref={printRef}>
-          <div style={S.cert} className="cert-doc">
+        {/* ── Certificate Document ── */}
+        <div style={S.certOuter} ref={printRef}>
+          <div id="cert-doc" style={S.certDoc}>
 
-            <div style={S.topAccent} />
+            {/* Watermark diagonals */}
+            <div style={S.watermarkLeft} />
+            <div style={S.watermarkRight} />
 
-            <div style={S.certHeader}>
-              <div style={S.certSealWrap}>
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="1.8" strokeLinejoin="round"/>
-                  <path d="M2 17l10 5 10-5"             stroke="#2EABFE" strokeWidth="1.8" strokeLinejoin="round"/>
-                  <path d="M2 12l10 5 10-5"             stroke="#60C3FF" strokeWidth="1.8" strokeLinejoin="round"/>
+            {/* Header */}
+            <div style={S.header}>
+              {/* Logo lockup */}
+              <div style={S.logoWrap}>
+                <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+                  <rect width="52" height="52" rx="10" fill="#0B2E4E"/>
+                  <path d="M10 38 L26 14 L42 38 Z" fill="none" stroke="#2EABFE" strokeWidth="3" strokeLinejoin="round"/>
+                  <path d="M18 38 L26 24 L34 38 Z" fill="#2EABFE"/>
+                  <rect x="22" y="28" width="8" height="10" rx="1" fill="#fff" opacity="0.9"/>
                 </svg>
-              </div>
-              <div style={S.certOrg}>Relstone NMLS</div>
-              <h1 style={S.certTitle}>Certificate of Completion</h1>
-              <p style={S.certSubtitle}>Nationwide Mortgage Licensing System (NMLS)</p>
-            </div>
-
-            <div style={S.divider} />
-
-            <p style={S.certifyText}>This certifies that</p>
-            <h2 style={S.studentName}>{cert.student_name}</h2>
-            <p style={S.certifyText}>has successfully completed</p>
-            <h3 style={S.courseName}>{cert.course_title}</h3>
-
-            <div style={S.divider} />
-
-            <div style={S.detailsGrid}>
-              <DetailItem icon={<Hash size={17} color="#2EABFE" />}     label="NMLS Course ID"  value={cert.nmls_course_id || '—'} />
-              <DetailItem icon={<User size={17} color="#2EABFE" />}     label="Student NMLS ID" value={cert.student_nmls_id || '—'} />
-              <DetailItem icon={<BookOpen size={17} color="#2EABFE" />} label="Course Type"     value={cert.course_type_label} />
-              <DetailItem icon={<Clock size={17} color="#2EABFE" />}    label="Credit Hours"    value={cert.credit_hours ? `${cert.credit_hours} Hours` : '—'} />
-              <DetailItem icon={<Calendar size={17} color="#2EABFE" />} label="Date Completed"  value={cert.completed_at_label} />
-              <DetailItem icon={<Calendar size={17} color="#2EABFE" />} label="Date Issued"     value={cert.issued_at_label} />
-              {cert.state && (
-                <DetailItem icon={<Award size={17} color="#2EABFE" />} label="State" value={cert.state} />
-              )}
-              {cert.state_approval_number && (
-                <DetailItem icon={<Hash size={17} color="#2EABFE" />} label="State Approval #" value={cert.state_approval_number} />
-              )}
-            </div>
-
-            <div style={S.divider} />
-
-            <div style={S.certFooter}>
-              <div style={S.signatureRow}>
-                <div style={S.sigBlock}>
-                  <div style={S.signatureLine} />
-                  <p style={S.signatureLabel}>Authorized Signature</p>
-                  <p style={S.signatureName}>Relstone NMLS</p>
-                </div>
-                <div style={S.sealCircle}>
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="1.6" strokeLinejoin="round"/>
-                    <path d="M2 17l10 5 10-5"             stroke="#2EABFE" strokeWidth="1.6" strokeLinejoin="round"/>
-                    <path d="M2 12l10 5 10-5"             stroke="#60C3FF" strokeWidth="1.6" strokeLinejoin="round"/>
-                  </svg>
-                  <div style={{ fontSize: 8, fontWeight: 900, color: '#2EABFE', letterSpacing: '.10em', marginTop: 3 }}>
-                    OFFICIAL
-                  </div>
-                </div>
-                <div style={S.sigBlock}>
-                  <div style={S.signatureLine} />
-                  <p style={S.signatureLabel}>Date Issued</p>
-                  <p style={S.signatureName}>{cert.issued_month_year}</p>
+                <div>
+                  <div style={S.logoName}>RELSTONE</div>
+                  <div style={S.logoSub}>Real Estate License Services</div>
                 </div>
               </div>
-
-              <p style={S.footerNote}>
-                This certificate is issued in accordance with the SAFE Mortgage Licensing Act
-                and confirms completion of NMLS-approved education requirements.
-              </p>
+              <div style={S.providerBadge}>NMLS PROVIDER #1405039</div>
             </div>
 
-            <div style={S.attestationWrap}>
-              <div style={S.attestationLabel}>Attestation</div>
-              <div style={S.attestationText}>{ATTESTATION_TEXT}</div>
+            {/* Big title */}
+            <div style={S.titleSection}>
+              <h1 style={S.bigTitle}>CERTIFICATE OF COURSE COMPLETION</h1>
+              <p style={S.certifiesText}>This certifies that</p>
             </div>
 
-            <div style={S.bottomBar}>
-              <span>Certificate ID: {cert.cert_id}</span>
-              <span>·</span>
-              <span>Relstone NMLS · relstone.com</span>
-              <span>·</span>
-              <span>NMLS Approved Provider</span>
+            {/* Student block */}
+            <div style={S.studentBlock}>
+              <div style={S.studentName}>{cert.student_name}</div>
+              <div style={S.mloId}>MLO ID #{cert.student_nmls_id || '—'}</div>
+              <div style={S.nameLine} />
+            </div>
+
+            <p style={S.hasCompleted}>has successfully completed the</p>
+
+            {/* Course name */}
+            <div style={S.courseBlock}>
+              <h2 style={S.courseName}>{cert.course_title}</h2>
+            </div>
+
+            {/* Course meta */}
+            <div style={S.metaRow}>
+              <span style={S.metaItem}>Course Number: <strong>{cert.nmls_course_id || '—'}</strong></span>
+              <span style={S.metaDot}>·</span>
+              <span style={S.metaItem}>Course Completion Date: <strong>{cert.completed_at_label}</strong></span>
+              {cert.credit_hours && <>
+                <span style={S.metaDot}>·</span>
+                <span style={S.metaItem}>Credit Hours: <strong>{cert.credit_hours}</strong></span>
+              </>}
+            </div>
+
+            {/* Attestation box */}
+            <div style={S.attestBox}>
+              <p style={S.attestText}>{ATTESTATION_TEXT}</p>
+            </div>
+
+            {/* Signature row */}
+            <div style={S.sigRow}>
+              <div style={S.sigBlock}>
+                <div style={S.sigLine} />
+                <div style={S.sigName}>Andy M. Zubia</div>
+                <div style={S.sigTitle}>President &amp; CEO</div>
+                <div style={S.sigOrg}>RELSTONE - Real Estate License Services</div>
+              </div>
+            </div>
+
+            {/* Bottom geometric shapes — matching the PDF */}
+            <div style={S.geoBottom}>
+              <div style={S.geoLeft}>
+                <div style={S.geoTri1} />
+                <div style={S.geoTri2} />
+              </div>
+              <div style={S.geoCenterFill} />
+              <div style={S.geoRight}>
+                <div style={S.geoTri3} />
+                <div style={S.geoTri4} />
+              </div>
             </div>
 
           </div>
@@ -251,17 +211,17 @@ const Certificate = () => {
   );
 };
 
-/* ─── Data builders ──────────────────────────────────────────────── */
+/* ─── Data builders (unchanged from original) ────────────────────── */
 const buildCertFromEndpoint = (raw, user) => ({
-  student_name:       raw.student_name    || user?.name || '—',
-  student_nmls_id:    raw.student_nmls_id || user?.nmls_id || '—',
-  course_title:       raw.course_title    || '—',
-  nmls_course_id:     raw.nmls_course_id  || '—',
-  credit_hours:       raw.credit_hours,
-  course_type_label:  raw.course_type === 'PE' ? 'Pre-Licensing Education (PE)' : 'Continuing Education (CE)',
-  state:              raw.state           || user?.state,
+  student_name:         raw.student_name    || user?.name    || '—',
+  student_nmls_id:      raw.student_nmls_id || user?.nmls_id || '—',
+  course_title:         raw.course_title    || '—',
+  nmls_course_id:       raw.nmls_course_id  || '—',
+  credit_hours:         raw.credit_hours,
+  course_type_label:    raw.course_type === 'PE' ? 'Pre-Licensing Education (PE)' : 'Continuing Education (CE)',
+  state:                raw.state           || user?.state,
   state_approval_number: raw.state_approval_number,
-  completed_at_label: raw.completed_at
+  completed_at_label:   raw.completed_at
     ? new Date(raw.completed_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
     : '—',
   issued_at_label: raw.issued_at
@@ -274,20 +234,19 @@ const buildCertFromEndpoint = (raw, user) => ({
 });
 
 const buildCertFromTranscript = (entry, user) => {
-  const course       = entry.course_id || {};
-  const courseType   = String(entry.type || course.type || '').toUpperCase();
-  const completedAt  = entry.completed_at ? new Date(entry.completed_at) : null;
-
+  const course      = entry.course_id || {};
+  const courseType  = String(entry.type || course.type || '').toUpperCase();
+  const completedAt = entry.completed_at ? new Date(entry.completed_at) : null;
   return {
-    student_name:       user?.name         || entry.student_name    || '—',
-    student_nmls_id:    user?.nmls_id      || entry.student_nmls_id || '—',
-    course_title:       entry.course_title || course.title          || '—',
-    nmls_course_id:     entry.nmls_course_id || course.nmls_course_id || '—',
-    credit_hours:       entry.credit_hours || course.credit_hours,
-    course_type_label:  courseType === 'PE' ? 'Pre-Licensing Education (PE)' : 'Continuing Education (CE)',
-    state:              entry.state        || user?.state,
+    student_name:         user?.name      || entry.student_name    || '—',
+    student_nmls_id:      user?.nmls_id   || entry.student_nmls_id || '—',
+    course_title:         entry.course_title || course.title        || '—',
+    nmls_course_id:       entry.nmls_course_id || course.nmls_course_id || '—',
+    credit_hours:         entry.credit_hours   || course.credit_hours,
+    course_type_label:    courseType === 'PE' ? 'Pre-Licensing Education (PE)' : 'Continuing Education (CE)',
+    state:                entry.state    || user?.state,
     state_approval_number: course.state_approval_number,
-    completed_at_label: completedAt
+    completed_at_label:   completedAt
       ? completedAt.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
       : '—',
     issued_at_label: completedAt
@@ -300,56 +259,172 @@ const buildCertFromTranscript = (entry, user) => {
   };
 };
 
-const DetailItem = ({ icon, label, value }) => (
-  <div style={S.detailItem}>
-    {icon}
-    <div>
-      <p style={S.detailLabel}>{label}</p>
-      <p style={S.detailValue}>{value}</p>
-    </div>
-  </div>
-);
-
 const spinnerCss = `
   .cert-spinner{width:34px;height:34px;border-radius:999px;border:3px solid rgba(2,8,23,0.10);border-top-color:#2EABFE;animation:cert-spin 1s linear infinite;}
   @keyframes cert-spin{to{transform:rotate(360deg);}}
 `;
 
+/* ─── Styles ─────────────────────────────────────────────────────── */
 const S = {
-  container:   { padding: '24px 18px 56px', maxWidth: 1180, margin: '0 auto' },
-  center:      { display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', gap: '1rem' },
-  errorCard:   { background: '#fff', border: '1px solid rgba(2,8,23,0.09)', borderRadius: 16, padding: '32px 28px', maxWidth: 420, width: '100%', boxShadow: '0 8px 32px rgba(2,8,23,0.09)' },
-  actionBar:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 820, margin: '0 auto 20px', fontFamily: 'Inter, sans-serif' },
-  backBtn:     { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid rgba(2,8,23,0.12)', padding: '9px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 800, color: 'rgba(9,25,37,0.80)', fontFamily: 'Inter, sans-serif' },
-  printBtn:    { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#091925', color: '#fff', border: 'none', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 800, fontFamily: 'Inter, sans-serif' },
-  certWrapper: { maxWidth: 820, margin: '0 auto' },
-  cert:        { background: '#fff', borderRadius: 18, boxShadow: '0 8px 40px rgba(2,8,23,0.14)', overflow: 'hidden', fontFamily: 'Georgia, serif' },
-  topAccent:   { height: 8, background: 'linear-gradient(90deg,#2EABFE,#00B4B4)' },
-  certHeader:  { textAlign: 'center', padding: '36px 32px 20px' },
-  certSealWrap:{ width: 72, height: 72, borderRadius: 999, background: 'rgba(46,171,254,0.08)', border: '2px solid rgba(46,171,254,0.22)', display: 'grid', placeItems: 'center', margin: '0 auto 14px' },
-  certOrg:     { fontSize: 12, fontWeight: 900, color: '#2EABFE', textTransform: 'uppercase', letterSpacing: '.12em', fontFamily: 'Inter, sans-serif', marginBottom: 8 },
-  certTitle:   { fontSize: '2rem', color: '#091925', margin: '0 0 6px', letterSpacing: '0.04em', fontWeight: 700 },
-  certSubtitle:{ color: 'rgba(9,25,37,0.55)', fontSize: '0.9rem', margin: 0, fontFamily: 'Inter, sans-serif' },
-  divider:     { height: 1, background: 'linear-gradient(90deg,transparent,rgba(46,171,254,0.25),transparent)', margin: '0 2rem' },
-  certifyText: { textAlign: 'center', color: 'rgba(9,25,37,0.55)', fontSize: '0.95rem', margin: '1.5rem 0 0.25rem', fontStyle: 'italic' },
-  studentName: { textAlign: 'center', fontSize: '2rem', color: '#2EABFE', margin: '0 0 0.5rem', fontWeight: 700 },
-  courseName:  { textAlign: 'center', fontSize: '1.15rem', color: 'rgba(9,25,37,0.85)', margin: '0 2rem 1.5rem', fontWeight: 600 },
-  detailsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '1.25rem', padding: '1.5rem 2.5rem' },
-  detailItem:  { display: 'flex', alignItems: 'flex-start', gap: '0.75rem' },
-  detailLabel: { margin: 0, fontSize: '0.72rem', color: 'rgba(9,25,37,0.50)', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 800 },
-  detailValue: { margin: '0.2rem 0 0', fontSize: '0.95rem', color: 'rgba(9,25,37,0.85)', fontWeight: 700, fontFamily: 'Inter, sans-serif' },
-  certFooter:    { textAlign: 'center', padding: '1.5rem 2rem' },
-  signatureRow:  { display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: 20, marginBottom: 20 },
-  sigBlock:      { textAlign: 'center', flex: 1 },
-  signatureLine: { width: '160px', height: 1, background: 'rgba(9,25,37,0.25)', margin: '0 auto 8px' },
-  signatureLabel:{ fontSize: '0.78rem', color: 'rgba(9,25,37,0.50)', margin: '0 0 4px', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 800 },
-  signatureName: { fontSize: '0.90rem', color: 'rgba(9,25,37,0.80)', margin: 0, fontFamily: 'Inter, sans-serif', fontWeight: 800 },
-  sealCircle:    { width: 72, height: 72, borderRadius: 999, border: '2px dashed rgba(46,171,254,0.40)', display: 'grid', placeItems: 'center', flexShrink: 0, textAlign: 'center' },
-  footerNote:    { fontSize: '0.72rem', color: 'rgba(9,25,37,0.40)', maxWidth: 500, margin: '0 auto', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' },
-  bottomBar:   { background: 'linear-gradient(90deg,#091925,#0d2a4a)', color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: 700, display: 'flex', justifyContent: 'center', gap: 12, padding: '10px 20px', letterSpacing: '.04em', fontFamily: 'Inter, sans-serif' },
-  attestationWrap: { padding: '18px 32px 10px', fontFamily: 'Inter, sans-serif' },
-  attestationLabel:{ fontSize: 11, fontWeight: 900, color: 'rgba(9,25,37,0.55)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 },
-  attestationText: { fontSize: 12, lineHeight: 1.55, fontWeight: 600, color: 'rgba(9,25,37,0.80)' },
+  page:       { padding: '24px 18px 56px', maxWidth: 1000, margin: '0 auto', fontFamily: "'DM Sans', sans-serif" },
+  center:     { display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', gap: '1rem' },
+  loadText:   { fontSize: 13, color: 'rgba(9,25,37,0.50)', fontWeight: 600, margin: 0 },
+  errorCard:  { background: '#fff', border: '1px solid rgba(2,8,23,0.09)', borderRadius: 16, padding: '32px 28px', maxWidth: 420, width: '100%', boxShadow: '0 8px 32px rgba(2,8,23,0.09)' },
+
+  actionBar:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 820, margin: '0 auto 20px' },
+  backBtn:    { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid rgba(2,8,23,0.12)', padding: '9px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'rgba(9,25,37,0.80)' },
+  printBtn:   { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0B2E4E', color: '#fff', border: 'none', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700 },
+
+  certOuter:  { maxWidth: 820, margin: '0 auto' },
+
+  /* The white certificate card */
+  certDoc: {
+    position: 'relative',
+    background: '#ffffff',
+    borderRadius: 6,
+    boxShadow: '0 12px 60px rgba(2,8,23,0.18)',
+    overflow: 'hidden',
+    paddingBottom: 0,
+    /* subtle diagonal texture like the PDF */
+    backgroundImage: 'repeating-linear-gradient(135deg, rgba(14,60,100,0.025) 0px, rgba(14,60,100,0.025) 1px, transparent 1px, transparent 60px)',
+  },
+
+  /* Faint diagonal watermark slashes in corners */
+  watermarkLeft: {
+    position: 'absolute', top: -60, left: -60,
+    width: 220, height: 220,
+    background: 'linear-gradient(135deg, rgba(46,171,254,0.06) 0%, transparent 60%)',
+    transform: 'rotate(-15deg)',
+    pointerEvents: 'none',
+  },
+  watermarkRight: {
+    position: 'absolute', top: -60, right: -60,
+    width: 220, height: 220,
+    background: 'linear-gradient(225deg, rgba(46,171,254,0.06) 0%, transparent 60%)',
+    transform: 'rotate(15deg)',
+    pointerEvents: 'none',
+  },
+
+  /* Header: logo + provider badge */
+  header: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    padding: '32px 40px 16px', gap: 8,
+  },
+  logoWrap: { display: 'flex', alignItems: 'center', gap: 12 },
+  logoName: { fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 900, color: '#0B2E4E', letterSpacing: '.04em' },
+  logoSub:  { fontSize: 10, fontWeight: 700, color: '#2EABFE', letterSpacing: '.12em', textTransform: 'uppercase', marginTop: 2 },
+  providerBadge: {
+    fontSize: 12, fontWeight: 800, color: '#0B2E4E',
+    letterSpacing: '.10em', textTransform: 'uppercase',
+    border: '1.5px solid #2EABFE', borderRadius: 4,
+    padding: '4px 12px', marginTop: 4,
+  },
+
+  /* Big title block */
+  titleSection: { textAlign: 'center', padding: '8px 40px 0' },
+  bigTitle: {
+    fontFamily: "'Playfair Display', serif",
+    fontSize: 'clamp(22px, 4vw, 36px)',
+    fontWeight: 900, color: '#0B2E4E',
+    letterSpacing: '.03em', margin: '0 0 16px',
+    lineHeight: 1.15,
+  },
+  certifiesText: { fontSize: 15, color: 'rgba(9,25,37,0.55)', margin: 0, fontStyle: 'italic' },
+
+  /* Student name */
+  studentBlock: { textAlign: 'center', padding: '14px 40px 6px' },
+  studentName: {
+    fontFamily: "'Playfair Display', serif",
+    fontSize: 'clamp(28px, 5vw, 44px)',
+    fontWeight: 900, color: '#0B2E4E',
+    letterSpacing: '.01em', marginBottom: 6,
+    lineHeight: 1.2,
+  },
+  mloId: { fontSize: 15, fontWeight: 700, color: 'rgba(9,25,37,0.65)', marginBottom: 10 },
+  nameLine: { width: '50%', height: 1.5, background: '#0B2E4E', margin: '0 auto' },
+
+  hasCompleted: { textAlign: 'center', fontSize: 15, color: 'rgba(9,25,37,0.55)', margin: '12px 0 8px', fontStyle: 'italic' },
+
+  /* Course name */
+  courseBlock: { textAlign: 'center', padding: '0 40px 6px' },
+  courseName: {
+    fontFamily: "'Playfair Display', serif",
+    fontSize: 'clamp(18px, 3vw, 26px)',
+    fontWeight: 900, color: '#0B2E4E',
+    margin: 0, lineHeight: 1.3,
+  },
+
+  /* Meta row */
+  metaRow: {
+    display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center',
+    gap: '4px 12px', padding: '10px 40px 8px',
+    fontSize: 13, color: '#2EABFE',
+  },
+  metaItem: { fontWeight: 600, color: 'rgba(9,25,37,0.65)' },
+  metaDot:  { color: 'rgba(9,25,37,0.30)', fontWeight: 400 },
+
+  /* Attestation */
+  attestBox: {
+    margin: '12px 40px 16px',
+    background: 'rgba(240,246,250,0.80)',
+    border: '1px solid rgba(46,171,254,0.20)',
+    borderRadius: 8,
+    padding: '14px 20px',
+  },
+  attestText: { fontSize: 12, lineHeight: 1.7, color: 'rgba(9,25,37,0.72)', fontWeight: 500, margin: 0, textAlign: 'center' },
+
+  /* Signature */
+  sigRow:   { display: 'flex', justifyContent: 'center', padding: '8px 40px 20px' },
+  sigBlock: { textAlign: 'center' },
+  sigLine:  { width: 200, height: 1, background: '#0B2E4E', margin: '0 auto 8px' },
+  sigName:  { fontFamily: "'Playfair Display', serif", fontSize: 17, fontWeight: 700, color: '#0B2E4E' },
+  sigTitle: { fontSize: 12, fontWeight: 700, color: 'rgba(9,25,37,0.60)', marginTop: 3 },
+  sigOrg:   { fontSize: 12, fontWeight: 600, color: 'rgba(9,25,37,0.50)', marginTop: 2 },
+
+  /* ── Geometric bottom shapes — replicating the PDF blue triangles ── */
+  geoBottom: {
+    position: 'relative', height: 100,
+    display: 'flex', alignItems: 'flex-end',
+    background: 'transparent', overflow: 'hidden',
+    marginTop: 0,
+  },
+  geoLeft: { position: 'absolute', bottom: 0, left: 0, display: 'flex', alignItems: 'flex-end', gap: 0 },
+  geoRight:{ position: 'absolute', bottom: 0, right: 0, display: 'flex', alignItems: 'flex-end', gap: 0 },
+  geoCenterFill: {
+    position: 'absolute', bottom: 0, left: '18%', right: '18%',
+    height: 44,
+    background: 'linear-gradient(180deg, #1A6FAB 0%, #0B2E4E 100%)',
+    clipPath: 'polygon(0 100%, 50% 0%, 100% 100%)',
+  },
+  /* Left side: dark tall triangle + lighter smaller one */
+  geoTri1: {
+    width: 0, height: 0,
+    borderLeft: '90px solid transparent',
+    borderRight: '90px solid transparent',
+    borderBottom: '100px solid #0B2E4E',
+    marginRight: -30,
+  },
+  geoTri2: {
+    width: 0, height: 0,
+    borderLeft: '70px solid transparent',
+    borderRight: '70px solid transparent',
+    borderBottom: '80px solid #2EABFE',
+    opacity: 0.85,
+  },
+  /* Right side: mirrored */
+  geoTri3: {
+    width: 0, height: 0,
+    borderLeft: '70px solid transparent',
+    borderRight: '70px solid transparent',
+    borderBottom: '80px solid #2EABFE',
+    opacity: 0.85, marginRight: -30,
+  },
+  geoTri4: {
+    width: 0, height: 0,
+    borderLeft: '90px solid transparent',
+    borderRight: '90px solid transparent',
+    borderBottom: '100px solid #0B2E4E',
+  },
 };
 
 export default Certificate;
