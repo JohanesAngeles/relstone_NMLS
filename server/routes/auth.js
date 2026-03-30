@@ -27,8 +27,8 @@ const authMiddleware = (req, res, next) => {
 
 const getTransporter = () => nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT),
-  secure: false,
+  port: parseInt(process.env.EMAIL_PORT) || 465,
+  secure: true, // true for port 465
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
