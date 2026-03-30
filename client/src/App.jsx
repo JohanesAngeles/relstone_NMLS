@@ -30,6 +30,7 @@ import StudentDetail from './pages/instructor_page/StudentDetail';
 import ContactSupport from './pages/dashboard/ContactSupport';
 import SupportInbox   from './pages/instructor_page/SupportInbox';
 import EditCourseModal from './pages/dashboard/EditCourseModal';
+import InstructorAddCourse from './pages/instructor_page/InstructorAddCourse';
 // FIX: Removed the .JSX extension to avoid casing conflicts and circular errors
 
 /* ─── Role helpers ───────────────────────────────────────────────── */
@@ -105,6 +106,7 @@ function App() {
           <Route path="/certificates" element={<StudentRoute><MyCertificates /></StudentRoute>} />
           <Route path="/orders" element={<StudentRoute><OrdersBilling /></StudentRoute>} />
           <Route path="/support" element={<StudentRoute><ContactSupport /></StudentRoute>} />
+          <Route path="/instructor/courses/add" element={<InstructorAddCourse />} />
 
           {/* CE Tracker */}
           <Route path="/ce-tracker" element={
@@ -190,7 +192,7 @@ function App() {
             </PrivateRoute>
           } />
           <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
-=======
+
           {/* ── Instructor-only pages ── */}
           <Route path="/instructor/dashboard" element={<InstructorRoute><InstructorDashboard /></InstructorRoute>} />
           <Route path="/instructor/students" element={<InstructorRoute><ViewStudents /></InstructorRoute>} />
@@ -206,7 +208,7 @@ function App() {
           <Route path="/courses/:id/learn" element={<PrivateRoute><CoursePortal /></PrivateRoute>} />
           <Route path="/certificate/:courseId" element={<PrivateRoute><Certificate /></PrivateRoute>} />
           <Route path="/checkout" element={<PrivateRoute><Checkout /></PrivateRoute>} />
->>>>>>> main
+
         </Routes>
       </Router>
     </AuthProvider>

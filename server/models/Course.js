@@ -17,7 +17,7 @@ const moduleSchema = new mongoose.Schema({
   sections:     [{ type: String }],
   pdf_url:      { type: String, default: null },
   // If pdf_url is shared (course-level or same file), this lets the LMS open
-  // the PDF to the module’s starting page (supported by most PDF viewers).
+  // the PDF to the module's starting page (supported by most PDF viewers).
   pdf_start_page: { type: Number, default: null },
   // Used by CoursePortal to optionally force a PDF gate step before quizzes.
   show_pdf_before_quiz: { type: Boolean, default: false },
@@ -30,7 +30,10 @@ const finalExamSchema = new mongoose.Schema({
   title:              { type: String },
   passing_score:      { type: Number, default: 70 },
   time_limit_minutes: { type: Number, default: 90 },
+  // Attempt 1 — official fixed question set
   questions:          [questionSchema],
+  // Attempt 2+ — pool that gets shuffled and sliced to 35 random questions
+  question_bank:      [questionSchema],   // ← was MISSING, caused bank to be dropped on every save
 }, { _id: false });
 
 // ── Course ────────────────────────────────────────────────────────────

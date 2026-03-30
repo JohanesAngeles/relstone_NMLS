@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import API from "../../api/axios";
 import logo from "../../assets/images/Left Side Logo.png";
-import EditCourseModal from "./EditCourseModal"; 
+import EditCourseModal from "./EditCourseModal";
 import {
   Users, BookOpen, CheckCircle, Clock, Award,
   ChevronRight, BarChart2, TrendingUp, Search,
@@ -11,7 +11,7 @@ import {
   Eye, RefreshCw, GraduationCap, FileText,
   MessageSquare, ThumbsUp, ThumbsDown, Trash2,
   UserCheck, UserX, Activity, BookPlus, BookMinus,
-  Filter, Calendar, User, Pencil, Bell,
+  Filter, Calendar, User, Pencil, Bell, Plus
 } from "lucide-react";
 
 /* ─── Logout Confirm ─────────────────────────────────────────────── */
@@ -123,11 +123,11 @@ const ConfirmToggleModal = ({ student, onConfirm, onCancel, loading }) => {
 
 /* ─── Activity Log helpers ───────────────────────────────────────── */
 const LOG_META = {
-  add_course:     { icon: <BookPlus  size={15} />, label: "Course Added",     color: "rgba(0,140,140,1)",   bg: "rgba(0,180,180,0.10)", border: "rgba(0,180,180,0.25)" },
-  edit_course:    { icon: <Pencil    size={15} />, label: "Course Edited",    color: "rgba(79, 70, 229, 1)", bg: "rgba(79, 70, 229, 0.10)", border: "rgba(79, 70, 229, 0.25)" },
-  remove_course:  { icon: <BookMinus size={15} />, label: "Course Removed",   color: "rgba(185,28,28,1)",   bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.22)" },
-  assign_course:  { icon: <BookPlus  size={15} />, label: "Course Assigned",  color: "rgba(46,100,220,1)",  bg: "rgba(46,171,254,0.10)", border: "rgba(46,171,254,0.25)" },
-  toggle_active:  { icon: <UserCheck size={15} />, label: "Account Changed",  color: "rgba(146,84,0,1)",    bg: "rgba(245,158,11,0.10)", border: "rgba(245,158,11,0.28)" },
+  add_course:    { icon: <BookPlus  size={15} />, label: "Course Added",    color: "rgba(0,140,140,1)",   bg: "rgba(0,180,180,0.10)",  border: "rgba(0,180,180,0.25)"  },
+  edit_course:   { icon: <Pencil    size={15} />, label: "Course Edited",   color: "rgba(79,70,229,1)",   bg: "rgba(79,70,229,0.10)",  border: "rgba(79,70,229,0.25)"  },
+  remove_course: { icon: <BookMinus size={15} />, label: "Course Removed",  color: "rgba(185,28,28,1)",   bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.22)"  },
+  assign_course: { icon: <BookPlus  size={15} />, label: "Course Assigned", color: "rgba(46,100,220,1)",  bg: "rgba(46,171,254,0.10)", border: "rgba(46,171,254,0.25)" },
+  toggle_active: { icon: <UserCheck size={15} />, label: "Account Changed", color: "rgba(146,84,0,1)",    bg: "rgba(245,158,11,0.10)", border: "rgba(245,158,11,0.28)" },
 };
 
 const formatLogDateTime = (ts) => {
@@ -140,7 +140,7 @@ const formatLogDateTime = (ts) => {
 /* ─── ActivityLogPanel ───────────────────────────────────────────── */
 const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
   const [actionFilter, setActionFilter] = useState("all");
-  const [logSearch, setLogSearch] = useState("");
+  const [logSearch,    setLogSearch]    = useState("");
 
   const filtered = useMemo(() => {
     let list = logs;
@@ -148,10 +148,10 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
     if (logSearch.trim()) {
       const needle = logSearch.toLowerCase();
       list = list.filter(l =>
-        String(l.student_name  || "").toLowerCase().includes(needle) ||
-        String(l.student_email || "").toLowerCase().includes(needle) ||
-        String(l.course_title  || "").toLowerCase().includes(needle) ||
-        String(l.details       || "").toLowerCase().includes(needle) ||
+        String(l.student_name    || "").toLowerCase().includes(needle) ||
+        String(l.student_email   || "").toLowerCase().includes(needle) ||
+        String(l.course_title    || "").toLowerCase().includes(needle) ||
+        String(l.details         || "").toLowerCase().includes(needle) ||
         String(l.instructor_name || "").toLowerCase().includes(needle)
       );
     }
@@ -215,7 +215,9 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
         <EmptyState
           icon={<Activity size={18} />}
           title="No activity logs found"
-          subtitle={logSearch || actionFilter !== "all" ? "Try adjusting your filters." : "Instructor actions (course edits, assignments, activations) will appear here."}
+          subtitle={logSearch || actionFilter !== "all"
+            ? "Try adjusting your filters."
+            : "Instructor actions (course edits, assignments, activations) will appear here."}
           actionLabel="Clear filters"
           onAction={() => { setActionFilter("all"); setLogSearch(""); }}
         />
@@ -223,6 +225,8 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {grouped.map(([date, dayLogs]) => (
             <div key={date} style={{ marginBottom: 22 }}>
+
+              {/* Date separator */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <div style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
@@ -240,6 +244,7 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
                 </span>
               </div>
 
+              {/* Timeline */}
               <div style={{ position: "relative", paddingLeft: 32 }}>
                 <div style={{
                   position: "absolute", left: 11, top: 0, bottom: 0,
@@ -247,24 +252,30 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
                 }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {dayLogs.map((log, i) => {
-                    const meta = LOG_META[log.action] || LOG_META.toggle_active;
-                    const { time } = formatLogDateTime(log.timestamp || log.createdAt);
+                    const meta           = LOG_META[log.action] || LOG_META.toggle_active;
+                    const { time, full } = formatLogDateTime(log.timestamp || log.createdAt);
+                    const instructorName = log.instructor_name || "Unknown Instructor";
+
                     return (
                       <div key={log._id || i} style={{ position: "relative" }}>
+                        {/* Timeline dot */}
                         <div style={{
                           position: "absolute", left: -27, top: 14,
                           width: 18, height: 18, borderRadius: "50%",
                           background: meta.bg, border: `2px solid ${meta.border}`,
                           display: "flex", alignItems: "center", justifyContent: "center",
                           color: meta.color, flexShrink: 0,
-                          boxShadow: `0 0 0 3px rgba(255,255,255,1)`,
+                          boxShadow: "0 0 0 3px rgba(255,255,255,1)",
                         }} />
+
                         <div style={{
                           borderRadius: 14, background: "#fff",
                           border: `1px solid ${meta.border}`,
                           boxShadow: "0 2px 10px rgba(2,8,23,0.05)",
                           padding: "12px 14px", transition: "box-shadow .15s",
                         }} className="rs-log-card">
+
+                          {/* Top: action icon + label + time */}
                           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <div style={{
@@ -295,45 +306,71 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
                               {time}
                             </div>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                            {log.student_name && (
-                              <span style={{
-                                display: "inline-flex", alignItems: "center", gap: 5,
-                                fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.65)",
-                              }}>
-                                <User size={12} style={{ color: "rgba(11,18,32,0.38)" }} />
-                                {log.student_name}
-                                {log.student_email && (
-                                  <span style={{ fontWeight: 600, color: "rgba(11,18,32,0.42)" }}>
-                                    · {log.student_email}
-                                  </span>
-                                )}
-                              </span>
-                            )}
-                            {log.details && (
-                              <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(11,18,32,0.52)", fontStyle: "italic" }}>
-                                {log.details}
-                              </span>
-                            )}
-                          </div>
-                          {log.instructor_name && (
-                            <div style={{
-                              marginTop: 10, paddingTop: 9,
-                              borderTop: "1px solid rgba(2,8,23,0.06)",
-                              display: "flex", alignItems: "center", gap: 6,
-                              fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.40)",
-                            }}>
-                              <div style={{
-                                width: 18, height: 18, borderRadius: "50%",
-                                background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.25)",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                color: "var(--rs-teal)", fontSize: 9, fontWeight: 900,
-                              }}>
-                                {(log.instructor_name || "I")[0].toUpperCase()}
-                              </div>
-                              By {log.instructor_name}
+
+                          {/* Middle: student + details */}
+                          {(log.student_name || log.details) && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
+                              {log.student_name && (
+                                <span style={{
+                                  display: "inline-flex", alignItems: "center", gap: 5,
+                                  fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.65)",
+                                }}>
+                                  <User size={12} style={{ color: "rgba(11,18,32,0.38)" }} />
+                                  {log.student_name}
+                                  {log.student_email && (
+                                    <span style={{ fontWeight: 600, color: "rgba(11,18,32,0.42)" }}>
+                                      · {log.student_email}
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                              {log.details && (
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(11,18,32,0.52)", fontStyle: "italic" }}>
+                                  {log.details}
+                                </span>
+                              )}
                             </div>
                           )}
+
+                          {/* ── Bottom: instructor attribution (prominent) ── */}
+                          <div style={{
+                            paddingTop: 9,
+                            borderTop: "1px solid rgba(2,8,23,0.06)",
+                            display: "flex", alignItems: "center",
+                            justifyContent: "space-between", gap: 8,
+                          }}>
+                            {/* Left: avatar + name */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                              <div style={{
+                                width: 24, height: 24, borderRadius: "50%",
+                                background: "linear-gradient(135deg,#091925,#054040)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                color: "var(--rs-teal)", fontSize: 10, fontWeight: 900,
+                                flexShrink: 0, border: "1.5px solid rgba(0,180,180,0.30)",
+                              }}>
+                                {instructorName[0].toUpperCase()}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                <span style={{ fontSize: 12, fontWeight: 900, color: "rgba(11,18,32,0.75)" }}>
+                                  {instructorName}
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: "rgba(11,18,32,0.40)" }}>
+                                  performed this action
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Right: full timestamp */}
+                            <span style={{
+                              fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.35)",
+                              display: "flex", alignItems: "center", gap: 3,
+                              whiteSpace: "nowrap",
+                            }}>
+                              <Clock size={10} />
+                              {full}
+                            </span>
+                          </div>
+
                         </div>
                       </div>
                     );
@@ -353,46 +390,36 @@ const InstructorDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [data,          setData]          = useState(null);
-  const [allStudents,  setAllStudents]  = useState([]);
-  const [allCourses,   setAllCourses]   = useState([]);
-  const [activeTab,    setActiveTab]    = useState("overview");
-  const [loading,      setLoading]      = useState(true);
-  const [studentsLoading, setStudentsLoading] = useState(false);
-  const [coursesLoading,  setCoursesLoading]  = useState(false);
-  const [error,        setError]        = useState("");
-  const [q,            setQ]            = useState("");
-  const [courseSearch, setCourseSearch] = useState("");
-  const [showLogout,   setShowLogout]   = useState(false);
-  const [expandedStudent,      setExpandedStudent]      = useState(null);
-  const [testimonials,         setTestimonials]         = useState([]);
-  const [testimonialsLoading,  setTestimonialsLoading]  = useState(false);
-  const [testimonialFilter,    setTestimonialFilter]    = useState("pending");
+  const [data,                setData]                = useState(null);
+  const [allStudents,         setAllStudents]         = useState([]);
+  const [allCourses,          setAllCourses]          = useState([]);
+  const [activeTab,           setActiveTab]           = useState("overview");
+  const [loading,             setLoading]             = useState(true);
+  const [studentsLoading,     setStudentsLoading]     = useState(false);
+  const [coursesLoading,      setCoursesLoading]      = useState(false);
+  const [error,               setError]               = useState("");
+  const [q,                   setQ]                   = useState("");
+  const [courseSearch,        setCourseSearch]        = useState("");
+  const [showLogout,          setShowLogout]          = useState(false);
+  const [expandedStudent,     setExpandedStudent]     = useState(null);
+  const [testimonials,        setTestimonials]        = useState([]);
+  const [testimonialsLoading, setTestimonialsLoading] = useState(false);
+  const [testimonialFilter,   setTestimonialFilter]   = useState("all");
+  const [activityLogs,        setActivityLogs]        = useState([]);
+  const [logsLoading,         setLogsLoading]         = useState(false);
+  const [supportTickets,      setSupportTickets]      = useState([]);
+  const [toggleTarget,        setToggleTarget]        = useState(null);
+  const [toggleLoading,       setToggleLoading]       = useState(false);
+  const [statusFilter,        setStatusFilter]        = useState("all");
+  const [editingCourse,       setEditingCourse]       = useState(null);
 
-  // ── Activity logs ─────────────────────────────────────────────────
-  const [activityLogs,    setActivityLogs]    = useState([]);
-  const [logsLoading,     setLogsLoading]     = useState(false);
-
-  // ── Support Tickets ───────────────────────────────────────────────
-  const [supportTickets,  setSupportTickets]  = useState([]);
-  const [supportLoading,  setSupportLoading]  = useState(false);
-
-  // ── Toggle active state ───────────────────────────────────────────
-  const [toggleTarget,  setToggleTarget]  = useState(null);
-  const [toggleLoading, setToggleLoading] = useState(false);
-  const [statusFilter,  setStatusFilter]  = useState("all");
-
-  // ── Edit course state ───────────────────────────────────────
-  const [editingCourse, setEditingCourse] = useState(null);
-
+  /* ── Initial load ─────────────────────────────────────────────── */
   useEffect(() => {
     const fetchAll = async () => {
       try {
         setLoading(true);
         const res = await API.get("/instructor/dashboard");
         setData(res.data);
-        
-        // Fetch support tickets for badge count
         try {
           const ticketRes = await API.get("/support/admin/all?status=open&status=in_progress");
           setSupportTickets(ticketRes.data?.tickets || []);
@@ -409,7 +436,7 @@ const InstructorDashboard = () => {
     fetchAll();
   }, []);
 
-  // Refresh support tickets periodically
+  /* ── Refresh support tickets every 30s ───────────────────────── */
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -418,10 +445,11 @@ const InstructorDashboard = () => {
       } catch {
         setSupportTickets([]);
       }
-    }, 30000); // Refresh every 30 seconds
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
+  /* ── Students ─────────────────────────────────────────────────── */
   useEffect(() => {
     if (activeTab !== "students") return;
     if (allStudents.length > 0) return;
@@ -444,6 +472,7 @@ const InstructorDashboard = () => {
     fetchStudents();
   }, [activeTab]);
 
+  /* ── Courses ──────────────────────────────────────────────────── */
   useEffect(() => {
     if (activeTab !== "courses") return;
     if (allCourses.length > 0) return;
@@ -461,6 +490,7 @@ const InstructorDashboard = () => {
     fetchCourses();
   }, [activeTab, data]);
 
+  /* ── Logs ─────────────────────────────────────────────────────── */
   useEffect(() => {
     if (activeTab !== "logs") return;
     fetchLogs();
@@ -478,27 +508,75 @@ const InstructorDashboard = () => {
     }
   };
 
+  /* ── Testimonials ─────────────────────────────────────────────── */
+  const fetchTestimonials = async () => {
+    setTestimonialsLoading(true);
+    try {
+      const res  = await API.get("/testimonials/admin/all");
+      const list = res.data?.testimonials ?? res.data ?? [];
+      setTestimonials(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error("[Reviews] error:", err.response?.data || err.message);
+      setTestimonials([]);
+    } finally {
+      setTestimonialsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== "reviews") return;
+    fetchTestimonials();
+  }, [activeTab]);
+
+  /* ── Testimonial actions ──────────────────────────────────────── */
+  const handleTestimonialAction = async (id, action) => {
+    try {
+      if (action === "delete") {
+        await API.delete(`/testimonials/admin/${id}`);
+        setTestimonials(prev => prev.filter(t => t._id !== id));
+      } else if (action === "featured") {
+        const t = testimonials.find(t => t._id === id);
+        await API.put(`/testimonials/admin/${id}`, { featured: !t?.featured });
+        setTestimonials(prev => prev.map(t =>
+          t._id === id ? { ...t, featured: !t.featured } : t
+        ));
+      } else {
+        // "approved" or "rejected"
+        await API.put(`/testimonials/admin/${id}`, { status: action });
+        setTestimonials(prev => prev.map(t =>
+          t._id === id ? { ...t, status: action } : t
+        ));
+        // Switch to "all" so updated card stays visible instead of disappearing
+        setTestimonialFilter("all");
+      }
+    } catch (err) {
+      console.error("Testimonial action failed:", err.response?.data || err.message);
+    }
+  };
+
+  /* ── Toggle student active ────────────────────────────────────── */
   const handleToggleActive = async () => {
     if (!toggleTarget) return;
     setToggleLoading(true);
     try {
-      const res = await API.put(`/instructor/students/${toggleTarget._id}/toggle-active`);
+      const res       = await API.put(`/instructor/students/${toggleTarget._id}/toggle-active`);
       const newStatus = res.data.is_active;
-      const update = (list) => list.map(s =>
+      const update    = (list) => list.map(s =>
         String(s._id) === String(toggleTarget._id)
           ? { ...s, is_active: newStatus, deactivated_at: newStatus ? null : new Date().toISOString() }
           : s
       );
       setAllStudents(prev => update(prev));
       setData(prev => prev ? { ...prev, students: update(prev.students || []) } : prev);
+      // Optimistic log with instructor name
       const newLog = {
         _id:             Date.now(),
         action:          "toggle_active",
-        instructor_name: user?.name,
+        instructor_name: user?.name || "Instructor",
         student_name:    toggleTarget.name,
-        student_email:    toggleTarget.email,
-        details:          `Account ${newStatus ? "activated" : "deactivated"}`,
-        timestamp:        new Date().toISOString(),
+        student_email:   toggleTarget.email,
+        details:         `Account ${newStatus ? "activated" : "deactivated"}`,
+        timestamp:       new Date().toISOString(),
       };
       setActivityLogs(prev => [newLog, ...prev]);
       setToggleTarget(null);
@@ -509,9 +587,8 @@ const InstructorDashboard = () => {
     }
   };
 
-  // ── Updated Handle course saved to include log ────────────────────
+  /* ── Course saved ─────────────────────────────────────────────── */
   const handleCourseSaved = (updated) => {
-    // 1. Update lists
     setAllCourses(prev =>
       prev.map(c => String(c._id) === String(updated._id) ? { ...c, ...updated } : c)
     );
@@ -521,8 +598,7 @@ const InstructorDashboard = () => {
         String(c._id) === String(updated._id) ? { ...c, ...updated } : c
       ),
     } : prev);
-
-    // 2. Add manual log for UI
+    // Optimistic log with instructor name
     const editLog = {
       _id:             Date.now(),
       action:          "edit_course",
@@ -536,15 +612,14 @@ const InstructorDashboard = () => {
 
   const handleLogout = () => { logout(); window.location.href = "/"; };
 
+  /* ── Derived values ───────────────────────────────────────────── */
   const dashCourses      = data?.courses          || [];
   const dashStudents     = data?.students         || [];
   const totalEnrollments = data?.total_enrollments ?? 0;
   const totalCompletions = data?.total_completions  ?? 0;
-  const pendingReviews   = data?.pending_reviews    ?? 0;
+  const displayStudents  = allStudents.length > 0 ? allStudents : dashStudents;
+  const displayCourses   = allCourses.length  > 0 ? allCourses  : dashCourses;
   const activeCourses    = (allCourses.length > 0 ? allCourses : dashCourses).filter(c => c.active !== false).length;
-
-  const displayStudents = allStudents.length > 0 ? allStudents : dashStudents;
-  const displayCourses  = allCourses.length  > 0 ? allCourses  : dashCourses;
 
   const inactiveCount = useMemo(
     () => displayStudents.filter(s => s.is_active === false).length,
@@ -575,49 +650,18 @@ const InstructorDashboard = () => {
     );
   }, [displayCourses, courseSearch]);
 
-  useEffect(() => {
-    if (activeTab !== "reviews") return;
-    const fetchTestimonials = async () => {
-      setTestimonialsLoading(true);
-      try {
-        const res = await API.get("/testimonials/admin/all");
-        setTestimonials(res.data?.testimonials || []);
-      } catch {
-        setTestimonials([]);
-      } finally {
-        setTestimonialsLoading(false);
-      }
-    };
-    fetchTestimonials();
-  }, [activeTab]);
-
-  const handleTestimonialAction = async (id, action) => {
-    try {
-      if (action === "delete") {
-        await API.delete(`/testimonials/admin/${id}`);
-        setTestimonials(prev => prev.filter(t => t._id !== id));
-      } else if (action === "featured") {
-        const t = testimonials.find(t => t._id === id);
-        await API.put(`/testimonials/admin/${id}`, { featured: !t?.featured });
-        setTestimonials(prev => prev.map(t => t._id === id ? { ...t, featured: !t.featured } : t));
-      } else {
-        await API.put(`/testimonials/admin/${id}`, { status: action });
-        setTestimonials(prev => prev.map(t => t._id === id ? { ...t, status: action } : t));
-      }
-    } catch { /* silent */ }
-  };
-
   const filteredTestimonials = testimonialFilter === "all"
     ? testimonials
     : testimonials.filter(t => t.status === testimonialFilter);
 
-  const pendingCount  = testimonials.filter(t => t.status === "pending").length;
-  const openTicketCount = supportTickets.filter(t => t.status === "open").length;
-  const inProgressCount = supportTickets.filter(t => t.status === "in_progress").length;
+  const pendingCount      = testimonials.filter(t => t.status === "pending").length;
+  const openTicketCount   = supportTickets.filter(t => t.status === "open").length;
+  const inProgressCount   = supportTickets.filter(t => t.status === "in_progress").length;
   const urgentTicketCount = supportTickets.filter(t => t.priority === "urgent" && t.status !== "closed" && t.status !== "resolved").length;
-  const totalOpenSupport = openTicketCount + inProgressCount;
-  const recentCourses = useMemo(() => displayCourses.slice(0, 3), [displayCourses]);
+  const totalOpenSupport  = openTicketCount + inProgressCount;
+  const recentCourses     = useMemo(() => displayCourses.slice(0, 3), [displayCourses]);
 
+  /* ── Loading / error ──────────────────────────────────────────── */
   if (loading) return (
     <div style={S.page}>
       <style>{css}</style>
@@ -637,12 +681,12 @@ const InstructorDashboard = () => {
     </div>
   );
 
+  /* ── Render ───────────────────────────────────────────────────── */
   return (
     <div style={S.page}>
       <style>{css}</style>
 
       {showLogout && <LogoutConfirm onConfirm={handleLogout} onCancel={() => setShowLogout(false)} />}
-
       {toggleTarget && (
         <ConfirmToggleModal
           student={toggleTarget}
@@ -651,8 +695,6 @@ const InstructorDashboard = () => {
           onCancel={() => setToggleTarget(null)}
         />
       )}
-
-      {/* ── Edit Course Modal ── */}
       {editingCourse && (
         <EditCourseModal
           course={editingCourse}
@@ -661,7 +703,7 @@ const InstructorDashboard = () => {
         />
       )}
 
-      {/* ── Top bar ── */}
+      {/* ── Topbar ── */}
       <header style={S.topbar}>
         <div style={S.topbarInner}>
           <div style={S.brandLeft}>
@@ -706,12 +748,11 @@ const InstructorDashboard = () => {
                 </button>
               </div>
             </div>
-
             <div style={S.kpiGrid}>
-              <KpiCard icon={<PlayCircle size={20} />}  title="Active Courses"    value={activeCourses}    caption="Published"    tone="teal"  />
-              <KpiCard icon={<Users size={20} />}        title="Total Students"    value={displayStudents.length || totalEnrollments} caption="Enrolled" tone="blue" />
-              <KpiCard icon={<CheckCircle size={20} />}  title="Completions"       value={totalCompletions} caption="All time"     tone="green" />
-              <KpiCard icon={<UserX size={20} />}        title="Inactive Students" value={inactiveCount}    caption="Deactivated"  tone="amber" />
+              <KpiCard icon={<PlayCircle size={20} />}  title="Active Courses"    value={activeCourses}                              caption="Published"   tone="teal"  />
+              <KpiCard icon={<Users size={20} />}        title="Total Students"    value={displayStudents.length || totalEnrollments} caption="Enrolled"    tone="blue"  />
+              <KpiCard icon={<CheckCircle size={20} />}  title="Completions"       value={totalCompletions}                           caption="All time"    tone="green" />
+              <KpiCard icon={<UserX size={20} />}        title="Inactive Students" value={inactiveCount}                              caption="Deactivated" tone="amber" />
             </div>
           </div>
         </section>
@@ -720,8 +761,8 @@ const InstructorDashboard = () => {
         <section style={S.card}>
           <div style={S.tabRow}>
             <div style={S.tabs}>
-              <TabButton label="Overview"   active={activeTab === "overview"}  onClick={() => setActiveTab("overview")} />
-              <TabButton label={`Courses (${displayCourses.length})`}  active={activeTab === "courses"}  onClick={() => setActiveTab("courses")} />
+              <TabButton label="Overview" active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
+              <TabButton label={`Courses (${displayCourses.length})`} active={activeTab === "courses"} onClick={() => setActiveTab("courses")} />
               <TabButton
                 label={inactiveCount > 0
                   ? `Students (${displayStudents.length}) · ${inactiveCount} inactive`
@@ -752,11 +793,12 @@ const InstructorDashboard = () => {
               />
             </div>
 
+            {/* Per-tab toolbar */}
             {activeTab === "students" && (
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <div style={{ display: "flex", gap: 6 }}>
                   {[
-                    { key: "all",       label: "All" },
+                    { key: "all",      label: "All" },
                     { key: "active",   label: "Active" },
                     { key: "inactive", label: "Inactive", highlight: inactiveCount > 0 },
                   ].map(f => (
@@ -788,7 +830,7 @@ const InstructorDashboard = () => {
             )}
             {activeTab === "reviews" && (
               <div style={{ display: "flex", gap: 8 }}>
-                {["pending","approved","rejected","all"].map(f => (
+                {["pending", "approved", "rejected", "all"].map(f => (
                   <button key={f} type="button"
                     style={{ ...S.filterChip, ...(testimonialFilter === f ? S.filterChipActive : {}) }}
                     onClick={() => setTestimonialFilter(f)}>
@@ -819,31 +861,27 @@ const InstructorDashboard = () => {
                   ) : (
                     <div style={{ display: "grid", gap: 10 }}>
                       {recentCourses.map((c, i) => (
-                        <CourseMiniRow
-                          key={i}
-                          course={c}
-                          onEdit={() => setEditingCourse(c)}
-                        />
+                        <CourseMiniRow key={i} course={c} onEdit={() => setEditingCourse(c)} />
                       ))}
                     </div>
                   )}
                 </div>
-
                 <div style={S.panel}>
                   <div style={S.panelHead}><div style={S.panelTitle}>Quick Actions</div></div>
                   <div style={S.quickActions}>
-                    <ActionCard icon={<BookOpen size={17} />}  title="All Courses"      sub={`${displayCourses.length} courses available`}   onClick={() => setActiveTab("courses")} />
-                    <ActionCard icon={<Users size={17} />}      title="All Students"      sub={`${displayStudents.length} students enrolled`}   onClick={() => setActiveTab("students")} />
-                    <ActionCard icon={<UserX size={17} />}      title="Inactive Students" sub={`${inactiveCount} student${inactiveCount !== 1 ? "s" : ""} deactivated`} onClick={() => { setActiveTab("students"); setStatusFilter("inactive"); }} />
-                    <ActionCard icon={<BarChart2 size={17} />}  title="Completions"       sub={`${totalCompletions} completions across all courses`} onClick={() => {}} />
-                    <ActionCard icon={<Activity size={17} />}   title="Activity Logs"     sub="View all course edits and assignments"           onClick={() => setActiveTab("logs")} />
-                    <ActionCard icon={<MessageSquare size={17} />} title="Support Inbox" sub={totalOpenSupport > 0 ? `${totalOpenSupport} open ticket${totalOpenSupport !== 1 ? "s" : ""} waiting` : "View and respond to student tickets"} onClick={() => navigate("/instructor/support")} />
+                    <ActionCard icon={<BookOpen size={17} />}     title="All Courses"       sub={`${displayCourses.length} courses available`}  onClick={() => setActiveTab("courses")} />
+                    <ActionCard icon={<Users size={17} />}         title="All Students"      sub={`${displayStudents.length} students enrolled`}  onClick={() => setActiveTab("students")} />
+                    <ActionCard icon={<UserX size={17} />}         title="Inactive Students" sub={`${inactiveCount} student${inactiveCount !== 1 ? "s" : ""} deactivated`} onClick={() => { setActiveTab("students"); setStatusFilter("inactive"); }} />
+                    <ActionCard icon={<BarChart2 size={17} />}     title="Completions"       sub={`${totalCompletions} completions across all courses`} onClick={() => {}} />
+                    <ActionCard icon={<Activity size={17} />}      title="Activity Logs"     sub="View all course edits and assignments" onClick={() => setActiveTab("logs")} />
+                    <ActionCard icon={<Plus size={17} />}          title="Add New Course"    sub="Create a new NMLS course" onClick={() => navigate("/instructor/courses/add")} />
+                    <ActionCard icon={<MessageSquare size={17} />} title="Support Inbox"     sub={totalOpenSupport > 0 ? `${totalOpenSupport} open ticket${totalOpenSupport !== 1 ? "s" : ""} waiting` : "View and respond to student tickets"} onClick={() => navigate("/instructor/support")} />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* ── ALL COURSES ── */}
+            {/* ── COURSES ── */}
             {activeTab === "courses" && (
               <div>
                 <div style={S.sectionHead}>
@@ -855,11 +893,25 @@ const InstructorDashboard = () => {
                       &nbsp;·&nbsp;{activeCourses} active
                     </div>
                   </div>
-                  <button style={S.refreshBtn} type="button" onClick={() => { setAllCourses([]); setCourseSearch(""); }}>
-                    <RefreshCw size={13} /> Refresh
-                  </button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "8px 14px", borderRadius: 10, border: "none",
+                        background: "linear-gradient(135deg,#00B4B4,#2EABFE)",
+                        cursor: "pointer", fontSize: 12, fontWeight: 900, color: "#fff",
+                        boxShadow: "0 4px 14px rgba(0,180,180,0.28)",
+                      }}
+                      type="button"
+                      onClick={() => navigate("/instructor/courses/add")}
+                    >
+                      <Plus size={13} /> Add Course
+                    </button>
+                    <button style={S.refreshBtn} type="button" onClick={() => { setAllCourses([]); setCourseSearch(""); }}>
+                      <RefreshCw size={13} /> Refresh
+                    </button>
+                  </div>
                 </div>
-
                 {coursesLoading ? (
                   <div style={S.center}><div className="rs-spinner" /></div>
                 ) : filteredCourses.length === 0 ? (
@@ -867,18 +919,14 @@ const InstructorDashboard = () => {
                 ) : (
                   <div style={S.courseGrid}>
                     {filteredCourses.map((c, i) => (
-                      <CourseCard
-                        key={c._id || i}
-                        course={c}
-                        onEdit={() => setEditingCourse(c)}
-                      />
+                      <CourseCard key={c._id || i} course={c} onEdit={() => setEditingCourse(c)} />
                     ))}
                   </div>
                 )}
               </div>
             )}
 
-            {/* ── ALL STUDENTS ── */}
+            {/* ── STUDENTS ── */}
             {activeTab === "students" && (
               <div>
                 <div style={S.sectionHead}>
@@ -887,15 +935,13 @@ const InstructorDashboard = () => {
                     <div style={S.sectionSub}>
                       {filteredStudents.length} student{filteredStudents.length !== 1 ? "s" : ""}
                       {q.trim() ? " matching search" : statusFilter !== "all" ? ` · ${statusFilter}` : " enrolled across all courses"}
-                      {inactiveCount > 0 && ` · `}
-                      {inactiveCount > 0 && <span style={{ color: "rgba(185,28,28,0.85)", fontWeight: 800 }}>{inactiveCount} inactive</span>}
+                      {inactiveCount > 0 && <> · <span style={{ color: "rgba(185,28,28,0.85)", fontWeight: 800 }}>{inactiveCount} inactive</span></>}
                     </div>
                   </div>
                   <button style={S.refreshBtn} type="button" onClick={() => { setAllStudents([]); setQ(""); }}>
                     <RefreshCw size={13} /> Refresh
                   </button>
                 </div>
-
                 {studentsLoading ? (
                   <div style={{ ...S.center, minHeight: 200 }}><div className="rs-spinner" /></div>
                 ) : filteredStudents.length === 0 ? (
@@ -952,11 +998,11 @@ const InstructorDashboard = () => {
                       {" "}· {testimonials.filter(t => t.featured).length} featured
                     </div>
                   </div>
-                  <button style={S.refreshBtn} type="button" onClick={() => setTestimonials([])}>
+                  {/* Fixed: calls fetchTestimonials directly instead of setTestimonials([]) */}
+                  <button style={S.refreshBtn} type="button" onClick={fetchTestimonials}>
                     <RefreshCw size={13} /> Refresh
                   </button>
                 </div>
-
                 {testimonialsLoading ? (
                   <div style={{ ...S.center, minHeight: 200 }}><div className="rs-spinner" /></div>
                 ) : filteredTestimonials.length === 0 ? (
@@ -1000,22 +1046,20 @@ const InstructorDashboard = () => {
   );
 };
 
-/* ─── Sub-components ─── */
+/* ─── Sub-components ──────────────────────────────────────────────── */
 
 const TabButton = ({ label, active, onClick, highlight, badge, icon, urgent }) => (
   <button type="button" onClick={onClick} style={{
     ...S.tabBtn,
-    ...(active ? S.tabBtnActive : {}),
-    ...(highlight && !active ? S.tabBtnHighlight : {}),
-    ...(urgent ? S.tabBtnUrgent : {}),
+    ...(active                  ? S.tabBtnActive    : {}),
+    ...(highlight && !active    ? S.tabBtnHighlight : {}),
+    ...(urgent                  ? S.tabBtnUrgent    : {}),
     position: "relative",
   }}>
     {icon && <span style={{ display: "flex", alignItems: "center", marginRight: 6 }}>{icon}</span>}
     <span>{label}</span>
     {badge !== undefined && badge > 0 && (
-      <span style={S.badgeNotification}>
-        {badge > 9 ? "9+" : badge}
-      </span>
+      <span style={S.badgeNotification}>{badge > 9 ? "9+" : badge}</span>
     )}
   </button>
 );
@@ -1043,15 +1087,12 @@ const KpiCard = ({ icon, title, value, caption, tone }) => {
 const CourseMiniRow = ({ course, onEdit }) => {
   const navigate  = useNavigate();
   const type      = String(course?.type || "").toUpperCase();
-  const enrolled  = course?.enrollment_count ?? course?.enrolled ?? 0;
+  const enrolled  = course?.enrollment_count ?? course?.enrolled  ?? 0;
   const completed = course?.completion_count  ?? course?.completed ?? 0;
   const active    = course?.active ?? true;
   return (
     <div style={{ ...S.rowCard, cursor: "pointer" }}>
-      <div
-        style={{ display: "grid", gap: 6, flex: 1 }}
-        onClick={() => navigate(`/instructor/course/${course._id}`)}
-      >
+      <div style={{ display: "grid", gap: 6, flex: 1 }} onClick={() => navigate(`/instructor/course/${course._id}`)}>
         <div style={S.rowTop}>
           <div style={S.rowTitle}>{course?.title || "Course"}</div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -1068,24 +1109,16 @@ const CourseMiniRow = ({ course, onEdit }) => {
           </span>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onEdit(); }}
-        title="Edit course"
-        style={{
-          display: "flex", alignItems: "center", justifyContent: "center",
-          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-          border: "1px solid rgba(0,180,180,0.28)", background: "rgba(0,180,180,0.07)",
-          cursor: "pointer", color: "#00B4B4",
-        }}
-      >
+      <button type="button" onClick={e => { e.stopPropagation(); onEdit(); }} title="Edit course" style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+        border: "1px solid rgba(0,180,180,0.28)", background: "rgba(0,180,180,0.07)",
+        cursor: "pointer", color: "#00B4B4",
+      }}>
         <Pencil size={14} />
       </button>
-      <ChevronRight
-        size={17}
-        style={{ color: "rgba(9,25,37,0.35)", cursor: "pointer", flexShrink: 0 }}
-        onClick={() => navigate(`/instructor/course/${course._id}`)}
-      />
+      <ChevronRight size={17} style={{ color: "rgba(9,25,37,0.35)", cursor: "pointer", flexShrink: 0 }}
+        onClick={() => navigate(`/instructor/course/${course._id}`)} />
     </div>
   );
 };
@@ -1099,38 +1132,25 @@ const CourseCard = ({ course, onEdit }) => {
   const active    = course?.active ?? true;
   const passRate  = enrolled > 0 ? `${Math.round((completed / enrolled) * 100)}%` : "—";
   return (
-    <div
-      style={{ ...S.courseCard, cursor: "pointer" }}
-      className="rs-course-card"
-      onClick={() => navigate(`/instructor/course/${course._id}`)}
-    >
+    <div style={{ ...S.courseCard, cursor: "pointer" }} className="rs-course-card"
+      onClick={() => navigate(`/instructor/course/${course._id}`)}>
       <div style={S.courseCardTop}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={typeBadge(type)}>{type || "—"}</span>
           <span style={activeBadge(active)}>{active ? "Active" : "Inactive"}</span>
         </div>
-        <button
-          type="button"
-          title="Edit course"
-          onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          style={{
-            display: "flex", alignItems: "center", gap: 5,
-            padding: "5px 10px", borderRadius: 8,
-            border: "1px solid rgba(0,180,180,0.28)",
-            background: "rgba(0,180,180,0.07)",
-            cursor: "pointer", color: "#00B4B4",
-            fontSize: 12, fontWeight: 800,
-          }}
-        >
+        <button type="button" title="Edit course" onClick={e => { e.stopPropagation(); onEdit(); }} style={{
+          display: "flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8,
+          border: "1px solid rgba(0,180,180,0.28)", background: "rgba(0,180,180,0.07)",
+          cursor: "pointer", color: "#00B4B4", fontSize: 12, fontWeight: 800,
+        }}>
           <Pencil size={13} /> Edit
         </button>
       </div>
       <div style={S.courseCardTitle}>{course?.title || "Course"}</div>
       <div style={S.courseCardMeta}>
         <span style={S.metaItem}><Clock size={13} /> {creditHrs} credit hrs</span>
-        {course?.nmls_course_id && (
-          <span style={S.metaItem}><FileText size={13} /> #{course.nmls_course_id}</span>
-        )}
+        {course?.nmls_course_id && <span style={S.metaItem}><FileText size={13} /> #{course.nmls_course_id}</span>}
       </div>
       <div style={S.courseCardDivider} />
       <div style={S.courseStatsRow}>
@@ -1151,31 +1171,27 @@ const CourseStat = ({ icon, label, value, color }) => (
 );
 
 const StudentRow = ({ student, expanded, onToggle, onToggleActive }) => {
-  const navigate = useNavigate();
-  const status   = String(student?.status || "enrolled").toLowerCase();
-  const progress = student?.progress ?? 0;
-  const isActive = student?.is_active !== false;
-  const enrolled = student?.enrolled_at
+  const navigate      = useNavigate();
+  const status        = String(student?.status || "enrolled").toLowerCase();
+  const progress      = student?.progress ?? 0;
+  const isActive      = student?.is_active !== false;
+  const enrolled      = student?.enrolled_at
     ? new Date(student.enrolled_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : "—";
   const deactivatedAt = student?.deactivated_at
     ? new Date(student.deactivated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
-  const lastLogin = student?.last_login_at
+  const lastLogin     = student?.last_login_at
     ? new Date(student.last_login_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
-
-  const courses = student?.courses || (student?.course_title ? [{ title: student.course_title, status, progress }] : []);
+  const courses       = student?.courses || (student?.course_title ? [{ title: student.course_title, status, progress }] : []);
 
   return (
     <>
       <tr className="rs-tr" style={{ opacity: isActive ? 1 : 0.65 }}>
         <td style={S.td}>
-          <div
-            style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
-            onClick={() => navigate(`/instructor/students/${student._id}`)}
-            title="View student details"
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+            onClick={() => navigate(`/instructor/students/${student._id}`)} title="View student details">
             <div style={{ ...S.studentAvatar, ...(isActive ? {} : { background: "rgba(2,8,23,0.08)", border: "1px solid rgba(2,8,23,0.12)", color: "rgba(11,18,32,0.45)" }) }}>
               {(student?.name || "S")[0].toUpperCase()}
             </div>
@@ -1197,72 +1213,48 @@ const StudentRow = ({ student, expanded, onToggle, onToggleActive }) => {
             {student?.course_title || (courses.length > 0 ? `${courses.length} course${courses.length > 1 ? "s" : ""}` : "—")}
           </span>
         </td>
-        <td style={S.td}>
-          <span style={studentStatusStyle(status)}>
-            {status.charAt(0).toUpperCase() + status.slice(1)}
-          </span>
-        </td>
+        <td style={S.td}><span style={studentStatusStyle(status)}>{status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
         <td style={S.tdRight}>
           <div style={S.progressWrap}>
-            <div style={S.progressBar}>
-              <div style={{ ...S.progressFill, width: `${Math.min(progress, 100)}%` }} />
-            </div>
+            <div style={S.progressBar}><div style={{ ...S.progressFill, width: `${Math.min(progress, 100)}%` }} /></div>
             <span style={S.progressLabel}>{progress}%</span>
           </div>
         </td>
         <td style={S.td}>{enrolled}</td>
-
         <td style={S.td}>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 5,
               padding: "4px 9px", borderRadius: 999, fontSize: 11, fontWeight: 900,
-              border: "1px solid transparent",
-              color:      isActive ? "rgba(22,163,74,1)"    : "rgba(185,28,28,1)",
-              background: isActive ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.08)",
-              borderColor:isActive ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)",
-              width: "fit-content",
+              border: "1px solid transparent", width: "fit-content",
+              color:       isActive ? "rgba(22,163,74,1)"    : "rgba(185,28,28,1)",
+              background:  isActive ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.08)",
+              borderColor: isActive ? "rgba(34,197,94,0.22)" : "rgba(239,68,68,0.22)",
             }}>
               {isActive ? <UserCheck size={11} /> : <UserX size={11} />}
               {isActive ? "Active" : "Inactive"}
             </span>
-            {!isActive && deactivatedAt && (
-              <span style={{ fontSize: 10, color: "rgba(11,18,32,0.42)", fontWeight: 600 }}>
-                Since {deactivatedAt}
-              </span>
-            )}
-            {isActive && lastLogin && (
-              <span style={{ fontSize: 10, color: "rgba(11,18,32,0.42)", fontWeight: 600 }}>
-                Last login: {lastLogin}
-              </span>
-            )}
+            {!isActive && deactivatedAt && <span style={{ fontSize: 10, color: "rgba(11,18,32,0.42)", fontWeight: 600 }}>Since {deactivatedAt}</span>}
+            {isActive  && lastLogin     && <span style={{ fontSize: 10, color: "rgba(11,18,32,0.42)", fontWeight: 600 }}>Last login: {lastLogin}</span>}
           </div>
         </td>
-
         <td style={S.td}>
           <div style={{ display: "flex", gap: 6 }}>
             <button style={S.viewBtn} type="button" onClick={onToggle}>
               <Eye size={13} /> {expanded ? "Hide" : "Details"}
             </button>
-            <button
-              type="button"
-              onClick={onToggleActive}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 5,
-                padding: "6px 10px", borderRadius: 8, cursor: "pointer",
-                fontSize: 12, fontWeight: 800,
-                border: isActive ? "1px solid rgba(239,68,68,0.30)" : "1px solid rgba(0,180,180,0.30)",
-                background: isActive ? "rgba(239,68,68,0.06)" : "rgba(0,180,180,0.08)",
-                color:  isActive ? "rgba(185,28,28,1)" : "var(--rs-teal)",
-              }}
-              title={isActive ? "Deactivate student" : "Activate student"}
-            >
+            <button type="button" onClick={onToggleActive} style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "6px 10px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 800,
+              border:     isActive ? "1px solid rgba(239,68,68,0.30)" : "1px solid rgba(0,180,180,0.30)",
+              background: isActive ? "rgba(239,68,68,0.06)"           : "rgba(0,180,180,0.08)",
+              color:      isActive ? "rgba(185,28,28,1)"              : "var(--rs-teal)",
+            }} title={isActive ? "Deactivate student" : "Activate student"}>
               {isActive ? <><UserX size={13} /> Deactivate</> : <><UserCheck size={13} /> Activate</>}
             </button>
           </div>
         </td>
       </tr>
-
       {expanded && courses.length > 1 && (
         <tr>
           <td colSpan={8} style={{ padding: "0 14px 12px 60px", background: "rgba(0,180,180,0.03)" }}>
@@ -1274,9 +1266,7 @@ const StudentRow = ({ student, expanded, onToggle, onToggleActive }) => {
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", borderRadius: 8, background: "#fff", border: "0.5px solid rgba(2,8,23,0.08)" }}>
                   <GraduationCap size={14} style={{ color: "var(--rs-teal)", flexShrink: 0 }} />
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.80)" }}>{c.title}</span>
-                  <span style={studentStatusStyle(String(c.status || "enrolled").toLowerCase())}>
-                    {String(c.status || "enrolled")}
-                  </span>
+                  <span style={studentStatusStyle(String(c.status || "enrolled").toLowerCase())}>{String(c.status || "enrolled")}</span>
                   <div style={{ ...S.progressBar, width: 60 }}>
                     <div style={{ ...S.progressFill, width: `${Math.min(c.progress || 0, 100)}%` }} />
                   </div>
@@ -1331,15 +1321,17 @@ const TestimonialCard = ({ testimonial: t, onApprove, onReject, onDelete, onFeat
   const isApproved = t.status === "approved";
   const isRejected = t.status === "rejected";
   const statusStyle = isApproved
-    ? { color: "rgba(0,140,140,1)", background: "rgba(0,180,180,0.10)", border: "1px solid rgba(0,180,180,0.22)" }
+    ? { color: "rgba(0,140,140,1)",  background: "rgba(0,180,180,0.10)", border: "1px solid rgba(0,180,180,0.22)" }
     : isRejected
-    ? { color: "rgba(185,28,28,1)", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.22)" }
-    : { color: "rgba(180,120,0,1)", background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)" };
+    ? { color: "rgba(185,28,28,1)",  background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.22)" }
+    : { color: "rgba(180,120,0,1)",  background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)" };
 
   return (
-    <div style={{ borderRadius: 18, background: "#fff",
-      border: isPending ? "1.5px solid rgba(245,158,11,0.35)" : "1px solid rgba(2,8,23,0.08)",
-      boxShadow: isPending ? "0 4px 20px rgba(245,158,11,0.10)" : "0 2px 10px rgba(2,8,23,0.05)", padding: 18 }}>
+    <div style={{
+      borderRadius: 18, background: "#fff", padding: 18,
+      border:    isPending ? "1.5px solid rgba(245,158,11,0.35)" : "1px solid rgba(2,8,23,0.08)",
+      boxShadow: isPending ? "0 4px 20px rgba(245,158,11,0.10)" : "0 2px 10px rgba(2,8,23,0.05)",
+    }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.28)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rs-teal)", fontWeight: 900, fontSize: 15, flexShrink: 0 }}>
@@ -1390,7 +1382,7 @@ const TestimonialCard = ({ testimonial: t, onApprove, onReject, onDelete, onFeat
   );
 };
 
-/* ─── Style helpers ─── */
+/* ─── Style helpers ───────────────────────────────────────────────── */
 const typeBadge = (type) => {
   const isPE = type === "PE", isCE = type === "CE";
   const base = { display: "inline-flex", alignItems: "center", padding: "4px 9px", borderRadius: 999, fontSize: 11, fontWeight: 900, border: "1px solid transparent" };
@@ -1403,17 +1395,17 @@ const activeBadge = (active) => ({
   display: "inline-flex", alignItems: "center", padding: "4px 9px", borderRadius: 999, fontSize: 11, fontWeight: 900,
   color:      active ? "rgba(22,163,74,1)"    : "rgba(120,120,120,1)",
   background: active ? "rgba(34,197,94,0.10)" : "rgba(0,0,0,0.04)",
-  border:      `1px solid ${active ? "rgba(34,197,94,0.22)" : "rgba(0,0,0,0.08)"}`,
+  border:     `1px solid ${active ? "rgba(34,197,94,0.22)" : "rgba(0,0,0,0.08)"}`,
 });
 
 const studentStatusStyle = (status) => {
   const base = { display: "inline-flex", alignItems: "center", padding: "5px 10px", borderRadius: 999, fontSize: 11, fontWeight: 900, border: "1px solid transparent", textTransform: "capitalize" };
   if (status === "completed") return { ...base, color: "rgba(0,140,140,1)", background: "rgba(0,180,180,0.12)", borderColor: "rgba(0,180,180,0.20)" };
-  if (status === "enrolled")  return { ...base, color: "var(--rs-blue)",     background: "rgba(46,171,254,0.12)", borderColor: "rgba(46,171,254,0.22)" };
+  if (status === "enrolled")  return { ...base, color: "var(--rs-blue)",    background: "rgba(46,171,254,0.12)", borderColor: "rgba(46,171,254,0.22)" };
   return { ...base, color: "rgba(180,120,0,1)", background: "rgba(245,158,11,0.12)", borderColor: "rgba(245,158,11,0.22)" };
 };
 
-/* ─── CSS ─── */
+/* ─── CSS ─────────────────────────────────────────────────────────── */
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
 :root {
@@ -1435,77 +1427,77 @@ body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:va
 .rs-course-card{transition:box-shadow .2s,transform .2s;}
 .rs-course-card:hover{box-shadow:0 12px 36px rgba(2,8,23,0.12);transform:translateY(-2px);}
 .rs-log-card:hover{box-shadow:0 4px 18px rgba(2,8,23,0.09);}
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-.rs-badge-pulse { animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+.rs-badge-pulse{animation:pulse 1.5s ease-in-out infinite;}
 `;
 
-/* ─── Styles ─── */
+/* ─── Styles ──────────────────────────────────────────────────────── */
 const S = {
-  page:   { minHeight: "100vh", background: "var(--rs-bg)" },
-  center: { minHeight: "60vh", display: "grid", placeItems: "center" },
-  topbar: { position: "sticky", top: 0, zIndex: 20, background: "rgba(246,247,251,0.90)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(2,8,23,0.08)" },
-  topbarInner: { maxWidth: 1200, margin: "0 auto", padding: "13px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 },
-  brandLeft:    { display: "flex", alignItems: "center", gap: 12 },
-  brandLogo:    { height: 32, objectFit: "contain" },
-  brandTitle:   { fontWeight: 900, letterSpacing: "-0.2px", fontSize: 15 },
-  brandSubtitle:{ fontSize: 11, color: "var(--rs-muted)", marginTop: 2, fontWeight: 700 },
-  topbarRight:  { display: "flex", alignItems: "center", gap: 10 },
-  instructorPill: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(0,180,180,0.28)", background: "rgba(0,180,180,0.08)" },
-  userPill:     { display: "inline-flex", alignItems: "center", gap: 9, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", boxShadow: "0 4px 14px rgba(2,8,23,0.06)" },
-  userAvatar:  { width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg,#091925,#054040)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rs-teal)", fontWeight: 900, fontSize: 12 },
-  userName:    { fontWeight: 800, fontSize: 13, color: "rgba(11,18,32,0.80)" },
-  logoutBtn:   { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.72)" },
-  shell:        { maxWidth: 1200, margin: "0 auto", padding: "18px 18px 40px" },
-  hero:         { position: "relative", borderRadius: 24, overflow: "hidden", background: "var(--rs-grad)", boxShadow: "0 22px 60px rgba(2,8,23,0.18)" },
-  heroBg:       { position: "absolute", inset: 0, background: "radial-gradient(900px 500px at 18% 28%,rgba(0,180,180,0.22),transparent 60%)", pointerEvents: "none" },
-  heroInner:    { position: "relative", padding: 22 },
-  heroTop:      { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", paddingBottom: 16 },
-  heroKicker:   { color: "rgba(255,255,255,0.72)", fontWeight: 800, fontSize: 11, letterSpacing: "0.6px" },
-  heroHeadline:{ color: "#fff", fontWeight: 950, fontSize: 20, letterSpacing: "-0.3px", marginTop: 5 },
-  heroSub:      { color: "rgba(255,255,255,0.65)", fontWeight: 700, fontSize: 13, marginTop: 4 },
-  heroActions: { display: "flex", gap: 10, flexWrap: "wrap" },
-  heroBtn:      { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(9,25,37,0.32)", color: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, boxShadow: "0 8px 22px rgba(2,8,23,0.18)" },
-  heroBtnAlt:   { background: "rgba(0,180,180,0.22)", borderColor: "rgba(0,180,180,0.35)" },
-  kpiGrid:      { display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 12, paddingTop: 4 },
-  kpiCard:      { display: "flex", alignItems: "center", gap: 13, padding: 14, borderRadius: 18, border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.10)" },
-  kpiIcon:      { width: 44, height: 44, borderRadius: 16, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.14)", display: "grid", placeItems: "center", color: "#fff", flexShrink: 0 },
-  kpiText:      { display: "grid", gap: 2 },
-  kpiTitle:     { color: "rgba(255,255,255,0.72)", fontWeight: 800, fontSize: 11 },
-  kpiValue:     { color: "#fff", fontWeight: 950, fontSize: 26, letterSpacing: "-0.5px" },
-  kpiCaption:   { color: "rgba(255,255,255,0.62)", fontWeight: 700, fontSize: 11 },
-  card:         { marginTop: 14, borderRadius: 22, background: "rgba(255,255,255,0.82)", border: "1px solid rgba(2,8,23,0.08)", boxShadow: "var(--rs-shadow)", backdropFilter: "blur(10px)", overflow: "hidden" },
-  tabRow:       { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "14px 14px 10px", borderBottom: "1px solid rgba(2,8,23,0.06)" },
-  tabs:         { display: "flex", gap: 8, flexWrap: "wrap" },
-  tabBtn:       { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.65)", display: "inline-flex", alignItems: "center", gap: 6 },
-  tabBtnActive:{ borderColor: "rgba(0,180,180,0.35)", boxShadow: "0 0 0 4px var(--rs-ring)", color: "var(--rs-dark)" },
+  page:            { minHeight: "100vh", background: "var(--rs-bg)" },
+  center:          { minHeight: "60vh", display: "grid", placeItems: "center" },
+  topbar:          { position: "sticky", top: 0, zIndex: 20, background: "rgba(246,247,251,0.90)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(2,8,23,0.08)" },
+  topbarInner:     { maxWidth: 1200, margin: "0 auto", padding: "13px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  brandLeft:       { display: "flex", alignItems: "center", gap: 12 },
+  brandLogo:       { height: 32, objectFit: "contain" },
+  brandTitle:      { fontWeight: 900, letterSpacing: "-0.2px", fontSize: 15 },
+  brandSubtitle:   { fontSize: 11, color: "var(--rs-muted)", marginTop: 2, fontWeight: 700 },
+  topbarRight:     { display: "flex", alignItems: "center", gap: 10 },
+  instructorPill:  { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(0,180,180,0.28)", background: "rgba(0,180,180,0.08)" },
+  userPill:        { display: "inline-flex", alignItems: "center", gap: 9, padding: "8px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", boxShadow: "0 4px 14px rgba(2,8,23,0.06)" },
+  userAvatar:      { width: 26, height: 26, borderRadius: "50%", background: "linear-gradient(135deg,#091925,#054040)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rs-teal)", fontWeight: 900, fontSize: 12 },
+  userName:        { fontWeight: 800, fontSize: 13, color: "rgba(11,18,32,0.80)" },
+  logoutBtn:       { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.72)" },
+  shell:           { maxWidth: 1200, margin: "0 auto", padding: "18px 18px 40px" },
+  hero:            { position: "relative", borderRadius: 24, overflow: "hidden", background: "var(--rs-grad)", boxShadow: "0 22px 60px rgba(2,8,23,0.18)" },
+  heroBg:          { position: "absolute", inset: 0, background: "radial-gradient(900px 500px at 18% 28%,rgba(0,180,180,0.22),transparent 60%)", pointerEvents: "none" },
+  heroInner:       { position: "relative", padding: 22 },
+  heroTop:         { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap", paddingBottom: 16 },
+  heroKicker:      { color: "rgba(255,255,255,0.72)", fontWeight: 800, fontSize: 11, letterSpacing: "0.6px" },
+  heroHeadline:    { color: "#fff", fontWeight: 950, fontSize: 20, letterSpacing: "-0.3px", marginTop: 5 },
+  heroSub:         { color: "rgba(255,255,255,0.65)", fontWeight: 700, fontSize: 13, marginTop: 4 },
+  heroActions:     { display: "flex", gap: 10, flexWrap: "wrap" },
+  heroBtn:         { display: "inline-flex", alignItems: "center", gap: 8, padding: "11px 14px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.18)", background: "rgba(9,25,37,0.32)", color: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, boxShadow: "0 8px 22px rgba(2,8,23,0.18)" },
+  heroBtnAlt:      { background: "rgba(0,180,180,0.22)", borderColor: "rgba(0,180,180,0.35)" },
+  kpiGrid:         { display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 12, paddingTop: 4 },
+  kpiCard:         { display: "flex", alignItems: "center", gap: 13, padding: 14, borderRadius: 18, border: "1px solid rgba(255,255,255,0.16)", background: "rgba(255,255,255,0.10)" },
+  kpiIcon:         { width: 44, height: 44, borderRadius: 16, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.14)", display: "grid", placeItems: "center", color: "#fff", flexShrink: 0 },
+  kpiText:         { display: "grid", gap: 2 },
+  kpiTitle:        { color: "rgba(255,255,255,0.72)", fontWeight: 800, fontSize: 11 },
+  kpiValue:        { color: "#fff", fontWeight: 950, fontSize: 26, letterSpacing: "-0.5px" },
+  kpiCaption:      { color: "rgba(255,255,255,0.62)", fontWeight: 700, fontSize: 11 },
+  card:            { marginTop: 14, borderRadius: 22, background: "rgba(255,255,255,0.82)", border: "1px solid rgba(2,8,23,0.08)", boxShadow: "var(--rs-shadow)", backdropFilter: "blur(10px)", overflow: "hidden" },
+  tabRow:          { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", padding: "14px 14px 10px", borderBottom: "1px solid rgba(2,8,23,0.06)" },
+  tabs:            { display: "flex", gap: 8, flexWrap: "wrap" },
+  tabBtn:          { padding: "9px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.65)", display: "inline-flex", alignItems: "center", gap: 6 },
+  tabBtnActive:    { borderColor: "rgba(0,180,180,0.35)", boxShadow: "0 0 0 4px var(--rs-ring)", color: "var(--rs-dark)" },
   tabBtnHighlight: { borderColor: "rgba(245,158,11,0.45)", color: "rgba(146,84,0,1)", background: "rgba(245,158,11,0.06)" },
-  tabBtnUrgent: { borderColor: "rgba(239,68,68,0.45)", color: "rgba(185,28,28,1)", background: "rgba(239,68,68,0.06)" },
-  badgeNotification: { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, background: "rgba(239,68,68,0.90)", color: "#fff", fontSize: 10, fontWeight: 900, padding: "0 4px", marginLeft: 4, boxShadow: "0 2px 8px rgba(239,68,68,0.30)" },
-  searchWrap:   { display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", minWidth: 280 },
-  searchInput: { border: "none", outline: "none", width: "100%", fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.80)", background: "transparent" },
-  cardBody:    { padding: 14 },
-  gridTwo:     { display: "grid", gridTemplateColumns: "1.3fr 0.9fr", gap: 12 },
-  panel:       { borderRadius: 18, background: "#fff", border: "1px solid rgba(2,8,23,0.08)", padding: 14 },
-  panelHead:   { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
-  panelTitle:  { fontWeight: 950, color: "rgba(11,18,32,0.82)", fontSize: 14 },
-  ghostBtn:    { border: "1px solid rgba(2,8,23,0.10)", background: "rgba(2,8,23,0.02)", borderRadius: 999, padding: "7px 10px", cursor: "pointer", fontWeight: 900, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5, color: "rgba(11,18,32,0.65)" },
-  rowCard:     { borderRadius: 14, border: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)", padding: 12, display: "flex", alignItems: "center", gap: 10 },
-  rowTop:      { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
-  rowTitle:    { fontWeight: 900, color: "rgba(11,18,32,0.86)", fontSize: 13 },
-  rowMeta:     { display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginTop: 4 },
-  metaItem:    { display: "inline-flex", alignItems: "center", gap: 5, color: "rgba(11,18,32,0.55)", fontWeight: 800, fontSize: 12 },
-  quickActions:{ display: "grid", gap: 9 },
-  actionCard:  { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 11, borderRadius: 14, border: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)", cursor: "pointer", textAlign: "left" },
-  actionIcon:  { width: 38, height: 38, borderRadius: 14, background: "rgba(0,180,180,0.10)", border: "1px solid rgba(0,180,180,0.20)", display: "grid", placeItems: "center", color: "var(--rs-dark)", flexShrink: 0 },
-  actionText:  { flex: 1, display: "grid", gap: 2 },
-  actionTitle: { fontWeight: 950, color: "rgba(11,18,32,0.84)", fontSize: 13 },
-  actionSub:   { fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.50)" },
-  sectionHead: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 14, flexWrap: "wrap" },
-  sectionTitle:{ fontWeight: 950, fontSize: 16, color: "rgba(11,18,32,0.86)" },
-  sectionSub:  { marginTop: 4, fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.52)" },
-  refreshBtn:  { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.65)" },
-  courseGrid:  { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 14 },
-  courseCard:  { borderRadius: 18, background: "#fff", border: "1px solid rgba(2,8,23,0.08)", boxShadow: "0 4px 18px rgba(2,8,23,0.06)", padding: 16 },
+  tabBtnUrgent:    { borderColor: "rgba(239,68,68,0.45)", color: "rgba(185,28,28,1)", background: "rgba(239,68,68,0.06)" },
+  badgeNotification:{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 18, height: 18, borderRadius: 999, background: "rgba(239,68,68,0.90)", color: "#fff", fontSize: 10, fontWeight: 900, padding: "0 4px", marginLeft: 4, boxShadow: "0 2px 8px rgba(239,68,68,0.30)" },
+  searchWrap:      { display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", minWidth: 280 },
+  searchInput:     { border: "none", outline: "none", width: "100%", fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.80)", background: "transparent" },
+  cardBody:        { padding: 14 },
+  gridTwo:         { display: "grid", gridTemplateColumns: "1.3fr 0.9fr", gap: 12 },
+  panel:           { borderRadius: 18, background: "#fff", border: "1px solid rgba(2,8,23,0.08)", padding: 14 },
+  panelHead:       { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  panelTitle:      { fontWeight: 950, color: "rgba(11,18,32,0.82)", fontSize: 14 },
+  ghostBtn:        { border: "1px solid rgba(2,8,23,0.10)", background: "rgba(2,8,23,0.02)", borderRadius: 999, padding: "7px 10px", cursor: "pointer", fontWeight: 900, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5, color: "rgba(11,18,32,0.65)" },
+  rowCard:         { borderRadius: 14, border: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)", padding: 12, display: "flex", alignItems: "center", gap: 10 },
+  rowTop:          { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
+  rowTitle:        { fontWeight: 900, color: "rgba(11,18,32,0.86)", fontSize: 13 },
+  rowMeta:         { display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginTop: 4 },
+  metaItem:        { display: "inline-flex", alignItems: "center", gap: 5, color: "rgba(11,18,32,0.55)", fontWeight: 800, fontSize: 12 },
+  quickActions:    { display: "grid", gap: 9 },
+  actionCard:      { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 11, borderRadius: 14, border: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)", cursor: "pointer", textAlign: "left" },
+  actionIcon:      { width: 38, height: 38, borderRadius: 14, background: "rgba(0,180,180,0.10)", border: "1px solid rgba(0,180,180,0.20)", display: "grid", placeItems: "center", color: "var(--rs-dark)", flexShrink: 0 },
+  actionText:      { flex: 1, display: "grid", gap: 2 },
+  actionTitle:     { fontWeight: 950, color: "rgba(11,18,32,0.84)", fontSize: 13 },
+  actionSub:       { fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.50)" },
+  sectionHead:     { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12, marginBottom: 14, flexWrap: "wrap" },
+  sectionTitle:    { fontWeight: 950, fontSize: 16, color: "rgba(11,18,32,0.86)" },
+  sectionSub:      { marginTop: 4, fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.52)" },
+  refreshBtn:      { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 10, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.65)" },
+  courseGrid:      { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 14 },
+  courseCard:      { borderRadius: 18, background: "#fff", border: "1px solid rgba(2,8,23,0.08)", boxShadow: "0 4px 18px rgba(2,8,23,0.06)", padding: 16 },
   courseCardTop:   { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 },
   courseCardTitle: { fontWeight: 950, fontSize: 15, color: "rgba(11,18,32,0.88)", marginBottom: 6 },
   courseCardMeta:  { display: "flex", gap: 14, flexWrap: "wrap" },
@@ -1515,23 +1507,23 @@ const S = {
   courseStatIcon:  { display: "flex" },
   courseStatValue: { fontWeight: 900, fontSize: 18, letterSpacing: "-0.3px" },
   courseStatLabel: { fontSize: 10, fontWeight: 800, color: "rgba(11,18,32,0.50)" },
-  tableWrap:   { overflowX: "auto", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", background: "#fff" },
-  table:       { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 1000 },
-  th:          { textAlign: "left", fontSize: 11, fontWeight: 950, color: "rgba(11,18,32,0.55)", padding: "12px 14px", borderBottom: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)" },
-  thRight:     { textAlign: "right", fontSize: 11, fontWeight: 950, color: "rgba(11,18,32,0.55)", padding: "12px 14px", borderBottom: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)" },
-  td:          { padding: "13px 14px", borderBottom: "1px solid rgba(2,8,23,0.055)", fontSize: 13 },
-  tdRight:     { padding: "13px 14px", borderBottom: "1px solid rgba(2,8,23,0.055)", fontSize: 13, textAlign: "right" },
-  studentAvatar:{ width: 32, height: 32, borderRadius: "50%", background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.28)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rs-teal)", fontWeight: 900, fontSize: 13, flexShrink: 0 },
-  progressWrap:{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 },
-  progressBar: { width: 80, height: 6, borderRadius: 99, background: "rgba(2,8,23,0.08)", overflow: "hidden" },
-  progressFill:{ height: "100%", borderRadius: 99, background: "var(--rs-teal)", transition: "width .3s ease" },
-  progressLabel:{ fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.60)", minWidth: 32, textAlign: "right" },
-  viewBtn:     { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(2,8,23,0.10)", background: "rgba(2,8,23,0.02)", cursor: "pointer", fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.65)" },
-  emptyWrap:   { borderRadius: 18, border: "1px dashed rgba(2,8,23,0.15)", background: "rgba(2,8,23,0.02)", padding: 22, textAlign: "center" },
-  emptyIcon:   { width: 46, height: 46, borderRadius: 16, background: "rgba(0,180,180,0.10)", border: "1px solid rgba(0,180,180,0.22)", display: "grid", placeItems: "center", color: "var(--rs-dark)", margin: "0 auto" },
-  emptyTitle:  { marginTop: 12, fontWeight: 950, color: "rgba(11,18,32,0.84)", fontSize: 14 },
-  emptySub:    { marginTop: 6, color: "rgba(11,18,32,0.52)", fontWeight: 700, fontSize: 12, lineHeight: 1.6 },
-  primaryBtnSmall:{ marginTop: 14, display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 14px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", color: "rgba(11,18,32,0.82)", cursor: "pointer", fontWeight: 900, fontSize: 13 },
+  tableWrap:       { overflowX: "auto", borderRadius: 16, border: "1px solid rgba(2,8,23,0.08)", background: "#fff" },
+  table:           { width: "100%", borderCollapse: "separate", borderSpacing: 0, minWidth: 1000 },
+  th:              { textAlign: "left", fontSize: 11, fontWeight: 950, color: "rgba(11,18,32,0.55)", padding: "12px 14px", borderBottom: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)" },
+  thRight:         { textAlign: "right", fontSize: 11, fontWeight: 950, color: "rgba(11,18,32,0.55)", padding: "12px 14px", borderBottom: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)" },
+  td:              { padding: "13px 14px", borderBottom: "1px solid rgba(2,8,23,0.055)", fontSize: 13 },
+  tdRight:         { padding: "13px 14px", borderBottom: "1px solid rgba(2,8,23,0.055)", fontSize: 13, textAlign: "right" },
+  studentAvatar:   { width: 32, height: 32, borderRadius: "50%", background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.28)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rs-teal)", fontWeight: 900, fontSize: 13, flexShrink: 0 },
+  progressWrap:    { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 },
+  progressBar:     { width: 80, height: 6, borderRadius: 99, background: "rgba(2,8,23,0.08)", overflow: "hidden" },
+  progressFill:    { height: "100%", borderRadius: 99, background: "var(--rs-teal)", transition: "width .3s ease" },
+  progressLabel:   { fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.60)", minWidth: 32, textAlign: "right" },
+  viewBtn:         { display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(2,8,23,0.10)", background: "rgba(2,8,23,0.02)", cursor: "pointer", fontSize: 12, fontWeight: 800, color: "rgba(11,18,32,0.65)" },
+  emptyWrap:       { borderRadius: 18, border: "1px dashed rgba(2,8,23,0.15)", background: "rgba(2,8,23,0.02)", padding: 22, textAlign: "center" },
+  emptyIcon:       { width: 46, height: 46, borderRadius: 16, background: "rgba(0,180,180,0.10)", border: "1px solid rgba(0,180,180,0.22)", display: "grid", placeItems: "center", color: "var(--rs-dark)", margin: "0 auto" },
+  emptyTitle:      { marginTop: 12, fontWeight: 950, color: "rgba(11,18,32,0.84)", fontSize: 14 },
+  emptySub:        { marginTop: 6, color: "rgba(11,18,32,0.52)", fontWeight: 700, fontSize: 12, lineHeight: 1.6 },
+  primaryBtnSmall: { marginTop: 14, display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 14px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", color: "rgba(11,18,32,0.82)", cursor: "pointer", fontWeight: 900, fontSize: 13 },
   filterChip:      { padding: "7px 13px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 12, color: "rgba(11,18,32,0.62)", display: "inline-flex", alignItems: "center", gap: 6 },
   filterChipActive:{ borderColor: "rgba(0,180,180,0.38)", color: "var(--rs-dark)", boxShadow: "0 0 0 3px rgba(0,180,180,0.14)" },
   pendingDot:      { minWidth: 18, height: 18, borderRadius: 999, background: "rgba(245,158,11,0.90)", color: "#fff", fontSize: 10, fontWeight: 900, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 4px" },

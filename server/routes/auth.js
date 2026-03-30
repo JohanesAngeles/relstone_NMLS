@@ -3,7 +3,11 @@ const router     = express.Router();
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+const { OAuth2Client } = require('google-auth-library');
 const User       = require('../models/User');
+
+// ── Google OAuth Client ───────────────────────────────────────────
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // ── Auth middleware ───────────────────────────────────────────────
 const authMiddleware = (req, res, next) => {
@@ -87,6 +91,157 @@ const sendResetEmail = async (email, name, otp) => {
 // ── PUBLIC ROUTES ─────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────
 
+// ── POST /api/auth/google ─────────────────────────────────────────
+/**
+ * Google OAuth Sign-In
+ * 
+ * Request body:
+ * {
+ *   token: "google_jwt_token_from_frontend"
+ * }
+ * 
+ * Responses:
+ * - Success: { user: {...}, token: "jwt_token" }
+ * - Needs Verification: { needsVerification: true, email: "user@example.com" }
+ * - Inactive Account: { isInactive: true, message: "..." }
+ */
+router.post('/google', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ message: 'Google token is required.' });
+    }
+
+    // Verify Google ID token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name, picture, sub: googleId } = payload;
+
+    // Find or create user
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // Create new user from Google data
+      const otp = generateOTP();
+      const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+
+      user = new User({
+        name: name || email.split('@')[0],
+        email,
+        password: null, // OAuth users don't have passwords
+        googleId,
+        profilePicture: picture,
+        isVerified: false, // Require OTP verification
+        otp,
+        otpExpires,
+        role: 'student',
+        is_active: true,
+        createdAt: new Date(),
+      });
+
+      await user.save();
+      console.log(`✅ New user created via Google OAuth: ${email}`);
+
+      // Send OTP for new users
+      try {
+        await sendOTPEmail(email, user.name, otp);
+      } catch (emailErr) {
+        console.error('Failed to send OTP email:', emailErr);
+      }
+
+      return res.json({
+        needsVerification: true,
+        email,
+        message: 'Please verify your email with the code we sent.',
+      });
+    }
+
+    // Existing user - check status before proceeding
+    if (user.is_active === false) {
+      return res.status(403).json({
+        isInactive: true,
+        message: 'Your account has been deactivated. Please contact support.',
+      });
+    }
+
+    // Update Google ID if not already set
+    if (!user.googleId) {
+      user.googleId = googleId;
+      user.profilePicture = picture || user.profilePicture;
+    }
+
+    // Check if already verified
+    if (!user.isVerified) {
+      // Send OTP for unverified returning users
+      const otp = generateOTP();
+      const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+      user.otp = otp;
+      user.otpExpires = otpExpires;
+      await user.save();
+
+      try {
+        await sendOTPEmail(email, user.name, otp);
+      } catch (emailErr) {
+        console.error('Failed to send OTP email:', emailErr);
+      }
+
+      return res.json({
+        needsVerification: true,
+        email,
+        message: 'Please verify your email with the code we sent.',
+      });
+    }
+
+    // User is verified and active - proceed to login
+    user.last_login_at = new Date();
+    await user.save();
+
+    const jwtToken = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token: jwtToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        nmls_id: user.nmls_id,
+        state: user.state,
+        role: user.role,
+        profilePicture: user.profilePicture,
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ Google OAuth error:', error);
+
+    // Handle specific error types
+    if (error.message.includes('Invalid value for `idToken`')) {
+      return res.status(401).json({
+        message: 'Invalid Google token. Please try again.',
+      });
+    }
+
+    if (error.message.includes('audience')) {
+      return res.status(401).json({
+        message: 'Token audience mismatch. Configuration error.',
+      });
+    }
+
+    res.status(500).json({
+      message: 'Google authentication failed. Please try again later.',
+    });
+  }
+});
+
 // ── POST /api/auth/register ───────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
@@ -141,7 +296,7 @@ router.post('/verify-otp', async (req, res) => {
     if (!user.otp || user.otp !== otp) return res.status(400).json({ message: 'Invalid OTP' });
     if (user.otpExpires < new Date())  return res.status(400).json({ message: 'OTP expired. Please register again.' });
 
-    // ✅ FIX: Block deactivated accounts from completing OTP verification
+    // ✅ Block deactivated accounts from completing OTP verification
     if (user.is_active === false) {
       return res.status(403).json({
         message: 'Your account has been deactivated. Please contact support.',
@@ -207,7 +362,7 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
 
-    // ✅ FIX STEP 1: Check email verification first
+    // ✅ Check email verification first
     if (!user.isVerified) {
       return res.status(403).json({
         message: 'Email not verified.',
@@ -216,7 +371,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // ✅ FIX STEP 2: Check active status AFTER verification (single check, no duplicate)
+    // ✅ Check active status
     if (user.is_active === false) {
       return res.status(403).json({
         message: 'Your account has been deactivated. Please contact support.',
@@ -224,7 +379,13 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // ✅ FIX STEP 3: Then check password
+    // ✅ Check password (allow null password for Google-only accounts)
+    if (!user.password) {
+      return res.status(400).json({
+        message: 'This account was created with Google Sign-In. Please use Google to log in.',
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
@@ -453,4 +614,134 @@ router.put('/notifications', authMiddleware, async (req, res) => {
   }
 });
 
+// ── POST /api/auth/google/link ───────────────────────────────────
+/**
+ * Link existing email/password account with Google
+ * 
+ * Headers:
+ * {
+ *   Authorization: "Bearer jwt_token"
+ * }
+ * 
+ * Request body:
+ * {
+ *   token: "google_jwt_token"
+ * }
+ */
+router.post('/google/link', authMiddleware, async (req, res) => {
+  try {
+    const { token } = req.body;
+    const userId = req.user.id;
+
+    if (!token) {
+      return res.status(400).json({ message: 'Google token is required.' });
+    }
+
+    // Verify Google token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, picture } = payload;
+
+    // Update user with Google ID
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        googleId,
+        profilePicture: picture || undefined,
+      },
+      { new: true }
+    ).select('-password -otp -otpExpires');
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    res.json({
+      message: 'Google account linked successfully.',
+      user: {
+        id:      user._id,
+        name:    user.name,
+        email:   user.email,
+        googleId: user.googleId,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Google link error:', error);
+    res.status(500).json({
+      message: 'Failed to link Google account.',
+    });
+  }
+});
+
+// ── POST /api/auth/google/unlink ─────────────────────────────────
+/**
+ * Unlink Google from account (if user has password)
+ * 
+ * Headers:
+ * {
+ *   Authorization: "Bearer jwt_token"
+ * }
+ */
+router.post('/google/unlink', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Prevent unlinking if user has no password (Google-only account)
+    if (!user.password) {
+      return res.status(400).json({
+        message: 'Cannot unlink Google from a Google-only account. Set a password first.',
+      });
+    }
+
+    // Unlink Google ID
+    user.googleId = null;
+    await user.save();
+
+    res.json({
+      message: 'Google account unlinked successfully.',
+      user: {
+        id:    user._id,
+        name:  user.name,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Google unlink error:', error);
+    res.status(500).json({
+      message: 'Failed to unlink Google account.',
+    });
+  }
+});
+
 module.exports = router;
+
+/**
+ * ─────────────────────────────────────────────────────────────────
+ * INSTALLATION & USAGE
+ * ─────────────────────────────────────────────────────────────────
+ * 
+ * 1. Install google-auth-library:
+ *    npm install google-auth-library
+ * 
+ * 2. Update .env with Google credentials:
+ *    GOOGLE_CLIENT_ID=your_client_id
+ *    GOOGLE_CLIENT_SECRET=your_client_secret
+ * 
+ * 3. Update User model to include:
+ *    - googleId: { type: String, unique: true, sparse: true }
+ *    - profilePicture: String
+ * 
+ * 4. Use in main app:
+ *    const authRoutes = require('./routes/auth.routes');
+ *    app.use('/api/auth', authRoutes);
+ * 
+ * 5. New endpoints available:
+ *    POST /api/auth/google
+ *    POST /api/auth/google/link (protected)
+ *    POST /api/auth/google/unlink (protected)
+ */

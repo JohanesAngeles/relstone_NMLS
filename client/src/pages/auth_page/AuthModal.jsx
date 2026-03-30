@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import API from '../../api/axios';
@@ -12,12 +12,15 @@ const US_STATES = [
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
 ];
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 const getRoleRoute = (user) => {
   const role = user?.role;
   if (role === 'instructor' || role === 'admin') return '/instructor/dashboard';
   return '/home';
 };
 
+// ── Icons ─────────────────────────────────────────────────────────
 const IconEyeOn = () => (
   <svg width="23" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>
@@ -62,7 +65,16 @@ const IconLock = () => (
     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
   </svg>
 );
+const GoogleIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+  </svg>
+);
 
+// ── Small components ──────────────────────────────────────────────
 const StepDots = ({ active = 0 }) => (
   <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
     {[0, 1, 2].map(i => (
@@ -97,7 +109,6 @@ const ErrorBanner = ({ msg }) => !msg ? null : (
   </div>
 );
 
-// ✅ Distinct deactivated banner — orange, more prominent than a regular error
 const DeactivatedBanner = () => (
   <div style={S.deactivatedBanner}>
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}>
@@ -201,6 +212,7 @@ const OTPBoxes = ({ value, onChange }) => {
 const fmtCooldown = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
+// ── Forgot Password flow ──────────────────────────────────────────
 const ForgotPassword = ({ onBack, logoSrc }) => {
   const [step, setStep]         = useState('email');
   const [email, setEmail]       = useState('');
@@ -341,6 +353,7 @@ const ForgotPassword = ({ onBack, logoSrc }) => {
   );
 };
 
+// ── OTP Verification Screen ───────────────────────────────────────
 const OTPScreen = ({ email, onVerify, onResend, onBack, loading, error, cooldown, logoSrc }) => {
   const [otp, setOtp] = useState('');
   return (
@@ -368,14 +381,16 @@ const OTPScreen = ({ email, onVerify, onResend, onBack, loading, error, cooldown
   );
 };
 
+// ── Main AuthModal ────────────────────────────────────────────────
 const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => {
   const { login }   = useAuth();
   const navigate    = useNavigate();
 
   const [tab, setTab]                     = useState(mode);
   const [error, setError]                 = useState('');
-  const [isDeactivated, setIsDeactivated] = useState(false); // ✅ separate flag
+  const [isDeactivated, setIsDeactivated] = useState(false);
   const [loading, setLoading]             = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotMode, setForgotMode]       = useState(false);
   const [otpStep, setOtpStep]             = useState(false);
   const [pendingEmail, setPendingEmail]   = useState('');
@@ -398,6 +413,88 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     }), 1000);
   };
 
+  // ── Google callback (stable ref with useCallback) ─────────────
+  const handleGoogleSuccess = useCallback(async (credentialResponse) => {
+    setGoogleLoading(true);
+    setError('');
+    setIsDeactivated(false);
+    try {
+      const res = await API.post('/auth/google', {
+        token: credentialResponse.credential,
+      });
+      if (res.data.needsVerification) {
+        setPendingEmail(res.data.email);
+        setOtpStep(true);
+        startCooldown();
+      } else if (res.data.isInactive) {
+        setIsDeactivated(true);
+      } else {
+        login(res.data.user, res.data.token, rememberMe);
+        onClose();
+        navigate(getRoleRoute(res.data.user));
+      }
+    } catch (err) {
+      if (err.response?.data?.isInactive) {
+        setIsDeactivated(true);
+      } else if (err.response?.data?.needsVerification) {
+        setPendingEmail(err.response?.data?.email || '');
+        setOtpStep(true);
+        startCooldown();
+      } else {
+        setError(err.response?.data?.message || 'Google login failed. Please try again.');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [login, navigate, onClose, rememberMe]);
+
+  // ── Initialize + render Google button ────────────────────────
+  useEffect(() => {
+    if (tab !== 'login') return;
+
+    const initGoogle = () => {
+      if (!window.google?.accounts?.id) return;
+
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback:  handleGoogleSuccess,
+      });
+
+      const container = document.getElementById('google-signin-button');
+      if (container) {
+        container.innerHTML = ''; // clear stale render
+        window.google.accounts.id.renderButton(container, {
+          type:   'standard',
+          size:   'large',
+          text:   'signin_with',
+          locale: 'en_US',
+          width:  485,
+        });
+      }
+    };
+
+    // Script already loaded
+    if (window.google?.accounts) {
+      initGoogle();
+      return;
+    }
+
+    // Avoid duplicate script tags
+    if (document.getElementById('google-gsi-script')) {
+      document.getElementById('google-gsi-script').onload = initGoogle;
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id    = 'google-gsi-script';
+    script.src   = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = initGoogle;
+    document.body.appendChild(script);
+  }, [tab, handleGoogleSuccess]);
+
+  // ── Login ─────────────────────────────────────────────────────
   const handleLogin = async (e) => {
     e.preventDefault(); setLoading(true); setError(''); setIsDeactivated(false);
     try {
@@ -414,7 +511,6 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
         setOtpStep(true);
         setError('');
       } else if (err.response?.data?.isInactive) {
-        // ✅ Stay on modal, show deactivated banner, disable submit button
         setIsDeactivated(true);
         setError('');
       } else {
@@ -423,6 +519,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     } finally { setLoading(false); }
   };
 
+  // ── Register ──────────────────────────────────────────────────
   const handleRegister = async (e) => {
     e.preventDefault();
     if (regForm.password !== regForm.confirm) { setError('Passwords do not match.'); return; }
@@ -445,6 +542,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     } finally { setLoading(false); }
   };
 
+  // ── OTP verify ────────────────────────────────────────────────
   const handleVerifyOTP = async (otp) => {
     setLoading(true); setError(''); setIsDeactivated(false);
     try {
@@ -456,7 +554,6 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
       navigate(getRoleRoute(res.data.user));
     } catch (err) {
       if (err.response?.data?.isInactive) {
-        // ✅ Go back to login tab, show deactivated banner
         setOtpStep(false);
         setTab('login');
         setIsDeactivated(true);
@@ -478,6 +575,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
 
   const switchTab = (t) => { setTab(t); setError(''); setIsDeactivated(false); setOtpStep(false); };
 
+  // ── Forgot password screen ────────────────────────────────────
   if (forgotMode) return (
     <>
       <style>{CSS}</style>
@@ -489,6 +587,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     </>
   );
 
+  // ── OTP screen ────────────────────────────────────────────────
   if (otpStep) return (
     <>
       <style>{CSS}</style>
@@ -506,6 +605,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
     </>
   );
 
+  // ── Login / Register tabs ─────────────────────────────────────
   return (
     <>
       <style>{CSS}</style>
@@ -513,6 +613,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
       <div style={S.modal}>
         <button style={S.closeBtn} onClick={onClose} type="button"><CloseIcon /></button>
 
+        {/* ── LOGIN TAB ── */}
         {tab === 'login' && (
           <div style={S.panel}>
             <ModalLogo logoSrc={logoSrc} />
@@ -522,7 +623,6 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
             </h2>
             <p style={S.loginSub}>Sign In To Access Your Courses, Certificates, And More.</p>
 
-            {/* ✅ Show deactivated banner OR regular error banner, never both */}
             {isDeactivated ? <DeactivatedBanner /> : <ErrorBanner msg={error} />}
 
             <form onSubmit={handleLogin} style={{ ...S.form, marginTop: 20 }}>
@@ -546,7 +646,6 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
                 </label>
                 <button type="button" style={S.forgotBtn} onClick={() => setForgotMode(true)}>Forgot Password?</button>
               </div>
-              {/* ✅ Button is disabled when account is deactivated */}
               <button
                 style={{ ...S.submitBtn, ...(isDeactivated ? { opacity: 0.45, cursor: 'not-allowed' } : {}) }}
                 type="submit"
@@ -555,6 +654,39 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
                 {loading ? 'SIGNING IN…' : 'SIGN IN TO STUDENT PORTAL'} <IconArrow />
               </button>
             </form>
+
+            {/* Divider */}
+            <div style={S.divider}>
+              <div style={S.dividerLine} />
+              <span style={S.dividerText}>OR</span>
+              <div style={S.dividerLine} />
+            </div>
+
+            {/* Google Sign-In Button */}
+            <div
+              id="google-signin-button"
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                marginBottom: 18,
+                minHeight: 44,
+                opacity: googleLoading ? 0.6 : 1,
+                pointerEvents: googleLoading ? 'none' : 'auto',
+              }}
+            />
+
+            {/* Fallback if GSI script hasn't loaded */}
+            {!window.google && (
+              <button
+                type="button"
+                style={S.googleBtn}
+                disabled={googleLoading}
+                onClick={() => setError('Google Sign-In is loading. Please wait a moment and try again.')}
+              >
+                <GoogleIcon /> {googleLoading ? 'Signing in...' : 'Sign in with Google'}
+              </button>
+            )}
+
             <p style={S.switchText}>
               Don't have an account?{' '}
               <button style={S.linkBtn} type="button" onClick={() => switchTab('register')}>Create one free →</button>
@@ -562,6 +694,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
           </div>
         )}
 
+        {/* ── REGISTER TAB ── */}
         {tab === 'register' && (
           <div style={S.panel}>
             <ModalLogo logoSrc={logoSrc} />
@@ -623,6 +756,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
   );
 };
 
+// ── Styles ────────────────────────────────────────────────────────
 const S = {
   backdrop:          { position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(9,25,37,0.60)', backdropFilter: 'blur(6px)' },
   modal:             { position: 'fixed', zIndex: 201, top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '100%', maxWidth: 565, background: '#FFFFFF', borderRadius: 10, padding: '36px 40px 32px', boxShadow: '0 32px 80px rgba(9,25,37,0.22), 0 0 0 1px rgba(9,25,37,0.06)', maxHeight: '94vh', overflowY: 'auto', fontFamily: "'Poppins', system-ui, sans-serif", boxSizing: 'border-box' },
@@ -654,6 +788,10 @@ const S = {
   checkboxOn:        { background: '#2EABFE', border: 'none' },
   forgotBtn:         { background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#2EABFE', fontFamily: "'Poppins', sans-serif", padding: 0 },
   submitBtn:         { height: 50, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 16, fontWeight: 700, letterSpacing: 0.3, color: '#091925', background: '#2EABFE', border: '0.5px solid #2EABFE', borderRadius: 5, cursor: 'pointer', marginTop: 4, transition: 'all .2s', fontFamily: "'Poppins', sans-serif", textTransform: 'capitalize', padding: 0 },
+  divider:           { display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0 12px' },
+  dividerLine:       { flex: 1, height: 1, background: '#e2e8f0' },
+  dividerText:       { fontSize: 12, fontWeight: 600, color: '#7FA8C4', flexShrink: 0 },
+  googleBtn:         { height: 50, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 16, fontWeight: 600, color: '#091925', background: '#f5f5f5', border: '1px solid #d1d5db', borderRadius: 5, cursor: 'pointer', transition: 'all .2s', fontFamily: "'Poppins', sans-serif", marginBottom: 18 },
   termsLink:         { color: '#2EABFE', textDecoration: 'none', fontWeight: 600 },
   resendRow:         { display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '17px' },
   resendBtn:         { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#2EABFE', fontFamily: "'JetBrains Mono', monospace", padding: 0 },
@@ -662,7 +800,6 @@ const S = {
   linkBtn:           { background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#2EABFE', fontFamily: "'JetBrains Mono', monospace", padding: 0 },
   disclaimer:        { marginTop: 14, textAlign: 'center', fontSize: 13, color: '#7FA8C4', fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, lineHeight: '15px' },
   error:             { display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', marginBottom: 14, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 5, color: '#b91c1c', fontSize: 13 },
-  // ✅ Orange deactivated banner — visually distinct from the red error banner
   deactivatedBanner: { display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px', marginBottom: 14, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, color: '#9a3412', fontSize: 13, fontFamily: "'Poppins', sans-serif", lineHeight: 1.5 },
 };
 

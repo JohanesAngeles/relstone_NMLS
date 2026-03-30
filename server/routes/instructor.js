@@ -33,8 +33,8 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
       if (!student.completions || student.completions.length === 0) {
         studentRows.push({
           _id:             student._id,
-          name:            student.name,
-          email:           student.email,
+          name:             student.name,
+          email:            student.email,
           course_title:    null,
           course_id:       null,
           status:          'enrolled',
@@ -51,8 +51,8 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
           totalCompletions++;
           studentRows.push({
             _id:             student._id,
-            name:            student.name,
-            email:           student.email,
+            name:             student.name,
+            email:            student.email,
             course_title:    c.course_id?.title   || 'Unknown Course',
             course_id:       c.course_id?._id      || null,
             status:          'completed',
@@ -98,7 +98,7 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
 
     res.json({
       courses:           enrichedCourses,
-      students:          studentRows,
+      students:           studentRows,
       total_enrollments: students.length,
       total_completions: totalCompletions,
       active_courses:    courses.filter((c) => c.is_active).length,
@@ -132,8 +132,8 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
         if (item.course_id) {
           enrollmentMap[uid].push({
             course_id:    item.course_id._id,
-            title:        item.course_id.title,
-            type:         item.course_id.type,
+            title:         item.course_id.title,
+            type:          item.course_id.type,
             credit_hours: item.course_id.credit_hours,
           });
         }
@@ -149,10 +149,10 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
 
       const courses = enrolledCourses.map(ec => ({
         course_id: ec.course_id,
-        title:     ec.title,
-        type:      ec.type,
-        status:    completedIds.has(String(ec.course_id)) ? 'completed' : 'enrolled',
-        progress:  completedIds.has(String(ec.course_id)) ? 100 : 0,
+        title:      ec.title,
+        type:       ec.type,
+        status:     completedIds.has(String(ec.course_id)) ? 'completed' : 'enrolled',
+        progress:   completedIds.has(String(ec.course_id)) ? 100 : 0,
       }));
 
       const completed   = courses.filter(c => c.status === 'completed').length;
@@ -161,22 +161,22 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
       const firstCourse = courses[0] || {};
 
       return {
-        _id:             s._id,
-        name:            s.name,
-        email:           s.email,
-        nmls_id:         s.nmls_id || null,
-        state:           s.state   || null,
-        course_title:    firstCourse.title || (courses.length > 1 ? `${courses.length} courses` : '—'),
-        status:          courses.length > 0 ? (progress === 100 ? 'completed' : 'enrolled') : 'enrolled',
+        _id:              s._id,
+        name:             s.name,
+        email:            s.email,
+        nmls_id:          s.nmls_id || null,
+        state:            s.state   || null,
+        course_title:     firstCourse.title || (courses.length > 1 ? `${courses.length} courses` : '—'),
+        status:           courses.length > 0 ? (progress === 100 ? 'completed' : 'enrolled') : 'enrolled',
         progress,
         courses,
-        completions:     s.completions || [],
-        enrolled_at:     s.createdAt,
+        completions:      s.completions || [],
+        enrolled_at:      s.createdAt,
         certificate_url: (s.completions || []).find(c => c.certificate_url)?.certificate_url || null,
-        createdAt:       s.createdAt,
-        is_active:       s.is_active !== false,
-        deactivated_at:  s.deactivated_at || null,
-        last_login_at:   s.last_login_at  || null,
+        createdAt:        s.createdAt,
+        is_active:        s.is_active !== false,
+        deactivated_at:   s.deactivated_at || null,
+        last_login_at:    s.last_login_at  || null,
       };
     });
 
@@ -189,8 +189,7 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
 
 /* ─────────────────────────────────────────────────────────────────
    GET /api/instructor/logs
-   ⚠️  Must be ABOVE /students/:id so Express doesn't treat "logs"
-       as a student :id wildcard and return 404.
+   ✅ FIX: Uses .populate() and enriched mapping to prevent "Unknown Instructor"
 ───────────────────────────────────────────────────────────────── */
 router.get('/logs', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -200,11 +199,19 @@ router.get('/logs', authMiddleware, instructorOnly, async (req, res) => {
     if (student_id) filter.student_id = student_id;
 
     const logs = await InstructorLog.find(filter)
+      // 1. We MUST populate to get the 'name' from the User collection
+      .populate('instructor_id', 'name') 
       .sort({ timestamp: -1 })
       .limit(Number(limit))
       .lean();
 
-    res.json({ logs, total: logs.length });
+    // 2. We map the logs to ensure a name is ALWAYS present for the frontend
+    const enrichedLogs = logs.map(log => ({
+      ...log,
+      instructor_name: log.instructor_name || log.instructor_id?.name || "Staff Member"
+    }));
+
+    res.json({ logs: enrichedLogs, total: enrichedLogs.length });
   } catch (err) {
     console.error('[instructor/logs GET]', err);
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -217,7 +224,7 @@ router.get('/logs', authMiddleware, instructorOnly, async (req, res) => {
 router.post('/logs', authMiddleware, instructorOnly, async (req, res) => {
   try {
     const log = await InstructorLog.create({
-      instructor_id:   req.user._id || req.user.id,
+      instructor_id:   req.user.id || req.user._id,
       instructor_name: req.user.name,
       ...req.body,
       timestamp: new Date(),
@@ -247,12 +254,12 @@ router.get('/students/:id', authMiddleware, instructorOnly, async (req, res) => 
 
 /* ─────────────────────────────────────────────────────────────────
    PUT /api/instructor/students/:userId/toggle-active
-   ✅ LOGS: records every activation / deactivation
 ───────────────────────────────────────────────────────────────── */
 router.put('/students/:userId/toggle-active', authMiddleware, instructorOnly, async (req, res) => {
   try {
     const student = await User.findById(req.params.userId);
     if (!student) return res.status(404).json({ message: 'Student not found' });
+    
     if (student.role !== 'student' && req.user.role !== 'admin') {
       return res.status(400).json({ message: 'Cannot deactivate non-student accounts without Admin privileges' });
     }
@@ -262,9 +269,8 @@ router.put('/students/:userId/toggle-active', authMiddleware, instructorOnly, as
     student.deactivated_at = student.is_active ? null : new Date();
     await student.save();
 
-    // ── Activity log ─────────────────────────────────────────────
     await InstructorLog.create({
-      instructor_id:   req.user._id || req.user.id,
+      instructor_id:   req.user.id || req.user._id,
       instructor_name: req.user.name,
       action:          'toggle_active',
       student_id:      student._id,
@@ -313,12 +319,12 @@ router.get('/courses-stats', authMiddleware, instructorOnly, async (req, res) =>
     }
 
     const result = courses.map(c => ({
-      _id:              c._id,
-      title:            c.title,
-      type:             c.type,
-      credit_hours:     c.credit_hours,
-      nmls_course_id:   c.nmls_course_id,
-      active:           c.active ?? c.is_active ?? true,
+      _id:               c._id,
+      title:             c.title,
+      type:              c.type,
+      credit_hours:      c.credit_hours,
+      nmls_course_id:    c.nmls_course_id,
+      active:            c.active ?? c.is_active ?? true,
       enrollment_count: enrollMap[String(c._id)] || 0,
       completion_count: completeMap[String(c._id)] || 0,
     }));
@@ -332,7 +338,6 @@ router.get('/courses-stats', authMiddleware, instructorOnly, async (req, res) =>
 
 /* ─────────────────────────────────────────────────────────────────
    POST /api/instructor/assign-course
-   ✅ LOGS: records every course assignment
 ───────────────────────────────────────────────────────────────── */
 router.post('/assign-course', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -359,9 +364,8 @@ router.post('/assign-course', authMiddleware, instructorOnly, async (req, res) =
     });
     await student.save();
 
-    // ── Activity log ─────────────────────────────────────────────
     await InstructorLog.create({
-      instructor_id:   req.user._id || req.user.id,
+      instructor_id:   req.user.id || req.user._id,
       instructor_name: req.user.name,
       action:          'assign_course',
       student_id:      student._id,
@@ -491,24 +495,24 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         : isCompleted ? 100 : 0;
 
       return {
-        _id:             u._id,
-        name:            u.name,
-        email:           u.email,
-        nmls_id:         u.nmls_id || null,
-        state:           u.state   || null,
-        completed:       isCompleted,
-        passed:          isPassed,
-        score:           bestScore,
-        seat_hours:      seatHours,
-        progress:        progressPct,
-        completed_at:    completion?.completed_at || null,
+        _id:              u._id,
+        name:             u.name,
+        email:            u.email,
+        nmls_id:          u.nmls_id || null,
+        state:            u.state   || null,
+        completed:        isCompleted,
+        passed:           isPassed,
+        score:            bestScore,
+        seat_hours:       seatHours,
+        progress:         progressPct,
+        completed_at:     completion?.completed_at || null,
         certificate_url: completion?.certificate_url || null,
-        enrolled_at:     u.createdAt,
+        enrolled_at:      u.createdAt,
         quiz_attempts:   quizzes,
         module_progress: enrollment?.module_progress || progress?.module_progress || [],
-        is_active:       u.is_active !== false,
-        deactivated_at:  u.deactivated_at || null,
-        last_login_at:   u.last_login_at  || null,
+        is_active:        u.is_active !== false,
+        deactivated_at:   u.deactivated_at || null,
+        last_login_at:    u.last_login_at  || null,
       };
     });
 
@@ -559,13 +563,13 @@ router.get('/students/:id/courses', authMiddleware, instructorOnly, async (req, 
         );
 
         courses.push({
-          _id:             item.course_id?._id || item.course_id,
-          title:           item.course_id?.title,
-          type:            item.course_id?.type,
-          credit_hours:    item.course_id?.credit_hours,
-          nmls_course_id:  item.course_id?.nmls_course_id,
-          status:          completedIds.has(cid) ? 'completed' : 'in_progress',
-          completed_at:    completion?.completed_at    || null,
+          _id:              item.course_id?._id || item.course_id,
+          title:            item.course_id?.title,
+          type:             item.course_id?.type,
+          credit_hours:     item.course_id?.credit_hours,
+          nmls_course_id:   item.course_id?.nmls_course_id,
+          status:           completedIds.has(cid) ? 'completed' : 'in_progress',
+          completed_at:     completion?.completed_at     || null,
           certificate_url: completion?.certificate_url || null,
         });
       }

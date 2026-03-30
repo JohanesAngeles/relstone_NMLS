@@ -4,7 +4,7 @@ const userSchema = new mongoose.Schema({
   // ── Core ─────────────────────────────────────────────────────────
   name:       { type: String, required: true, trim: true },
   email:      { type: String, required: true, unique: true, lowercase: true, trim: true },
-  password:   { type: String, required: true },
+  password:   { type: String, default: null }, // null for Google OAuth users
   role:       { type: String, enum: ['student', 'instructor', 'admin'], default: 'student' },
   isVerified: { type: Boolean, default: false },
   otp:        { type: String,  default: null },
@@ -13,27 +13,29 @@ const userSchema = new mongoose.Schema({
   deactivated_at: { type: Date,    default: null },
   last_login_at:  { type: Date,    default: null },
 
+  // ── Google OAuth ──────────────────────────────────────────────────
+  googleId:       { type: String, default: null },
+  profilePicture: { type: String, default: null },
+
   // ── Profile ───────────────────────────────────────────────────────
   nmls_id:  { type: String, trim: true, default: null },
   state:    { type: String, default: null },
   phone:    { type: String, trim: true, default: null },
   address:  { type: String, trim: true, default: null },
 
-  // ── BioSig-ID (BSI) History (NEW) ─────────────────────────────────
-  // NMLS requires biometric verification logs for audits. 
-  // This stores every successful identity verification.
+  // ── BioSig-ID (BSI) History ───────────────────────────────────────
   biosig_verifications: [
     {
       course_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
       verified_at:   { type: Date, default: Date.now },
-      session_token: { type: String }, // Token received from BSI API
+      session_token: { type: String },
       provider:      { type: String, default: 'BioSig-ID' },
-      module_order:  { type: Number }  // Optional: tracking which module triggered it
+      module_order:  { type: Number },
     }
   ],
 
   // ── License Goals ─────────────────────────────────────────────────
-  license_type:  { type: String, default: null }, 
+  license_type:  { type: String, default: null },
   target_state:  { type: String, default: null },
   target_date:   { type: String, default: null },
   experience:    { type: String, default: null },
@@ -59,21 +61,22 @@ const userSchema = new mongoose.Schema({
     }
   ],
 
-  // CE Renewal Tracking
-  ce_renewal_deadline: { type: Date, default: null },
-  ce_hours_required: { type: Number, default: 0 },
-  ce_renewal_cycle_start: { type: Date, default: null },
-  renewal_status: { type: String, enum: ['in-progress', 'completed'], default: 'in-progress' },
+  // ── CE Renewal Tracking ───────────────────────────────────────────
+  ce_renewal_deadline:    { type: Date,   default: null },
+  ce_hours_required:      { type: Number, default: 0 },
+  ce_renewal_cycle_start: { type: Date,   default: null },
+  renewal_status:         { type: String, enum: ['in-progress', 'completed'], default: 'in-progress' },
   renewal_reminders_sent: [
     {
-      days_before: { type: Number }, // 90, 60, or 30
-      sent_at: { type: Date },
+      days_before: { type: Number },
+      sent_at:     { type: Date },
     }
   ],
 
 }, { timestamps: true });
 
-// Indexing for faster BioSig status lookups
-userSchema.index({ "biosig_verifications.course_id": 1 });
+// ── Indexes ───────────────────────────────────────────────────────
+userSchema.index({ 'biosig_verifications.course_id': 1 });
+userSchema.index({ googleId: 1 }, { sparse: true }); // sparse: only indexes non-null googleId values
 
 module.exports = mongoose.model('User', userSchema);
