@@ -219,11 +219,18 @@ const AccountSetup = () => {
       const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
       const address  = [street, city, `${addrState} ${zip}`].filter(Boolean).join(", ");
       await API.put("/auth/profile", {
-        name: fullName, phone: mobile || null, address: address || null,
-        nmls_id: nmlsId || null, state: licenseState || null,
-      });
+  name: fullName,
+  phone: mobile || null,
+  address: address || null,
+  nmls_id: nmlsId || null,
+  state: licenseState || null,
+  company: company || null,        // ← add
+  work_phone: work || null,        // ← add
+  home_phone: home || null,        // ← add
+  course_type: courseType || null, // ← add
+});
       if (password) {
-        await API.put("/auth/change-password", { currentPassword: "__setup__", newPassword: password });
+        await API.put("/auth/change-password", { currentPassword: "__setup__", newPassword: password });  
       }
       try {
         const stored = JSON.parse(localStorage.getItem("user") || "{}");
