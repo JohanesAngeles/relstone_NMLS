@@ -12,7 +12,8 @@ const US_STATES = [
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
 ];
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+console.log('Google Client ID:', GOOGLE_CLIENT_ID); // ← ADD THIS LINE
 
 const getRoleRoute = (user) => {
   const role = user?.role;
@@ -676,7 +677,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
             />
 
             {/* Fallback if GSI script hasn't loaded */}
-            {!window.google && (
+            {/* {!window.google && (
               <button
                 type="button"
                 style={S.googleBtn}
@@ -685,7 +686,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
               >
                 <GoogleIcon /> {googleLoading ? 'Signing in...' : 'Sign in with Google'}
               </button>
-            )}
+            )} */}
 
             <p style={S.switchText}>
               Don't have an account?{' '}
@@ -748,6 +749,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
             <p style={{ ...S.switchText, marginTop: 10 }}>
               Already have an account?{' '}
               <button style={S.linkBtn} type="button" onClick={() => switchTab('login')}>Sign in →</button>
+              
             </p>
           </div>
         )}

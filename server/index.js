@@ -14,20 +14,26 @@ if (process.env.DNS_SERVERS) {
   console.log('DNS servers configured:', dnsServers);
 }
 
-// ── Route imports ─────────────────────────────────────────────────────────────
-const authRoutes         = require('./routes/auth');
-const courseRoutes       = require('./routes/courses');
-const orderRoutes        = require('./routes/orders');
-const dashboardRoutes    = require('./routes/dashboard');
-const certificateRoutes  = require('./routes/certificates');
-const instructorRoutes   = require('./routes/instructor');
-const testimonialRoutes  = require('./routes/testimonials');
-// ── NEW: required for CoursePortal to work ────────────────────────────────────
-const quizAttemptRoutes  = require('./routes/quiz-attempts');   // ← ADD
-const enrollmentRoutes   = require('./routes/enrollment');      // ← ADD
-const rocsRoutes         = require('./routes/rocs');            // ← ADD
-const supportRoutes = require('./routes/support');
-const biosigRoutes = require('./routes/biosig');// ── Middleware ────────────────────────────────────────────────────────────────
+// ── Route imports (wrapped to catch missing modules on startup) ───────────────
+let authRoutes, courseRoutes, orderRoutes, dashboardRoutes,
+    certificateRoutes, instructorRoutes, testimonialRoutes,
+    quizAttemptRoutes, enrollmentRoutes, rocsRoutes,
+    supportRoutes, biosigRoutes;
+
+try { authRoutes        = require('./routes/auth');          } catch (e) { console.error('❌ auth route failed:', e.message); }
+try { courseRoutes      = require('./routes/courses');        } catch (e) { console.error('❌ courses route failed:', e.message); }
+try { orderRoutes       = require('./routes/orders');         } catch (e) { console.error('❌ orders route failed:', e.message); }
+try { dashboardRoutes   = require('./routes/dashboard');      } catch (e) { console.error('❌ dashboard route failed:', e.message); }
+try { certificateRoutes = require('./routes/certificates');   } catch (e) { console.error('❌ certificates route failed:', e.message); }
+try { instructorRoutes  = require('./routes/instructor');     } catch (e) { console.error('❌ instructor route failed:', e.message); }
+try { testimonialRoutes = require('./routes/testimonials');   } catch (e) { console.error('❌ testimonials route failed:', e.message); }
+try { quizAttemptRoutes = require('./routes/quiz-attempts');  } catch (e) { console.error('❌ quiz-attempts route failed:', e.message); }
+try { enrollmentRoutes  = require('./routes/enrollment');     } catch (e) { console.error('❌ enrollment route failed:', e.message); }
+try { rocsRoutes        = require('./routes/rocs');           } catch (e) { console.error('❌ rocs route failed:', e.message); }
+try { supportRoutes     = require('./routes/support');        } catch (e) { console.error('❌ support route failed:', e.message); }
+try { biosigRoutes      = require('./routes/biosig');         } catch (e) { console.error('❌ biosig route failed:', e.message); }
+
+// ── Middleware ─────────────────────────────────────────────────────────────────
 const authMiddleware = require('./middleware/auth');
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
@@ -45,7 +51,7 @@ const adminOrderRoutes = require('./routes/admin/orders');
 
 const app = express();
 
-// ── CORS ──────────────────────────────────────────────────────────────────────
+// ── CORS ───────────────────────────────────────────────────────────────────────
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -59,21 +65,25 @@ app.use(cors({
 
 app.use(express.json());
 
-// ── API routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth',          authRoutes); // Keep public (login/register)
-app.use('/api/courses',       courseRoutes); // Usually public for browsing
+// ── API routes ─────────────────────────────────────────────────────────────────
+// NOTE: authMiddleware is NOT applied here — each route file handles its own
+// auth internally via the instructorOnly / authMiddleware guards already defined
+// inside them. Applying it twice causes double-verification and can mask errors.
 
-// Apply authMiddleware to protect these specific groups:
-app.use('/api/orders',        authMiddleware, orderRoutes);
-app.use('/api/dashboard',     authMiddleware, dashboardRoutes);
-app.use('/api/certificates',  authMiddleware, certificateRoutes);
-app.use('/api/instructor',    authMiddleware, instructorRoutes);
-app.use('/api/quiz-attempts', authMiddleware, quizAttemptRoutes);
-app.use('/api/enrollment',    authMiddleware, enrollmentRoutes);
-app.use('/api/rocs',          authMiddleware, rocsRoutes);
-app.use('/api/support',       authMiddleware, supportRoutes);
-app.use('/api/testimonials',  testimonialRoutes);  // ← ADD THIS LINE
-app.use('/api/biosig', biosigRoutes);// ── Protected test route ──────────────────────────────────────────────────────
+if (authRoutes)        app.use('/api/auth',          authRoutes);
+if (courseRoutes)      app.use('/api/courses',        courseRoutes);
+if (orderRoutes)       app.use('/api/orders',         authMiddleware, orderRoutes);
+if (dashboardRoutes)   app.use('/api/dashboard',      authMiddleware, dashboardRoutes);
+if (certificateRoutes) app.use('/api/certificates',   authMiddleware, certificateRoutes);
+if (instructorRoutes)  app.use('/api/instructor',     instructorRoutes);  // ← auth handled inside route file
+if (quizAttemptRoutes) app.use('/api/quiz-attempts',  authMiddleware, quizAttemptRoutes);
+if (enrollmentRoutes)  app.use('/api/enrollment',     authMiddleware, enrollmentRoutes);
+if (rocsRoutes)        app.use('/api/rocs',           authMiddleware, rocsRoutes);
+if (supportRoutes)     app.use('/api/support',        authMiddleware, supportRoutes);
+if (testimonialRoutes) app.use('/api/testimonials',   testimonialRoutes);
+if (biosigRoutes)      app.use('/api/biosig',         biosigRoutes);
+
+// ── Protected test route ───────────────────────────────────────────────────────
 app.get('/api/protected', authMiddleware, (req, res) => {
   res.json({ message: 'Access granted!', user: req.user });
 });
@@ -93,6 +103,7 @@ app.use('/api/admin/orders', authMiddleware, adminOrderRoutes);
 
 
 // ── Serve React build in production ──────────────────────────────────────────
+// ── Serve React build in production ───────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
   app.get('/{*path}', (req, res) => {
@@ -104,7 +115,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// ── Start server ──────────────────────────────────────────────────────────────
+// ── Start server ───────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 8000;
 
 mongoose

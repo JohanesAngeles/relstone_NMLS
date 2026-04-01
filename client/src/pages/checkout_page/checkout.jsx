@@ -23,9 +23,64 @@ const Checkout = () => {
     phone: "", email: "", additionalInfo: "",
   });
 
+  // ── LOAD CART & AUTOFILL PROFILE ──
   useEffect(() => {
+    // 1. Load Cart
     const savedCart = JSON.parse(localStorage.getItem("cart") || "[]");
     setCart(savedCart);
+
+   const fetchUserProfile = async () => {
+  try {
+    const res  = await API.get("/auth/me");
+    const user = res.data.user;
+    if (!user) return;
+
+    // Split name
+    const nameParts = (user.name || "").trim().split(/\s+/);
+    const fName = nameParts[0] || "";
+    const lName = nameParts.slice(1).join(" ") || "";
+
+    // Try dedicated fields first, then fall back to parsing address string
+    // address format: "123 Main St, Springfield, IL 62701"
+    let streetAddress = user.address || "";
+    let townCity      = user.town_city || "";
+    let addrState     = user.state || "";
+    let zipCode       = user.zip_code || "";
+
+    if (user.address && (!townCity || !zipCode)) {
+      const parts = user.address.split(",").map((s) => s.trim());
+      // parts[0] = "123 Main St"
+      // parts[1] = "Springfield"
+      // parts[2] = "IL 62701"
+      if (parts[0]) streetAddress = parts[0];
+      if (parts[1] && !townCity)   townCity  = parts[1];
+      if (parts[2]) {
+        const stateZip = parts[2].trim().split(" ");
+        const parsedZip   = stateZip.pop()      || "";   // last token = zip
+        const parsedState = stateZip.join(" ")  || "";   // rest = state
+        if (parsedZip   && !zipCode)   zipCode   = parsedZip;
+        if (parsedState && !addrState) addrState = parsedState;
+      }
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      firstName:     fName,
+      lastName:      lName,
+      email:         user.email      || "",
+      phone:         user.phone      || user.work_phone || "",
+      companyName:   user.company    || "",
+      streetAddress,
+      townCity,
+      state:         addrState,
+      zipCode,
+    }));
+  } catch (err) {
+    console.error("Autofill error:", err);
+  }
+};
+
+    fetchUserProfile();
   }, []);
 
   const subtotal = useMemo(() =>
@@ -79,7 +134,6 @@ const Checkout = () => {
     }
   };
 
-  /* ── Success screen ── */
   if (submitted) return (
     <Layout>
       <style>{css}</style>
@@ -110,10 +164,7 @@ const Checkout = () => {
   return (
     <Layout>
       <style>{css}</style>
-
       <div style={S.shell}>
-
-        {/* ── Page header row ── */}
         <div style={S.pageHeader}>
           <div style={S.pageHeaderLeft}>
             <button type="button" style={S.backBtn} onClick={() => navigate("/courses")}>
@@ -130,12 +181,9 @@ const Checkout = () => {
           </div>
         </div>
 
-        {/* ── Error banner ── */}
         {error && <div style={S.errorBanner}>⚠️ {error}</div>}
 
         <div style={S.grid}>
-
-          {/* ── Billing form ── */}
           <section style={S.card}>
             <div style={S.sectionHead}>
               <div style={S.sectionTitle}>Billing &amp; Shipping</div>
@@ -178,7 +226,6 @@ const Checkout = () => {
             </form>
           </section>
 
-          {/* ── Order summary ── */}
           <aside style={S.summaryCard}>
             <div style={S.sectionHead}>
               <div style={S.sectionTitle}>Your Order</div>
@@ -232,7 +279,6 @@ const Checkout = () => {
   );
 };
 
-/* ── Field component ── */
 const Field = ({ label, name, value, onChange, placeholder, required, type = "text", icon }) => (
   <div style={S.field}>
     <label style={S.label}>{label}</label>
@@ -253,65 +299,55 @@ input:focus,textarea:focus{border-color:rgba(46,171,254,0.50)!important;box-shad
 `;
 
 const S = {
-  shell:          { maxWidth:1180, margin:"0 auto", padding:"20px 18px 48px" },
-
-  // Page header
-  pageHeader:     { display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:20 },
-  pageHeaderLeft: { display:"flex", alignItems:"center", gap:12 },
-  backBtn:        { display:"inline-flex", alignItems:"center", gap:7, padding:"9px 14px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", cursor:"pointer", fontWeight:900, fontSize:13, color:"rgba(11,18,32,0.82)", flexShrink:0 },
-  pageTitle:      { fontWeight:950, fontSize:18, color:"#091925", letterSpacing:"-0.2px" },
-  pageSub:        { fontSize:12, fontWeight:700, color:"rgba(9,25,37,0.50)", marginTop:2 },
-  cartBadge:      { display:"inline-flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", fontWeight:900, fontSize:13, color:"rgba(11,18,32,0.82)" },
-
-  // Layout
-  grid:           { display:"grid", gridTemplateColumns:"1.2fr 0.8fr", gap:16, alignItems:"start" },
-  card:           { borderRadius:22, background:"rgba(255,255,255,0.88)", border:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 18px 48px rgba(2,8,23,0.10)", padding:22 },
-  summaryCard:    { borderRadius:22, background:"rgba(255,255,255,0.88)", border:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 18px 48px rgba(2,8,23,0.10)", padding:22, position:"sticky", top:78 },
-  sectionHead:    { marginBottom:18 },
-  sectionTitle:   { fontWeight:950, fontSize:17, color:"rgba(11,18,32,0.88)" },
-  sectionSub:     { marginTop:4, fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.50)" },
-
-  // Form
-  form:           { display:"grid", gap:14 },
-  twoCol:         { display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 },
-  field:          { display:"grid", gap:7 },
-  label:          { fontSize:12, fontWeight:700, color:"rgba(9,25,37,0.65)", paddingLeft:2 },
-  inputWrap:      { position:"relative" },
-  inputIcon:      { position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:"#98a0aa", display:"flex", alignItems:"center", pointerEvents:"none" },
-  input:          { width:"100%", height:48, padding:"0 14px", border:"1.5px solid #e3e5e8", borderRadius:14, fontSize:14, background:"#fafafa", color:"#1a1a1a", outline:"none", fontFamily:"inherit", boxSizing:"border-box" },
-  textarea:       { width:"100%", padding:"14px", border:"1.5px solid #e3e5e8", borderRadius:14, fontSize:14, background:"#fafafa", color:"#1a1a1a", outline:"none", resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" },
-  actionRow:      { display:"flex", gap:12, justifyContent:"flex-end", marginTop:6, flexWrap:"wrap" },
-  primaryBtn:     { display:"inline-flex", alignItems:"center", gap:8, padding:"12px 20px", borderRadius:14, border:"none", background:"#091925", color:"#fff", cursor:"pointer", fontWeight:950, fontSize:14 },
+  shell:           { maxWidth:1180, margin:"0 auto", padding:"20px 18px 48px" },
+  pageHeader:      { display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:20 },
+  pageHeaderLeft:  { display:"flex", alignItems:"center", gap:12 },
+  backBtn:         { display:"inline-flex", alignItems:"center", gap:7, padding:"9px 14px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", cursor:"pointer", fontWeight:900, fontSize:13, color:"rgba(11,18,32,0.82)", flexShrink:0 },
+  pageTitle:       { fontWeight:950, fontSize:18, color:"#091925", letterSpacing:"-0.2px" },
+  pageSub:         { fontSize:12, fontWeight:700, color:"rgba(9,25,37,0.50)", marginTop:2 },
+  cartBadge:       { display:"inline-flex", alignItems:"center", gap:8, padding:"10px 14px", borderRadius:999, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", fontWeight:900, fontSize:13, color:"rgba(11,18,32,0.82)" },
+  grid:            { display:"grid", gridTemplateColumns:"1.2fr 0.8fr", gap:16, alignItems:"start" },
+  card:            { borderRadius:22, background:"rgba(255,255,255,0.88)", border:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 18px 48px rgba(2,8,23,0.10)", padding:22 },
+  summaryCard:     { borderRadius:22, background:"rgba(255,255,255,0.88)", border:"1px solid rgba(2,8,23,0.08)", boxShadow:"0 18px 48px rgba(2,8,23,0.10)", padding:22, position:"sticky", top:78 },
+  sectionHead:     { marginBottom:18 },
+  sectionTitle:    { fontWeight:950, fontSize:17, color:"rgba(11,18,32,0.88)" },
+  sectionSub:      { marginTop:4, fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.50)" },
+  form:            { display:"grid", gap:14 },
+  twoCol:          { display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 },
+  field:           { display:"grid", gap:7 },
+  label:           { fontSize:12, fontWeight:700, color:"rgba(9,25,37,0.65)", paddingLeft:2 },
+  inputWrap:       { position:"relative" },
+  inputIcon:       { position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:"#98a0aa", display:"flex", alignItems:"center", pointerEvents:"none" },
+  input:           { width:"100%", height:48, padding:"0 14px", border:"1.5px solid #e3e5e8", borderRadius:14, fontSize:14, background:"#fafafa", color:"#1a1a1a", outline:"none", fontFamily:"inherit", boxSizing:"border-box" },
+  textarea:        { width:"100%", padding:"14px", border:"1.5px solid #e3e5e8", borderRadius:14, fontSize:14, background:"#fafafa", color:"#1a1a1a", outline:"none", resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" },
+  actionRow:       { display:"flex", gap:12, justifyContent:"flex-end", marginTop:6, flexWrap:"wrap" },
+  primaryBtn:      { display:"inline-flex", alignItems:"center", gap:8, padding:"12px 20px", borderRadius:14, border:"none", background:"#091925", color:"#fff", cursor:"pointer", fontWeight:950, fontSize:14 },
   primaryBtnLoading: { opacity:0.75, cursor:"not-allowed" },
-  secondaryBtn:   { display:"inline-flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px 16px", borderRadius:14, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", cursor:"pointer", fontWeight:900, fontSize:14, color:"rgba(11,18,32,0.82)" },
-
-  // Summary
-  summaryList:    { display:"grid", gap:12 },
-  summaryItem:    { borderRadius:16, border:"1px solid rgba(2,8,23,0.08)", background:"#fff", padding:12, display:"grid", gap:8 },
-  summaryTop:     { display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start" },
+  secondaryBtn:    { display:"inline-flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px 16px", borderRadius:14, border:"1px solid rgba(2,8,23,0.10)", background:"#fff", cursor:"pointer", fontWeight:900, fontSize:14, color:"rgba(11,18,32,0.82)" },
+  summaryList:     { display:"grid", gap:12 },
+  summaryItem:     { borderRadius:16, border:"1px solid rgba(2,8,23,0.08)", background:"#fff", padding:12, display:"grid", gap:8 },
+  summaryTop:      { display:"flex", justifyContent:"space-between", gap:12, alignItems:"flex-start" },
   summaryCourseWrap:{ display:"flex", gap:10, flex:1, minWidth:0 },
-  courseIcon:     { width:36, height:36, borderRadius:14, background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.18)", display:"grid", placeItems:"center", color:"#091925", flexShrink:0 },
+  courseIcon:      { width:36, height:36, borderRadius:14, background:"rgba(46,171,254,0.12)", border:"1px solid rgba(46,171,254,0.18)", display:"grid", placeItems:"center", color:"#091925", flexShrink:0 },
   summaryCourseTitle:{ fontWeight:900, color:"rgba(11,18,32,0.86)", lineHeight:1.3 },
-  summaryMeta:    { marginTop:4, fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.50)" },
-  summaryPrice:   { fontWeight:950, color:"rgba(11,18,32,0.82)", whiteSpace:"nowrap" },
-  textbookRow:    { display:"flex", justifyContent:"space-between", fontSize:13, fontWeight:700, color:"rgba(11,18,32,0.68)", paddingTop:4 },
-  totals:         { marginTop:16, paddingTop:14, borderTop:"1px solid rgba(2,8,23,0.08)", display:"grid", gap:10 },
-  totalRow:       { display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:14, color:"rgba(11,18,32,0.72)", fontWeight:800 },
-  grandTotal:     { paddingTop:8, marginTop:2, borderTop:"1px solid rgba(2,8,23,0.08)", fontSize:16, color:"rgba(11,18,32,0.88)" },
-  pendingNote:    { marginTop:14, display:"flex", alignItems:"flex-start", gap:8, padding:"12px 14px", borderRadius:14, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.22)", color:"rgba(140,90,0,1)", fontSize:12, fontWeight:700, lineHeight:1.5 },
-  emptyBox:       { borderRadius:18, border:"1px dashed rgba(2,8,23,0.16)", background:"rgba(2,8,23,0.02)", padding:18, display:"grid", gap:10 },
-  emptyTitle:     { fontWeight:950, color:"rgba(11,18,32,0.86)" },
-  emptySub:       { fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.55)", lineHeight:1.6 },
-  errorBanner:    { marginBottom:16, padding:"12px 18px", borderRadius:14, background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.22)", color:"rgba(185,28,28,1)", fontWeight:800, fontSize:13 },
-
-  // Success
-  successWrap:    { minHeight:"80vh", display:"grid", placeItems:"center", padding:24 },
-  successCard:    { background:"#fff", borderRadius:28, padding:"48px 40px", maxWidth:480, width:"100%", textAlign:"center", boxShadow:"0 40px 100px rgba(0,0,0,0.12)", border:"1px solid rgba(2,8,23,0.08)" },
-  successIcon:    { width:80, height:80, borderRadius:"50%", background:"rgba(34,197,94,0.12)", border:"2px solid rgba(34,197,94,0.30)", display:"grid", placeItems:"center", color:"rgba(34,197,94,1)", margin:"0 auto 22px" },
-  successTitle:   { fontSize:28, fontWeight:950, color:"#091925", letterSpacing:"-0.4px", marginBottom:10 },
-  successSub:     { fontSize:15, color:"rgba(10,22,40,0.65)", fontWeight:600, marginBottom:14 },
-  successNote:    { fontSize:13, fontWeight:700, color:"rgba(10,22,40,0.50)", lineHeight:1.6, padding:"12px 16px", borderRadius:14, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.20)", marginBottom:24 },
-  successActions: { display:"grid", gap:10 },
+  summaryMeta:     { marginTop:4, fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.50)" },
+  summaryPrice:    { fontWeight:950, color:"rgba(11,18,32,0.82)", whiteSpace:"nowrap" },
+  textbookRow:     { display:"flex", justifyContent:"space-between", fontSize:13, fontWeight:700, color:"rgba(11,18,32,0.68)", paddingTop:4 },
+  totals:          { marginTop:16, paddingTop:14, borderTop:"1px solid rgba(2,8,23,0.08)", display:"grid", gap:10 },
+  totalRow:        { display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:14, color:"rgba(11,18,32,0.72)", fontWeight:800 },
+  grandTotal:      { paddingTop:8, marginTop:2, borderTop:"1px solid rgba(2,8,23,0.08)", fontSize:16, color:"rgba(11,18,32,0.88)" },
+  pendingNote:     { marginTop:14, display:"flex", alignItems:"flex-start", gap:8, padding:"12px 14px", borderRadius:14, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.22)", color:"rgba(140,90,0,1)", fontSize:12, fontWeight:700, lineHeight:1.5 },
+  emptyBox:        { borderRadius:18, border:"1px dashed rgba(2,8,23,0.16)", background:"rgba(2,8,23,0.02)", padding:18, display:"grid", gap:10 },
+  emptyTitle:      { fontWeight:950, color:"rgba(11,18,32,0.86)" },
+  emptySub:        { fontSize:12, fontWeight:700, color:"rgba(11,18,32,0.55)", lineHeight:1.6 },
+  errorBanner:     { marginBottom:16, padding:"12px 18px", borderRadius:14, background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.22)", color:"rgba(185,28,28,1)", fontWeight:800, fontSize:13 },
+  successWrap:     { minHeight:"80vh", display:"grid", placeItems:"center", padding:24 },
+  successCard:     { background:"#fff", borderRadius:28, padding:"48px 40px", maxWidth:480, width:"100%", textAlign:"center", boxShadow:"0 40px 100px rgba(0,0,0,0.12)", border:"1px solid rgba(2,8,23,0.08)" },
+  successIcon:     { width:80, height:80, borderRadius:"50%", background:"rgba(34,197,94,0.12)", border:"2px solid rgba(34,197,94,0.30)", display:"grid", placeItems:"center", color:"rgba(34,197,94,1)", margin:"0 auto 22px" },
+  successTitle:    { fontSize:28, fontWeight:950, color:"#091925", letterSpacing:"-0.4px", marginBottom:10 },
+  successSub:      { fontSize:15, color:"rgba(10,22,40,0.65)", fontWeight:600, marginBottom:14 },
+  successNote:     { fontSize:13, fontWeight:700, color:"rgba(10,22,40,0.50)", lineHeight:1.6, padding:"12px 16px", borderRadius:14, background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.20)", marginBottom:24 },
+  successActions:  { display:"grid", gap:10 },
 };
 
 export default Checkout;

@@ -59,9 +59,9 @@ router.get('/', authMiddleware, async (req, res) => {
     // ── FIX: query by BOTH user_id field names to be safe,
     //         and ensure status is exactly 'completed' (lowercase)
     const orders = await Order.find({
-      user_id: req.user.id,
-      status:  'completed',
-    }).populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url');
+  user_id: req.user.id,
+  status:  { $in: ['pending', 'paid', 'completed'] },  // ← show all except cancelled
+}).populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url');
 
     // Set of completed course IDs for quick lookup
     const completedCourseIds = new Set(

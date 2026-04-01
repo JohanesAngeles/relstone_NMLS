@@ -61,11 +61,15 @@ const MyCourses = () => {
         status:          "completed",
       };
     });
-
+const paidCourseIds = new Set(
+  orders
+    .filter(o => ["paid", "completed"].includes(String(o.status).toLowerCase()))
+    .flatMap(o => (o.items || []).map(i => String(i.course_id?._id || i.course_id)))
+);
     // ── In-progress courses ──
     const inProgressCourses = available
-      .filter((c) => !c.already_completed)
-      .map((c) => {
+  .filter((c) => !c.already_completed && paidCourseIds.has(String(c.course_id)))
+  .map((c) => {
         const order = orders.find((o) =>
           (o.items || []).some((i) => String(i.course_id?._id) === String(c.course_id))
         );

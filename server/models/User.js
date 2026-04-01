@@ -12,7 +12,12 @@ const userSchema = new mongoose.Schema({
   is_active:      { type: Boolean, default: true },
   deactivated_at: { type: Date,    default: null },
   last_login_at:  { type: Date,    default: null },
-
+  company:    { type: String, trim: true, default: null },
+work_phone: { type: String, trim: true, default: null },
+home_phone: { type: String, trim: true, default: null },
+course_type:{ type: String, default: null },
+town_city:  { type: String, trim: true, default: null }, // ADD THIS ✅
+  zip_code:   { type: String, trim: true, default: null },
   // ── Google OAuth ──────────────────────────────────────────────────
   googleId:       { type: String, default: null },
   profilePicture: { type: String, default: null },

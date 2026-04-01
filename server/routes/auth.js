@@ -514,24 +514,35 @@ router.put('/profile', authMiddleware, async (req, res) => {
   try {
     const {
       name, phone, address, nmls_id, state,
+      town_city, zip_code, // ADD THESE TWO HERE ✅
+      company, work_phone, home_phone, course_type,
       license_type, target_state, target_date, experience,
     } = req.body;
 
-    const updated = await User.findByIdAndUpdate(
-      req.user.id,
-      {
-        ...(name         && { name }),
-        ...(phone        !== undefined && { phone }),
-        ...(address      !== undefined && { address }),
-        ...(nmls_id      !== undefined && { nmls_id }),
-        ...(state        !== undefined && { state }),
-        ...(license_type !== undefined && { license_type }),
-        ...(target_state !== undefined && { target_state }),
-        ...(target_date  !== undefined && { target_date }),
-        ...(experience   !== undefined && { experience }),
-      },
-      { new: true }
-    ).select('-password -otp -otpExpires');
+
+const updated = await User.findByIdAndUpdate(
+  req.user.id,
+  {
+    $set: {
+      ...(name         !== undefined && name !== null && { name }),
+      ...(phone        !== undefined && { phone }),
+      ...(address      !== undefined && { address }),
+      ...(nmls_id      !== undefined && { nmls_id }),
+      ...(state        !== undefined && { state }),
+      ...(company      !== undefined && { company }),
+      ...(work_phone   !== undefined && { work_phone }),
+      ...(home_phone   !== undefined && { home_phone }),
+      ...(town_city    !== undefined && { town_city }),
+      ...(zip_code     !== undefined && { zip_code }),
+      ...(course_type  !== undefined && { course_type }),
+      ...(license_type !== undefined && { license_type }),
+      ...(target_state !== undefined && { target_state }),
+      ...(target_date  !== undefined && { target_date }),
+      ...(experience   !== undefined && { experience }),
+    },
+  },
+  { new: true }
+).select('-password -otp -otpExpires');
 
     if (!updated) return res.status(404).json({ message: 'User not found' });
 
