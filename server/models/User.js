@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   name:       { type: String, required: true, trim: true },
   email:      { type: String, required: true, unique: true, lowercase: true, trim: true },
   password:   { type: String, default: null }, // null for Google OAuth users
-  role:       { type: String, enum: ['student', 'instructor', 'admin'], default: 'student' },
+  role: { type: String, enum: ['student', 'instructor', 'admin', 'super_admin'], default: 'student' },
   isVerified: { type: Boolean, default: false },
   otp:        { type: String,  default: null },
   otpExpires: { type: Date,    default: null },

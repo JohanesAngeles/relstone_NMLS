@@ -36,6 +36,19 @@ try { biosigRoutes      = require('./routes/biosig');         } catch (e) { cons
 // ── Middleware ─────────────────────────────────────────────────────────────────
 const authMiddleware = require('./middleware/auth');
 
+// ── Admin routes ──────────────────────────────────────────────────────────────
+const adminAuthRoutes     = require('./routes/admin/auth');
+const adminCourseRoutes   = require('./routes/admin/courses');
+const adminStudentRoutes  = require('./routes/admin/students');
+const adminReportRoutes   = require('./routes/admin/reports');
+const adminDashboardRoutes = require('./routes/admin/dashboard');
+
+const adminUploadRoutes = require('./routes/admin/upload');
+const adminInstructorRoutes = require('./routes/admin/instructors');
+const adminSettingsRoutes = require('./routes/admin/settings');
+const adminOrderRoutes = require('./routes/admin/orders');
+
+
 const app = express();
 
 // ── CORS ───────────────────────────────────────────────────────────────────────
@@ -75,6 +88,21 @@ app.get('/api/protected', authMiddleware, (req, res) => {
   res.json({ message: 'Access granted!', user: req.user });
 });
 
+// ── Admin API routes ──────────────────────────────────────────────────────────
+app.use('/api/admin/auth',     adminAuthRoutes);
+app.use('/api/admin/courses',  authMiddleware, adminCourseRoutes);
+app.use('/api/admin/students', authMiddleware, adminStudentRoutes);
+app.use('/api/admin/reports',  authMiddleware, adminReportRoutes);
+app.use('/api/admin/dashboard', authMiddleware, adminDashboardRoutes);
+app.use('/api/admin/upload', authMiddleware, adminUploadRoutes);
+app.use('/api/admin/instructors', authMiddleware, adminInstructorRoutes);
+app.use('/api/admin/settings', authMiddleware, adminSettingsRoutes);
+app.use('/api/admin/orders', authMiddleware, adminOrderRoutes);
+
+
+
+
+// ── Serve React build in production ──────────────────────────────────────────
 // ── Serve React build in production ───────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));
