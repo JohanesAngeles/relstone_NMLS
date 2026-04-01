@@ -1,5 +1,6 @@
 const express = require('express');
 const router  = express.Router();
+const { randomBytes } = require('crypto');
 const User    = require('../models/User');
 const Course  = require('../models/Course');
 const Order   = require('../models/Order');
@@ -58,6 +59,19 @@ const createNotification = async (user, title, body) => {
   return note;
 };
 
+const createCertificateId = () => `CERT-${randomBytes(5).toString('hex').toUpperCase()}`;
+const buildVerificationUrl = (certificateId) => `https://relstone.com/verify-certificate/${certificateId}`;
+
+const getStateApprovalNumber = (course = {}, user = {}) => {
+  if (course.state_approval_number) return course.state_approval_number;
+  if (course.nmls_course_id) return course.nmls_course_id;
+  const courseType = String(course.type || '').toUpperCase();
+  const state = (course.states_approved && course.states_approved[0]) || user.state;
+  if (courseType === 'PE') return 'PE-NATIONAL-20HR';
+  if (state) return `CE-${String(state).toUpperCase()}-8HR`;
+  return 'CE-GENERAL-8HR';
+};
+
 // Helper: build enriched transcript from user.completions
 const buildTranscript = async (user) => {
   const completions = user.completions || [];
@@ -85,13 +99,14 @@ const buildTranscript = async (user) => {
         type:                  course.type                 || '—',
         credit_hours:          course.credit_hours         || 0,
         nmls_course_id:        course.nmls_course_id       || '—',
-        state_approval_number: course.state_approval_number || '—',
+        state_approval_number: getStateApprovalNumber(course, user),
       },
       course_title:    course.title           || '—',
       type:            course.type            || '—',
       credit_hours:    course.credit_hours    || 0,
       nmls_course_id:  course.nmls_course_id  || '—',
       completed_at:    c.completed_at,
+      certificate_id:  c.certificate_id || null,
       certificate_url: c.certificate_url || null,
       state:           course.states_approved?.[0] || user.state || '—',
     };
@@ -199,9 +214,12 @@ router.post('/complete', authMiddleware, async (req, res) => {
       return res.json({ message: 'Already completed', already_existed: true });
     }
 
+    const certificateId = createCertificateId();
     user.completions.push({
-      course_id:    courseId,
-      completed_at: new Date(),
+      course_id:     courseId,
+      completed_at:  new Date(),
+      certificate_id: certificateId,
+      certificate_url: buildVerificationUrl(certificateId),
     });
 
     // FIX: Create notification record and send email if preferences allow
@@ -235,9 +253,11 @@ router.post('/complete', authMiddleware, async (req, res) => {
       message:         'Course completion saved successfully',
       already_existed: false,
       completion: {
-        course_id:    courseId,
-        course_title: course.title,
-        completed_at: new Date(),
+        course_id:      courseId,
+        course_title:   course.title,
+        completed_at:   new Date(),
+        certificate_id: certificateId,
+        certificate_url: buildVerificationUrl(certificateId),
       },
     });
   } catch (err) {

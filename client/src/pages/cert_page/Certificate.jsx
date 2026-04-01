@@ -1,19 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Award, User, Hash, BookOpen, Clock, Calendar, ArrowLeft, Download, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Download, AlertCircle } from 'lucide-react';
 import API from '../../api/axios';
 import Layout from '../../components/Layout';
+import CertificateTemplate from '../../components/CertificateTemplate';
+import CertificateDownloadButton from '../../components/CertificateDownloadButton';
+import { downloadCertificatePdf } from '../../services/certificateService';
 
 const Certificate = () => {
   const { courseId } = useParams();
   const navigate     = useNavigate();
   const { user }     = useAuth();
 
-  const [cert, setCert]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
-  const printRef = useRef();
+  const [cert, setCert]            = useState(null);
+  const [loading, setLoading]      = useState(true);
+  const [error, setError]          = useState('');
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const [downloadError, setDownloadError]     = useState('');
 
   useEffect(() => {
     const fetchCert = async () => {
@@ -57,6 +61,18 @@ const Certificate = () => {
   }, [courseId, user]);
 
   const handlePrint = () => window.print();
+
+  const handleDownload = async () => {
+    setDownloadError('');
+    setDownloadLoading(true);
+    try {
+      await downloadCertificatePdf(courseId);
+    } catch (err) {
+      setDownloadError(err?.message || 'Unable to download certificate.');
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
 
   /* ── Loading ── */
   if (loading) return (
@@ -116,102 +132,21 @@ const Certificate = () => {
           <button style={S.backBtn} onClick={() => navigate('/my-certificates')} type="button">
             <ArrowLeft size={15} /> Back to Certificates
           </button>
-          <button style={S.printBtn} onClick={handlePrint} type="button">
-            <Download size={15} /> Download / Print
-          </button>
+          <div style={S.rightActions}>
+            <CertificateDownloadButton onDownload={handleDownload} loading={downloadLoading} />
+            <button style={S.printBtn} onClick={handlePrint} type="button">
+              <Download size={15} /> Print
+            </button>
+          </div>
         </div>
 
         {/* ── Certificate document ── */}
-        <div style={S.certWrapper} ref={printRef}>
-          <div style={S.cert} className="cert-doc">
-
-            {/* Top gradient bar */}
-            <div style={S.topAccent} />
-
-            {/* Header — org, seal, title */}
-            <div style={S.certHeader}>
-              <div style={S.certSealWrap}>
-                <svg width="44" height="44" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="1.8" strokeLinejoin="round"/>
-                  <path d="M2 17l10 5 10-5"             stroke="#2EABFE" strokeWidth="1.8" strokeLinejoin="round"/>
-                  <path d="M2 12l10 5 10-5"             stroke="#60C3FF" strokeWidth="1.8" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <div style={S.certOrg}>Relstone NMLS</div>
-              <h1 style={S.certTitle}>Certificate of Completion</h1>
-              <p style={S.certSubtitle}>Nationwide Mortgage Licensing System (NMLS)</p>
-            </div>
-
-            <div style={S.divider} />
-
-            {/* Student + course */}
-            <p style={S.certifyText}>This certifies that</p>
-            <h2 style={S.studentName}>{cert.student_name}</h2>
-            <p style={S.certifyText}>has successfully completed</p>
-            <h3 style={S.courseName}>{cert.course_title}</h3>
-
-            <div style={S.divider} />
-
-            {/* Detail grid */}
-            <div style={S.detailsGrid}>
-              <DetailItem icon={<Hash size={17} color="#2EABFE" />}     label="NMLS Course ID"  value={cert.nmls_course_id || '—'} />
-              <DetailItem icon={<User size={17} color="#2EABFE" />}     label="Student NMLS ID" value={cert.student_nmls_id || '—'} />
-              <DetailItem icon={<BookOpen size={17} color="#2EABFE" />} label="Course Type"     value={cert.course_type_label} />
-              <DetailItem icon={<Clock size={17} color="#2EABFE" />}    label="Credit Hours"    value={cert.credit_hours ? `${cert.credit_hours} Hours` : '—'} />
-              <DetailItem icon={<Calendar size={17} color="#2EABFE" />} label="Date Completed"  value={cert.completed_at_label} />
-              <DetailItem icon={<Calendar size={17} color="#2EABFE" />} label="Date Issued"     value={cert.issued_at_label} />
-              {cert.state && (
-                <DetailItem icon={<Award size={17} color="#2EABFE" />} label="State" value={cert.state} />
-              )}
-              {cert.state_approval_number && (
-                <DetailItem icon={<Hash size={17} color="#2EABFE" />} label="State Approval #" value={cert.state_approval_number} />
-              )}
-            </div>
-
-            <div style={S.divider} />
-
-            {/* Signature row */}
-            <div style={S.certFooter}>
-              <div style={S.signatureRow}>
-                <div style={S.sigBlock}>
-                  <div style={S.signatureLine} />
-                  <p style={S.signatureLabel}>Authorized Signature</p>
-                  <p style={S.signatureName}>Relstone NMLS</p>
-                </div>
-                <div style={S.sealCircle}>
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#2EABFE" strokeWidth="1.6" strokeLinejoin="round"/>
-                    <path d="M2 17l10 5 10-5"             stroke="#2EABFE" strokeWidth="1.6" strokeLinejoin="round"/>
-                    <path d="M2 12l10 5 10-5"             stroke="#60C3FF" strokeWidth="1.6" strokeLinejoin="round"/>
-                  </svg>
-                  <div style={{ fontSize: 8, fontWeight: 900, color: '#2EABFE', letterSpacing: '.10em', marginTop: 3 }}>
-                    OFFICIAL
-                  </div>
-                </div>
-                <div style={S.sigBlock}>
-                  <div style={S.signatureLine} />
-                  <p style={S.signatureLabel}>Date Issued</p>
-                  <p style={S.signatureName}>{cert.issued_month_year}</p>
-                </div>
-              </div>
-
-              <p style={S.footerNote}>
-                This certificate is issued in accordance with the SAFE Mortgage Licensing Act
-                and confirms completion of NMLS-approved education requirements.
-              </p>
-            </div>
-
-            {/* Bottom bar */}
-            <div style={S.bottomBar}>
-              <span>Certificate ID: {cert.cert_id}</span>
-              <span>·</span>
-              <span>Relstone NMLS · relstone.com</span>
-              <span>·</span>
-              <span>NMLS Approved Provider</span>
-            </div>
-
-          </div>
+        <div style={S.certWrapper}>
+          <CertificateTemplate cert={cert} />
         </div>
+        {downloadError && (
+          <div style={S.downloadError}>{downloadError}</div>
+        )}
       </div>
     </Layout>
   );
@@ -219,26 +154,30 @@ const Certificate = () => {
 
 /* ─── Data builders ──────────────────────────────────────────────── */
 // Builds a normalized cert object from the /certificates/:id endpoint response
-const buildCertFromEndpoint = (raw, user) => ({
-  student_name:       raw.student_name    || user?.name || '—',
-  student_nmls_id:    raw.student_nmls_id || user?.nmls_id || '—',
-  course_title:       raw.course_title    || '—',
-  nmls_course_id:     raw.nmls_course_id  || '—',
-  credit_hours:       raw.credit_hours,
-  course_type_label:  raw.course_type === 'PE' ? 'Pre-Licensing Education (PE)' : 'Continuing Education (CE)',
-  state:              raw.state           || user?.state,
-  state_approval_number: raw.state_approval_number,
-  completed_at_label: raw.completed_at
-    ? new Date(raw.completed_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
-    : '—',
-  issued_at_label: raw.issued_at
-    ? new Date(raw.issued_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
-    : '—',
-  issued_month_year: raw.issued_at
-    ? new Date(raw.issued_at).toLocaleDateString('en-US', { month:'long', year:'numeric' })
-    : '—',
-  cert_id: String(raw._id || '').slice(-10).toUpperCase() || 'N/A',
-});
+const buildCertFromEndpoint = (raw, user) => {
+  const certificateId = raw.certificate_id || raw._id || '';
+  return {
+    student_name:       raw.student_name    || user?.name || '—',
+    student_nmls_id:    raw.student_nmls_id || user?.nmls_id || '—',
+    course_title:       raw.course_title    || '—',
+    nmls_course_id:     raw.nmls_course_id  || '—',
+    credit_hours:       raw.credit_hours,
+    course_type_label:  raw.course_type === 'PE' ? 'Pre-Licensing Education (PE)' : 'Continuing Education (CE)',
+    state:              raw.state           || user?.state,
+    state_approval_number: raw.state_approval_number || raw.nmls_course_id || '—',
+    completed_at_label: raw.completed_at
+      ? new Date(raw.completed_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
+      : '—',
+    issued_at_label: raw.issued_at
+      ? new Date(raw.issued_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
+      : '—',
+    issued_month_year: raw.issued_at
+      ? new Date(raw.issued_at).toLocaleDateString('en-US', { month:'long', year:'numeric' })
+      : '—',
+    cert_id: String(certificateId).toUpperCase() || 'N/A',
+    verification_url: raw.verification_url || `relstone.com/verify-certificate/${String(certificateId).toUpperCase()}`,
+  };
+};
 
 // Builds a normalized cert object from a transcript entry
 // transcript entry shape: { _id, course_id: {_id, title, type, credit_hours, nmls_course_id, state_approval_number}, completed_at, ... }
@@ -246,6 +185,8 @@ const buildCertFromTranscript = (entry, user) => {
   const course       = entry.course_id || {};
   const courseType   = String(entry.type || course.type || '').toUpperCase();
   const completedAt  = entry.completed_at ? new Date(entry.completed_at) : null;
+
+  const certificateId = entry.certificate_id || entry._id || '';
 
   return {
     student_name:       user?.name         || entry.student_name    || '—',
@@ -255,7 +196,7 @@ const buildCertFromTranscript = (entry, user) => {
     credit_hours:       entry.credit_hours || course.credit_hours,
     course_type_label:  courseType === 'PE' ? 'Pre-Licensing Education (PE)' : 'Continuing Education (CE)',
     state:              entry.state        || user?.state,
-    state_approval_number: course.state_approval_number,
+    state_approval_number: course.state_approval_number || course.nmls_course_id || '—',
     completed_at_label: completedAt
       ? completedAt.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
       : '—',
@@ -265,20 +206,10 @@ const buildCertFromTranscript = (entry, user) => {
     issued_month_year: completedAt
       ? completedAt.toLocaleDateString('en-US', { month:'long', year:'numeric' })
       : '—',
-    cert_id: String(entry._id || '').slice(-10).toUpperCase() || 'N/A',
+    cert_id: String(certificateId).toUpperCase() || 'N/A',
+    verification_url: entry.certificate_url || `relstone.com/verify-certificate/${String(certificateId).toUpperCase()}`,
   };
 };
-
-/* ─── Detail Item atom ───────────────────────────────────────────── */
-const DetailItem = ({ icon, label, value }) => (
-  <div style={S.detailItem}>
-    {icon}
-    <div>
-      <p style={S.detailLabel}>{label}</p>
-      <p style={S.detailValue}>{value}</p>
-    </div>
-  </div>
-);
 
 /* ─── Spinner CSS ────────────────────────────────────────────────── */
 const spinnerCss = `
@@ -294,6 +225,7 @@ const S = {
   errorCard:   { background: '#fff', border: '1px solid rgba(2,8,23,0.09)', borderRadius: 16, padding: '32px 28px', maxWidth: 420, width: '100%', boxShadow: '0 8px 32px rgba(2,8,23,0.09)' },
 
   actionBar:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 820, margin: '0 auto 20px', fontFamily: 'Inter, sans-serif' },
+  rightActions: { display: 'flex', alignItems: 'center', gap: 10 },
   backBtn:     { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: '1px solid rgba(2,8,23,0.12)', padding: '9px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 800, color: 'rgba(9,25,37,0.80)', fontFamily: 'Inter, sans-serif' },
   printBtn:    { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#091925', color: '#fff', border: 'none', padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 800, fontFamily: 'Inter, sans-serif' },
 
@@ -327,6 +259,7 @@ const S = {
   footerNote:    { fontSize: '0.72rem', color: 'rgba(9,25,37,0.40)', maxWidth: 500, margin: '0 auto', lineHeight: 1.7, fontFamily: 'Inter, sans-serif' },
 
   bottomBar:   { background: 'linear-gradient(90deg,#091925,#0d2a4a)', color: 'rgba(255,255,255,0.55)', fontSize: 10, fontWeight: 700, display: 'flex', justifyContent: 'center', gap: 12, padding: '10px 20px', letterSpacing: '.04em', fontFamily: 'Inter, sans-serif' },
+  downloadError: { maxWidth: 820, margin: '14px auto 0', padding: '12px 16px', borderRadius: 12, background: 'rgba(254,226,226,0.9)', color: '#991B1B', fontSize: 13, fontWeight: 600, border: '1px solid #FECACA' },
 };
 
 export default Certificate;

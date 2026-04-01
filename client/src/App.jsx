@@ -10,6 +10,7 @@ import Dashboard from './pages/dashboard/Dashboard';
 import InstructorDashboard from './pages/dashboard/InstructorDashboard';
 import ViewStudents from './pages/dashboard/ViewStudents';
 import Certificate from './pages/cert_page/Certificate';
+import VerifyCertificate from './pages/verify/VerifyCertificate';
 import Courses from './pages/courses_page/Courses';
 import Checkout from './pages/checkout_page/checkout';
 import CourseDetails from './pages/courses_page/CoursesDetails';
@@ -127,6 +128,7 @@ function App() {
               <Certificate />
             </PrivateRoute>
           } />
+          <Route path="/verify-certificate/:certificateId" element={<VerifyCertificate />} />
           <Route path="/my-courses" element={
             <PrivateRoute>
               <MyCourses />

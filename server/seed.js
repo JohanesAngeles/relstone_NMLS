@@ -71,6 +71,7 @@ courses.push({
     'Required annually for MLO license renewal. Must be completed by December 31st each year.',
   price: 99.00,
   states_approved: GENERAL_CE_STATES,
+  state_approval_number: 'CE-GENERAL-8HR',
   has_textbook: false,
   textbook_price: 0,
   is_active: true,
@@ -98,6 +99,7 @@ STATE_SPECIFIC_CE.forEach((item, index) => {
       'Required annually for MLO license renewal. Must be completed by December 31st each year.',
     price: 99.00,
     states_approved: [item.state],
+    state_approval_number: `CE-${stateCode}-8HR`,
     has_textbook: false,
     textbook_price: 0,
     is_active: true,
@@ -122,6 +124,7 @@ courses.push({
     'non-traditional mortgage products (2 hrs), and elective topics (12 hrs). ' +
     'Required before applying for an MLO license in any state.',
   price: 199.00,
+  state_approval_number: 'PE-NATIONAL-20HR',
   states_approved: [
     'AL','AK','AZ','AR','CA','CO','CT','DC','DE','FL','GA',
     'GU','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',

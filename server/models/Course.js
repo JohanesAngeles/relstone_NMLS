@@ -59,6 +59,7 @@ const courseSchema = new mongoose.Schema({
     required: true,
   },
   states_approved: [{ type: String }],
+  state_approval_number: { type: String, trim: true, default: null },
 
   // ── Course-level PDF / Video (fallback for all modules) ───────────
   pdf_url:   { type: String, default: null },

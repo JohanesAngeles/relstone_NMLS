@@ -76,7 +76,8 @@ const userSchema = new mongoose.Schema({
     {
       course_id:       { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
       completed_at:    { type: Date },
-      certificate_url: { type: String },
+      certificate_id:  { type: String, trim: true, default: null },
+      certificate_url: { type: String, trim: true, default: null },
     }
   ],
 
