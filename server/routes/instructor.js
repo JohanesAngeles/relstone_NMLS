@@ -68,7 +68,7 @@ router.get('/dashboard', authMiddleware, instructorOnly, async (req, res) => {
       }
     });
 
-    const allOrders = await Order.find({ status: 'completed' })
+    const allOrders = await Order.find({ status: { $in: ['paid', 'completed'] } })
       .populate('items.course_id', '_id');
 
     const enrollMap = {};
@@ -121,7 +121,7 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    const allOrders = await Order.find({ status: 'completed' })
+    const allOrders = await Order.find({ status: { $in: ['paid', 'completed'] } })
       .populate('items.course_id', 'title type credit_hours');
 
     const enrollmentMap = {};
@@ -189,7 +189,6 @@ router.get('/students', authMiddleware, instructorOnly, async (req, res) => {
 
 /* ─────────────────────────────────────────────────────────────────
    GET /api/instructor/logs
-   ✅ FIX: Uses .populate() and enriched mapping to prevent "Unknown Instructor"
 ───────────────────────────────────────────────────────────────── */
 router.get('/logs', authMiddleware, instructorOnly, async (req, res) => {
   try {
@@ -199,13 +198,11 @@ router.get('/logs', authMiddleware, instructorOnly, async (req, res) => {
     if (student_id) filter.student_id = student_id;
 
     const logs = await InstructorLog.find(filter)
-      // 1. We MUST populate to get the 'name' from the User collection
-      .populate('instructor_id', 'name') 
+      .populate('instructor_id', 'name')
       .sort({ timestamp: -1 })
       .limit(Number(limit))
       .lean();
 
-    // 2. We map the logs to ensure a name is ALWAYS present for the frontend
     const enrichedLogs = logs.map(log => ({
       ...log,
       instructor_name: log.instructor_name || log.instructor_id?.name || "Staff Member"
@@ -259,7 +256,7 @@ router.put('/students/:userId/toggle-active', authMiddleware, instructorOnly, as
   try {
     const student = await User.findById(req.params.userId);
     if (!student) return res.status(404).json({ message: 'Student not found' });
-    
+
     if (student.role !== 'student' && req.user.role !== 'admin') {
       return res.status(400).json({ message: 'Cannot deactivate non-student accounts without Admin privileges' });
     }
@@ -298,7 +295,7 @@ router.get('/courses-stats', authMiddleware, instructorOnly, async (req, res) =>
   try {
     const [courses, paidOrders, allUsers] = await Promise.all([
       Course.find({}).sort({ createdAt: -1 }),
-      Order.find({ status: 'completed' }).populate('items.course_id', '_id'),
+      Order.find({ status: { $in: ['paid', 'completed'] } }).populate('items.course_id', '_id'),
       User.find({ role: 'student' }).select('completions'),
     ]);
 
@@ -395,7 +392,7 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
     if (!course) return res.status(404).json({ message: 'Course not found' });
 
     const orders = await Order.find({
-      status: 'completed',
+      status: { $in: ['paid', 'completed'] },
       'items.course_id': courseId,
     }).lean();
 
@@ -455,7 +452,9 @@ router.get('/course/:courseId/students', authMiddleware, instructorOnly, async (
         course_id: courseId,
         user_id:   { $in: enrolledUserIds },
       }).lean();
-    } catch { }
+    } catch {
+
+     }
 
     const enrollmentMap = {};
     enrollmentDocs.forEach(e => { enrollmentMap[String(e.user_id)] = e; });
@@ -542,7 +541,7 @@ router.get('/students/:id/courses', authMiddleware, instructorOnly, async (req, 
 
     const orders = await Order.find({
       user_id: req.params.id,
-      status:  'completed',
+      status:  { $in: ['paid', 'completed'] },
     }).populate('items.course_id', 'title type credit_hours nmls_course_id').lean();
 
     const completedIds = new Set(
@@ -578,6 +577,203 @@ router.get('/students/:id/courses', authMiddleware, instructorOnly, async (req, 
     res.json({ courses, total: courses.length });
   } catch (err) {
     console.error('[instructor/students/:id/courses]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────────
+   GET /api/instructor/orders
+   Returns all orders for instructor payment review
+───────────────────────────────────────────────────────────────── */
+router.get('/orders', authMiddleware, instructorOnly, async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+
+    const orders = await Order.find(filter)
+      .populate('user_id', 'name email nmls_id state')
+      .populate('items.course_id', 'title type credit_hours nmls_course_id')
+      .sort({ createdAt: -1 });
+
+    res.json({ orders, total: orders.length });
+  } catch (err) {
+    console.error('[instructor/orders GET]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────────────
+   PATCH /api/instructor/orders/:id/status
+   Instructors confirm (→ paid) or reject (→ cancelled) an order.
+   When confirmed, sends the order confirmation email to the student.
+───────────────────────────────────────────────────────────────── */
+router.patch('/orders/:id/status', authMiddleware, instructorOnly, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const allowed = ['pending', 'paid', 'cancelled'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({
+        message: `Invalid status. Must be one of: ${allowed.join(', ')}`,
+      });
+    }
+
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    )
+      .populate('user_id', 'name email nmls_id')
+      .populate('items.course_id', 'title type credit_hours nmls_course_id states_approved');
+
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    // ── Log the action ────────────────────────────────────────────
+    const actionLabel = status === 'paid' ? 'Payment confirmed' : status === 'cancelled' ? 'Order rejected' : `Order set to ${status}`;
+    await InstructorLog.create({
+      instructor_id:   req.user.id || req.user._id,
+      instructor_name: req.user.name,
+      action:          'toggle_active', // closest existing log action type
+      student_id:      order.user_id?._id,
+      student_name:    order.user_id?.name,
+      student_email:   order.user_id?.email,
+      details:         `${actionLabel} — Order #${String(order._id).slice(-6).toUpperCase()} ($${Number(order.total_amount || 0).toFixed(2)})`,
+      timestamp:       new Date(),
+    });
+
+    // ── Send confirmation email when marked as paid ───────────────
+    if (status === 'paid') {
+      try {
+        const nodemailer = require('nodemailer');
+
+        const getTransporter = () => nodemailer.createTransport({
+          host:    process.env.EMAIL_HOST || 'smtp.gmail.com',
+          port:    Number(process.env.EMAIL_PORT) || 587,
+          secure:  false,
+          requireTLS: true,
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+          tls: { rejectUnauthorized: false },
+          family: 4,
+        });
+
+        const user    = order.user_id;
+        const orderId = String(order._id).slice(-6).toUpperCase();
+        const totalAmt = Number(order.total_amount || 0).toFixed(2);
+        const orderDate = new Date(order.createdAt).toLocaleDateString('en-US', {
+          year: 'numeric', month: 'long', day: 'numeric',
+        });
+
+        const itemsHtml = (order.items || []).map((item) => {
+          const course  = item.course_id;
+          const title   = course?.title        || 'Course';
+          const type    = course?.type         || '';
+          const hours   = course?.credit_hours || '';
+          const tbPrice = Number(item.textbook_price || 0);
+          return `
+            <tr>
+              <td style="padding:12px 16px;border-bottom:1px solid #f0f4f8;">
+                <div style="font-weight:700;color:#091925;font-size:14px;">${title}</div>
+                <div style="font-size:12px;color:#7FA8C4;margin-top:3px;">
+                  ${type}${hours ? ` · ${hours} credit hours` : ''}
+                </div>
+                ${item.include_textbook && tbPrice > 0
+                  ? `<div style="font-size:12px;color:#F59E0B;margin-top:3px;">+ Textbook included ($${tbPrice.toFixed(2)})</div>`
+                  : ''}
+              </td>
+              <td style="padding:12px 16px;border-bottom:1px solid #f0f4f8;text-align:right;font-weight:800;color:#091925;font-size:14px;white-space:nowrap;">
+                $${(Number(item.price || 0) + (item.include_textbook ? tbPrice : 0)).toFixed(2)}
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        await getTransporter().sendMail({
+          from: `"Relstone NMLS" <${process.env.EMAIL_USER}>`,
+          to:   user.email,
+          subject: `✅ Payment Confirmed – Order #${orderId} | Relstone NMLS`,
+          html: `
+            <div style="font-family:Inter,sans-serif;max-width:560px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
+              <div style="background:#091925;padding:28px 32px;text-align:center;">
+                <div style="display:inline-block;background:rgba(46,171,254,0.15);border:1px solid rgba(46,171,254,0.3);border-radius:12px;padding:10px 18px;margin-bottom:20px;">
+                  <span style="font-size:18px;font-weight:800;color:#fff;">Relstone <span style="color:#2EABFE;">NMLS</span></span>
+                </div>
+                <div style="width:68px;height:68px;background:rgba(34,197,94,0.15);border:2px solid rgba(34,197,94,0.4);border-radius:50%;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;">
+                  <span style="font-size:30px;">✅</span>
+                </div>
+                <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 6px;">Payment Confirmed!</h1>
+                <p style="color:rgba(255,255,255,0.60);font-size:13px;margin:0;">Your courses are now unlocked and ready to start</p>
+              </div>
+              <div style="padding:28px 32px;">
+                <p style="color:#091925;font-size:15px;font-weight:700;margin:0 0 6px;">Hi ${user.name} 👋</p>
+                <p style="color:#64748b;font-size:14px;line-height:1.7;margin:0 0 24px;">
+                  Thank you for your purchase! Your payment has been confirmed. Your courses are now active and available in your student portal.
+                </p>
+                <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+                  <table style="width:100%;border-collapse:collapse;">
+                    <tr>
+                      <td style="padding:6px 0;">
+                        <span style="font-size:11px;font-weight:700;color:#7FA8C4;text-transform:uppercase;letter-spacing:0.06em;">Order ID</span><br/>
+                        <span style="font-size:15px;font-weight:800;color:#2EABFE;">#${orderId}</span>
+                      </td>
+                      <td style="padding:6px 0;">
+                        <span style="font-size:11px;font-weight:700;color:#7FA8C4;text-transform:uppercase;letter-spacing:0.06em;">Date</span><br/>
+                        <span style="font-size:14px;font-weight:700;color:#091925;">${orderDate}</span>
+                      </td>
+                      <td style="padding:6px 0;">
+                        <span style="font-size:11px;font-weight:700;color:#7FA8C4;text-transform:uppercase;letter-spacing:0.06em;">Status</span><br/>
+                        <span style="font-size:14px;font-weight:800;color:#22C55E;">✅ Paid</span>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+                <div style="font-size:12px;font-weight:700;color:#7FA8C4;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Courses Purchased</div>
+                <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;margin-bottom:16px;">
+                  <thead>
+                    <tr style="background:#f8fafc;">
+                      <th style="padding:10px 16px;text-align:left;font-size:11px;font-weight:700;color:#7FA8C4;text-transform:uppercase;letter-spacing:0.05em;">Course</th>
+                      <th style="padding:10px 16px;text-align:right;font-size:11px;font-weight:700;color:#7FA8C4;text-transform:uppercase;letter-spacing:0.05em;">Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>${itemsHtml}</tbody>
+                </table>
+                <div style="background:rgba(46,171,254,0.06);border:1px solid rgba(46,171,254,0.22);border-radius:12px;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;">
+                  <span style="font-size:15px;font-weight:700;color:#091925;">Total Paid</span>
+                  <span style="font-size:22px;font-weight:900;color:#2EABFE;">$${totalAmt}</span>
+                </div>
+                <div style="text-align:center;margin-bottom:28px;">
+                  <a href="${process.env.FRONTEND_URL || 'https://yourapp.com'}/my-courses"
+                     style="display:inline-block;background:#091925;color:#fff;text-decoration:none;padding:14px 36px;border-radius:12px;font-weight:800;font-size:15px;letter-spacing:-0.2px;">
+                    Start Learning →
+                  </a>
+                </div>
+                <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 18px;">
+                  <p style="color:#92600A;font-size:13px;font-weight:600;margin:0;line-height:1.6;">
+                    💡 <strong>Need help?</strong> Reply to this email or visit your portal's <strong>Contact Support</strong> page.
+                  </p>
+                </div>
+              </div>
+              <div style="background:#f8fafc;border-top:1px solid #e5e7eb;padding:18px 32px;text-align:center;">
+                <p style="color:#94a3b8;font-size:11px;margin:0;line-height:1.8;">
+                  © ${new Date().getFullYear()} Relstone NMLS · Mortgage Licensing Education
+                </p>
+              </div>
+            </div>
+          `,
+        });
+
+        console.log(`📧 Payment confirmation email sent to ${user.email} for order #${orderId} by instructor ${req.user.name}`);
+      } catch (emailErr) {
+        // Non-fatal — don't fail the request if email fails
+        console.error('⚠️  Failed to send confirmation email:', emailErr.message);
+      }
+    }
+
+    res.json({ success: true, order });
+  } catch (err) {
+    console.error('[instructor/orders PATCH]', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

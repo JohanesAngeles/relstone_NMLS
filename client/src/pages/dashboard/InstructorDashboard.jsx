@@ -11,7 +11,8 @@ import {
   Eye, RefreshCw, GraduationCap, FileText,
   MessageSquare, ThumbsUp, ThumbsDown, Trash2,
   UserCheck, UserX, Activity, BookPlus, BookMinus,
-  Filter, Calendar, User, Pencil, Bell, Plus
+  Filter, Calendar, User, Pencil, Bell, Plus,
+  DollarSign, XCircle, CreditCard, Package,
 } from "lucide-react";
 
 /* ─── Logout Confirm ─────────────────────────────────────────────── */
@@ -114,6 +115,83 @@ const ConfirmToggleModal = ({ student, onConfirm, onCancel, loading }) => {
             fontSize: 14, fontWeight: 900, color: "#fff", fontFamily: "inherit",
           }}>
             {loading ? "Saving…" : willDeactivate ? "Yes, Deactivate" : "Yes, Activate"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
+
+/* ─── Confirm Order Action Modal ─────────────────────────────────── */
+const ConfirmOrderModal = ({ order, action, onConfirm, onCancel, loading }) => {
+  const isApprove = action === "paid";
+  const student   = order?.user_id || {};
+  const orderId   = String(order?._id || "").slice(-6).toUpperCase();
+  const total     = Number(order?.total_amount || 0).toFixed(2);
+  return (
+    <>
+      <div onClick={onCancel} style={{
+        position: "fixed", inset: 0, zIndex: 300,
+        background: "rgba(9,25,37,0.55)", backdropFilter: "blur(5px)",
+      }} />
+      <div style={{
+        position: "fixed", zIndex: 301,
+        top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+        width: "100%", maxWidth: 420,
+        background: "#fff", borderRadius: 22, padding: "32px 28px 26px",
+        boxShadow: "0 28px 70px rgba(9,25,37,0.20)",
+        textAlign: "center", fontFamily: "Inter, system-ui, sans-serif",
+      }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: 18, margin: "0 auto 18px",
+          background: isApprove ? "rgba(0,180,180,0.08)" : "rgba(239,68,68,0.08)",
+          border: `1px solid ${isApprove ? "rgba(0,180,180,0.22)" : "rgba(239,68,68,0.18)"}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          color: isApprove ? "var(--rs-teal)" : "rgba(220,38,38,0.85)",
+        }}>
+          {isApprove ? <CheckCircle size={26} /> : <XCircle size={26} />}
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 950, color: "rgba(11,18,32,0.88)", marginBottom: 8 }}>
+          {isApprove ? "Confirm Payment?" : "Reject Order?"}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.65)", marginBottom: 4 }}>
+          Order <span style={{ fontFamily: "'JetBrains Mono',monospace", color: "var(--rs-teal)" }}>#{orderId}</span> · <strong>${total}</strong>
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(11,18,32,0.52)", lineHeight: 1.6, marginBottom: 6 }}>
+          {student.name || "—"}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(11,18,32,0.45)", lineHeight: 1.6, marginBottom: 20 }}>
+          {isApprove
+            ? "The student's order status will be set to Paid and a confirmation email will be sent."
+            : "This order will be cancelled. The student will not gain access to the courses."}
+        </div>
+        {isApprove && (
+          <div style={{
+            background: "rgba(0,180,180,0.06)", border: "1px solid rgba(0,180,180,0.20)",
+            borderRadius: 12, padding: "10px 14px", marginBottom: 20,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <CheckCircle size={14} style={{ color: "var(--rs-teal)", flexShrink: 0 }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(9,25,37,0.72)", textAlign: "left" }}>
+              A confirmation email will be sent to <strong>{student.email}</strong>
+            </span>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} type="button" disabled={loading} style={{
+            flex: 1, height: 44, background: "rgba(2,8,23,0.04)",
+            border: "1px solid rgba(2,8,23,0.10)", borderRadius: 12,
+            cursor: "pointer", fontSize: 14, fontWeight: 900,
+            color: "rgba(11,18,32,0.72)", fontFamily: "inherit",
+          }}>Cancel</button>
+          <button onClick={onConfirm} type="button" disabled={loading} style={{
+            flex: 1, height: 44,
+            background: isApprove ? "rgba(0,180,180,0.90)" : "rgba(220,38,38,0.90)",
+            border: "none", borderRadius: 12, cursor: loading ? "not-allowed" : "pointer",
+            fontSize: 14, fontWeight: 900, color: "#fff", fontFamily: "inherit",
+            opacity: loading ? 0.7 : 1,
+          }}>
+            {loading ? "Processing…" : isApprove ? "Yes, Confirm Payment" : "Yes, Reject"}
           </button>
         </div>
       </div>
@@ -225,8 +303,6 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
         <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           {grouped.map(([date, dayLogs]) => (
             <div key={date} style={{ marginBottom: 22 }}>
-
-              {/* Date separator */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <div style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
@@ -244,7 +320,6 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
                 </span>
               </div>
 
-              {/* Timeline */}
               <div style={{ position: "relative", paddingLeft: 32 }}>
                 <div style={{
                   position: "absolute", left: 11, top: 0, bottom: 0,
@@ -258,7 +333,6 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
 
                     return (
                       <div key={log._id || i} style={{ position: "relative" }}>
-                        {/* Timeline dot */}
                         <div style={{
                           position: "absolute", left: -27, top: 14,
                           width: 18, height: 18, borderRadius: "50%",
@@ -275,7 +349,6 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
                           padding: "12px 14px", transition: "box-shadow .15s",
                         }} className="rs-log-card">
 
-                          {/* Top: action icon + label + time */}
                           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <div style={{
@@ -307,7 +380,6 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
                             </div>
                           </div>
 
-                          {/* Middle: student + details */}
                           {(log.student_name || log.details) && (
                             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
                               {log.student_name && (
@@ -332,14 +404,12 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
                             </div>
                           )}
 
-                          {/* ── Bottom: instructor attribution (prominent) ── */}
                           <div style={{
                             paddingTop: 9,
                             borderTop: "1px solid rgba(2,8,23,0.06)",
                             display: "flex", alignItems: "center",
                             justifyContent: "space-between", gap: 8,
                           }}>
-                            {/* Left: avatar + name */}
                             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                               <div style={{
                                 width: 24, height: 24, borderRadius: "50%",
@@ -359,8 +429,6 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
                                 </span>
                               </div>
                             </div>
-
-                            {/* Right: full timestamp */}
                             <span style={{
                               fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.35)",
                               display: "flex", alignItems: "center", gap: 3,
@@ -379,6 +447,194 @@ const ActivityLogPanel = ({ logs, loading, onRefresh }) => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ─── Order status config ────────────────────────────────────────── */
+const ORDER_STATUS = {
+  pending:   { color: "rgba(180,120,0,1)",  bg: "rgba(245,158,11,0.10)", border: "rgba(245,158,11,0.30)", label: "⏳ Pending"   },
+  paid:      { color: "rgba(0,140,140,1)",  bg: "rgba(0,180,180,0.10)", border: "rgba(0,180,180,0.25)", label: "✅ Paid"      },
+  completed: { color: "rgba(22,163,74,1)",  bg: "rgba(34,197,94,0.10)", border: "rgba(34,197,94,0.25)", label: "✅ Completed" },
+  cancelled: { color: "rgba(185,28,28,1)",  bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.22)", label: "✗ Cancelled"  },
+};
+
+/* ─── OrderCard ──────────────────────────────────────────────────── */
+const OrderCard = ({ order, onConfirm, onReject }) => {
+  const student   = order.user_id || {};
+  const isPending = order.status === "pending";
+  const statusCfg = ORDER_STATUS[order.status] || ORDER_STATUS.pending;
+  const orderId   = String(order._id).slice(-6).toUpperCase();
+  const orderDate = new Date(order.createdAt).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+  });
+  const total = Number(order.total_amount || 0).toFixed(2);
+
+  return (
+    <div style={{
+      borderRadius: 18, background: "#fff", padding: 18,
+      border:    isPending ? "1.5px solid rgba(245,158,11,0.38)" : "1px solid rgba(2,8,23,0.08)",
+      boxShadow: isPending ? "0 4px 20px rgba(245,158,11,0.10)" : "0 2px 10px rgba(2,8,23,0.05)",
+      transition: "box-shadow .15s",
+    }}>
+      {/* ── Header: student info + status badge ── */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: "50%",
+            background: "rgba(0,180,180,0.10)", border: "1px solid rgba(0,180,180,0.25)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "var(--rs-teal)", fontWeight: 900, fontSize: 17, flexShrink: 0,
+          }}>
+            {(student.name || "S")[0].toUpperCase()}
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: "rgba(11,18,32,0.88)" }}>
+              {student.name || "—"}
+            </div>
+            <div style={{ fontSize: 12, color: "rgba(11,18,32,0.50)", fontWeight: 600 }}>
+              {student.email || "—"}
+            </div>
+            {student.nmls_id && (
+              <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono',monospace", color: "rgba(11,18,32,0.40)", marginTop: 2 }}>
+                NMLS #{student.nmls_id}
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", padding: "4px 12px",
+            borderRadius: 999, fontSize: 11, fontWeight: 900,
+            color: statusCfg.color, background: statusCfg.bg,
+            border: `1px solid ${statusCfg.border}`,
+          }}>
+            {statusCfg.label}
+          </span>
+          <span style={{
+            fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.42)",
+            display: "flex", alignItems: "center", gap: 4,
+          }}>
+            <Clock size={11} /> {orderDate}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Order meta strip ── */}
+      <div style={{
+        display: "flex", gap: 10, alignItems: "center", marginBottom: 12,
+        padding: "10px 14px", borderRadius: 12,
+        background: "rgba(2,8,23,0.025)", border: "1px solid rgba(2,8,23,0.06)",
+      }}>
+        <Package size={14} style={{ color: "rgba(11,18,32,0.40)", flexShrink: 0 }} />
+        <span style={{
+          fontSize: 12, fontWeight: 900, color: "rgba(11,18,32,0.50)",
+          fontFamily: "'JetBrains Mono',monospace", letterSpacing: "0.04em",
+        }}>
+          #{orderId}
+        </span>
+        <div style={{ width: 1, height: 14, background: "rgba(2,8,23,0.10)", flexShrink: 0 }} />
+        <DollarSign size={14} style={{ color: "var(--rs-teal)", flexShrink: 0 }} />
+        <span style={{ fontSize: 15, fontWeight: 950, color: "rgba(11,18,32,0.88)", letterSpacing: "-0.3px" }}>
+          ${total}
+        </span>
+        <span style={{
+          marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.42)",
+          display: "flex", alignItems: "center", gap: 4,
+        }}>
+          <BookOpen size={12} />
+          {(order.items || []).length} course{(order.items || []).length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* ── Course items ── */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: isPending ? 14 : 0 }}>
+        {(order.items || []).map((item, i) => {
+          const course    = item.course_id || {};
+          const type      = String(course.type || "").toUpperCase();
+          const itemTotal = (Number(item.price || 0) + (item.include_textbook ? Number(item.textbook_price || 0) : 0)).toFixed(2);
+          return (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "9px 12px", borderRadius: 10,
+              background: "#fff", border: "1px solid rgba(2,8,23,0.07)",
+            }}>
+              <BookOpen size={14} style={{ color: "var(--rs-teal)", flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.80)" }}>
+                {course.title || "Unknown Course"}
+              </span>
+              {type && <span style={typeBadge(type)}>{type}</span>}
+              {course.credit_hours && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.40)" }}>
+                  {course.credit_hours}h
+                </span>
+              )}
+              {item.include_textbook && (
+                <span style={{
+                  fontSize: 11, fontWeight: 800, color: "rgba(180,120,0,1)",
+                  background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)",
+                  padding: "2px 8px", borderRadius: 999,
+                }}>
+                  + Textbook
+                </span>
+              )}
+              <span style={{ fontSize: 13, fontWeight: 900, color: "rgba(11,18,32,0.70)", minWidth: 52, textAlign: "right" }}>
+                ${itemTotal}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Action buttons (pending only) ── */}
+      {isPending && (
+        <div style={{
+          display: "flex", gap: 10, paddingTop: 14,
+          borderTop: "1px solid rgba(2,8,23,0.06)",
+        }}>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center",
+              gap: 8, padding: "11px 14px", borderRadius: 12, border: "none", cursor: "pointer",
+              background: "linear-gradient(135deg,#00B4B4,#2EABFE)",
+              color: "#fff", fontSize: 13, fontWeight: 900,
+              boxShadow: "0 4px 16px rgba(0,180,180,0.30)",
+            }}
+          >
+            <CheckCircle size={15} />
+            Confirm Payment
+          </button>
+          <button
+            type="button"
+            onClick={onReject}
+            style={{
+              flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center",
+              gap: 8, padding: "11px 14px", borderRadius: 12, cursor: "pointer",
+              border: "1px solid rgba(239,68,68,0.30)", background: "rgba(239,68,68,0.06)",
+              color: "rgba(185,28,28,1)", fontSize: 13, fontWeight: 900,
+            }}
+          >
+            <XCircle size={15} />
+            Reject Order
+          </button>
+        </div>
+      )}
+
+      {/* ── Resolved state footer ── */}
+      {!isPending && (
+        <div style={{
+          paddingTop: 10, marginTop: 12,
+          borderTop: "1px solid rgba(2,8,23,0.06)",
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          {order.status === "cancelled"
+            ? <><XCircle size={13} style={{ color: "rgba(185,28,28,0.65)" }} /><span style={{ fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.42)" }}>Order was rejected.</span></>
+            : <><CheckCircle size={13} style={{ color: "rgba(0,140,140,0.80)" }} /><span style={{ fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.42)" }}>Payment approved — courses unlocked for student.</span></>
+          }
         </div>
       )}
     </div>
@@ -412,6 +668,13 @@ const InstructorDashboard = () => {
   const [toggleLoading,       setToggleLoading]       = useState(false);
   const [statusFilter,        setStatusFilter]        = useState("all");
   const [editingCourse,       setEditingCourse]       = useState(null);
+
+  // ── Orders state ──────────────────────────────────────────────────
+  const [orders,              setOrders]              = useState([]);
+  const [ordersLoading,       setOrdersLoading]       = useState(false);
+const [orderFilter, setOrderFilter] = useState("all");
+  const [orderConfirmTarget,  setOrderConfirmTarget]  = useState(null); // { order, action }
+  const [orderActioning,      setOrderActioning]      = useState(false);
 
   /* ── Initial load ─────────────────────────────────────────────── */
   useEffect(() => {
@@ -508,6 +771,56 @@ const InstructorDashboard = () => {
     }
   };
 
+  /* ── Orders ───────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (activeTab !== "orders") return;
+    fetchOrders();
+  }, [activeTab]);
+
+  const fetchOrders = async () => {
+  setOrdersLoading(true);
+  try {
+    const res = await API.get("/instructor/orders");
+    console.log("Orders response:", res.data); // ← ADD THIS
+    setOrders(res.data?.orders || []);
+  } catch (err) {
+    console.error("Orders fetch error:", err.response?.data || err.message); // ← AND THIS
+    setOrders([]);
+  } finally {
+    setOrdersLoading(false);
+  }
+};
+
+  /* ── Handle order confirm/reject ──────────────────────────────── */
+  const handleOrderAction = async () => {
+    if (!orderConfirmTarget) return;
+    const { order, action } = orderConfirmTarget;
+    setOrderActioning(true);
+    try {
+      await API.patch(`/instructor/orders/${order._id}/status`, { status: action });
+      // Update order in list
+      setOrders(prev =>
+        prev.map(o => String(o._id) === String(order._id) ? { ...o, status: action } : o)
+      );
+      // Optimistic activity log entry
+      const newLog = {
+        _id:             Date.now(),
+        action:          "toggle_active",
+        instructor_name: user?.name || "Instructor",
+        student_name:    order.user_id?.name,
+        student_email:   order.user_id?.email,
+        details:         `${action === "paid" ? "Payment confirmed" : "Order rejected"} — Order #${String(order._id).slice(-6).toUpperCase()} ($${Number(order.total_amount || 0).toFixed(2)})`,
+        timestamp:       new Date().toISOString(),
+      };
+      setActivityLogs(prev => [newLog, ...prev]);
+      setOrderConfirmTarget(null);
+    } catch (err) {
+      console.error("Order action failed:", err);
+    } finally {
+      setOrderActioning(false);
+    }
+  };
+
   /* ── Testimonials ─────────────────────────────────────────────── */
   const fetchTestimonials = async () => {
     setTestimonialsLoading(true);
@@ -541,12 +854,10 @@ const InstructorDashboard = () => {
           t._id === id ? { ...t, featured: !t.featured } : t
         ));
       } else {
-        // "approved" or "rejected"
         await API.put(`/testimonials/admin/${id}`, { status: action });
         setTestimonials(prev => prev.map(t =>
           t._id === id ? { ...t, status: action } : t
         ));
-        // Switch to "all" so updated card stays visible instead of disappearing
         setTestimonialFilter("all");
       }
     } catch (err) {
@@ -568,7 +879,6 @@ const InstructorDashboard = () => {
       );
       setAllStudents(prev => update(prev));
       setData(prev => prev ? { ...prev, students: update(prev.students || []) } : prev);
-      // Optimistic log with instructor name
       const newLog = {
         _id:             Date.now(),
         action:          "toggle_active",
@@ -598,7 +908,6 @@ const InstructorDashboard = () => {
         String(c._id) === String(updated._id) ? { ...c, ...updated } : c
       ),
     } : prev);
-    // Optimistic log with instructor name
     const editLog = {
       _id:             Date.now(),
       action:          "edit_course",
@@ -625,6 +934,32 @@ const InstructorDashboard = () => {
     () => displayStudents.filter(s => s.is_active === false).length,
     [displayStudents]
   );
+
+  const pendingOrderCount = useMemo(
+    () => orders.filter(o => o.status === "pending").length,
+    [orders]
+  );
+
+  // Also count pending from all orders even before the tab is opened
+  const [globalPendingOrders, setGlobalPendingOrders] = useState(0);
+  useEffect(() => {
+    // Fetch pending order count on mount for badge display
+    const fetchPendingCount = async () => {
+      try {
+        const res = await API.get("/instructor/orders?status=pending");
+        setGlobalPendingOrders((res.data?.orders || []).length);
+      } catch { /* silent */ }
+    };
+    fetchPendingCount();
+  }, []);
+
+  // Once orders tab is loaded, use live count
+  const displayPendingCount = orders.length > 0 ? pendingOrderCount : globalPendingOrders;
+
+  const filteredOrders = useMemo(() => {
+    if (orderFilter === "all") return orders;
+    return orders.filter(o => o.status === orderFilter);
+  }, [orders, orderFilter]);
 
   const filteredStudents = useMemo(() => {
     let list = displayStudents;
@@ -695,6 +1030,15 @@ const InstructorDashboard = () => {
           onCancel={() => setToggleTarget(null)}
         />
       )}
+      {orderConfirmTarget && (
+        <ConfirmOrderModal
+          order={orderConfirmTarget.order}
+          action={orderConfirmTarget.action}
+          loading={orderActioning}
+          onConfirm={handleOrderAction}
+          onCancel={() => setOrderConfirmTarget(null)}
+        />
+      )}
       {editingCourse && (
         <EditCourseModal
           course={editingCourse}
@@ -746,13 +1090,18 @@ const InstructorDashboard = () => {
                 <button style={{ ...S.heroBtn, ...S.heroBtnAlt }} type="button" onClick={() => setActiveTab("students")}>
                   <Users size={16} /><span>All Students</span><ChevronRight size={16} />
                 </button>
+                {displayPendingCount > 0 && (
+                  <button style={{ ...S.heroBtn, background: "rgba(245,158,11,0.22)", borderColor: "rgba(245,158,11,0.45)" }} type="button" onClick={() => setActiveTab("orders")}>
+                    <DollarSign size={16} /><span>{displayPendingCount} Pending Payment{displayPendingCount !== 1 ? "s" : ""}</span><ChevronRight size={16} />
+                  </button>
+                )}
               </div>
             </div>
             <div style={S.kpiGrid}>
-              <KpiCard icon={<PlayCircle size={20} />}  title="Active Courses"    value={activeCourses}                              caption="Published"   tone="teal"  />
-              <KpiCard icon={<Users size={20} />}        title="Total Students"    value={displayStudents.length || totalEnrollments} caption="Enrolled"    tone="blue"  />
-              <KpiCard icon={<CheckCircle size={20} />}  title="Completions"       value={totalCompletions}                           caption="All time"    tone="green" />
-              <KpiCard icon={<UserX size={20} />}        title="Inactive Students" value={inactiveCount}                              caption="Deactivated" tone="amber" />
+              <KpiCard icon={<PlayCircle size={20} />}   title="Active Courses"    value={activeCourses}                              caption="Published"   tone="teal"  />
+              <KpiCard icon={<Users size={20} />}         title="Total Students"    value={displayStudents.length || totalEnrollments} caption="Enrolled"    tone="blue"  />
+              <KpiCard icon={<CheckCircle size={20} />}   title="Completions"       value={totalCompletions}                           caption="All time"    tone="green" />
+              <KpiCard icon={<DollarSign size={20} />}    title="Pending Payments"  value={displayPendingCount}                        caption="Awaiting approval" tone="amber" onClick={() => setActiveTab("orders")} />
             </div>
           </div>
         </section>
@@ -781,6 +1130,15 @@ const InstructorDashboard = () => {
                 label={activityLogs.length > 0 ? `Activity Logs (${activityLogs.length})` : "Activity Logs"}
                 active={activeTab === "logs"}
                 onClick={() => setActiveTab("logs")}
+              />
+              {/* ── Orders tab ── */}
+              <TabButton
+                label={displayPendingCount > 0 ? `Orders (${displayPendingCount} pending)` : "Orders"}
+                active={activeTab === "orders"}
+                onClick={() => setActiveTab("orders")}
+                icon={<DollarSign size={14} />}
+                badge={displayPendingCount}
+                highlight={displayPendingCount > 0}
               />
               <TabButton
                 label="Support Inbox"
@@ -842,6 +1200,33 @@ const InstructorDashboard = () => {
                 ))}
               </div>
             )}
+            {/* Orders filter chips */}
+            {activeTab === "orders" && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { key: "pending",   label: "Pending" },
+                  { key: "paid",      label: "Paid" },
+                  { key: "completed", label: "Completed" },
+                  { key: "cancelled", label: "Cancelled" },
+                  { key: "all",       label: "All" },
+                ].map(f => (
+                  <button key={f.key} type="button"
+                    style={{
+                      ...S.filterChip,
+                      ...(orderFilter === f.key ? S.filterChipActive : {}),
+                      ...(f.key === "pending" && pendingOrderCount > 0 && orderFilter !== "pending"
+                        ? { borderColor: "rgba(245,158,11,0.45)", color: "rgba(146,84,0,1)" }
+                        : {}),
+                    }}
+                    onClick={() => setOrderFilter(f.key)}>
+                    {f.label}
+                    {f.key === "pending" && pendingOrderCount > 0 && (
+                      <span style={S.pendingDot}>{pendingOrderCount}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={S.cardBody}>
@@ -872,7 +1257,7 @@ const InstructorDashboard = () => {
                     <ActionCard icon={<BookOpen size={17} />}     title="All Courses"       sub={`${displayCourses.length} courses available`}  onClick={() => setActiveTab("courses")} />
                     <ActionCard icon={<Users size={17} />}         title="All Students"      sub={`${displayStudents.length} students enrolled`}  onClick={() => setActiveTab("students")} />
                     <ActionCard icon={<UserX size={17} />}         title="Inactive Students" sub={`${inactiveCount} student${inactiveCount !== 1 ? "s" : ""} deactivated`} onClick={() => { setActiveTab("students"); setStatusFilter("inactive"); }} />
-                    <ActionCard icon={<BarChart2 size={17} />}     title="Completions"       sub={`${totalCompletions} completions across all courses`} onClick={() => {}} />
+                    <ActionCard icon={<DollarSign size={17} />}    title="Payment Orders"    sub={displayPendingCount > 0 ? `${displayPendingCount} pending approval` : "Review student payments"} onClick={() => setActiveTab("orders")} highlight={displayPendingCount > 0} />
                     <ActionCard icon={<Activity size={17} />}      title="Activity Logs"     sub="View all course edits and assignments" onClick={() => setActiveTab("logs")} />
                     <ActionCard icon={<Plus size={17} />}          title="Add New Course"    sub="Create a new NMLS course" onClick={() => navigate("/instructor/courses/add")} />
                     <ActionCard icon={<MessageSquare size={17} />} title="Support Inbox"     sub={totalOpenSupport > 0 ? `${totalOpenSupport} open ticket${totalOpenSupport !== 1 ? "s" : ""} waiting` : "View and respond to student tickets"} onClick={() => navigate("/instructor/support")} />
@@ -998,7 +1383,6 @@ const InstructorDashboard = () => {
                       {" "}· {testimonials.filter(t => t.featured).length} featured
                     </div>
                   </div>
-                  {/* Fixed: calls fetchTestimonials directly instead of setTestimonials([]) */}
                   <button style={S.refreshBtn} type="button" onClick={fetchTestimonials}>
                     <RefreshCw size={13} /> Refresh
                   </button>
@@ -1039,6 +1423,50 @@ const InstructorDashboard = () => {
               />
             )}
 
+            {/* ── ORDERS ── */}
+            {activeTab === "orders" && (
+              <div>
+                <div style={S.sectionHead}>
+                  <div>
+                    <div style={S.sectionTitle}>Payment Orders</div>
+                    <div style={S.sectionSub}>
+                      {filteredOrders.length} order{filteredOrders.length !== 1 ? "s" : ""}
+                      {orderFilter !== "all" ? ` · ${orderFilter}` : " · all statuses"}
+                      {pendingOrderCount > 0 && orderFilter !== "pending" && (
+                        <> · <span style={{ color: "rgba(180,120,0,1)", fontWeight: 800 }}>{pendingOrderCount} awaiting approval</span></>
+                      )}
+                    </div>
+                  </div>
+                  <button style={S.refreshBtn} type="button" onClick={() => { setOrders([]); fetchOrders(); }}>
+                    <RefreshCw size={13} /> Refresh
+                  </button>
+                </div>
+
+                {ordersLoading ? (
+                  <div style={{ ...S.center, minHeight: 200 }}><div className="rs-spinner" /></div>
+                ) : filteredOrders.length === 0 ? (
+                  <EmptyState
+                    icon={<CreditCard size={18} />}
+                    title={orderFilter === "pending" ? "No pending orders" : "No orders found"}
+                    subtitle={orderFilter === "pending" ? "All payments have been reviewed." : "Try a different filter."}
+                    actionLabel="Show all orders"
+                    onAction={() => setOrderFilter("all")}
+                  />
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {filteredOrders.map(order => (
+                      <OrderCard
+                        key={order._id}
+                        order={order}
+                        onConfirm={() => setOrderConfirmTarget({ order, action: "paid" })}
+                        onReject={()  => setOrderConfirmTarget({ order, action: "cancelled" })}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         </section>
       </div>
@@ -1056,7 +1484,7 @@ const TabButton = ({ label, active, onClick, highlight, badge, icon, urgent }) =
     ...(urgent                  ? S.tabBtnUrgent    : {}),
     position: "relative",
   }}>
-    {icon && <span style={{ display: "flex", alignItems: "center", marginRight: 6 }}>{icon}</span>}
+    {icon && <span style={{ display: "flex", alignItems: "center", marginRight: 4 }}>{icon}</span>}
     <span>{label}</span>
     {badge !== undefined && badge > 0 && (
       <span style={S.badgeNotification}>{badge > 9 ? "9+" : badge}</span>
@@ -1064,7 +1492,7 @@ const TabButton = ({ label, active, onClick, highlight, badge, icon, urgent }) =
   </button>
 );
 
-const KpiCard = ({ icon, title, value, caption, tone }) => {
+const KpiCard = ({ icon, title, value, caption, tone, onClick }) => {
   const toneMap = {
     teal:  { bg: "rgba(0,180,180,0.10)",  border: "rgba(0,180,180,0.22)"  },
     blue:  { bg: "rgba(46,171,254,0.10)", border: "rgba(46,171,254,0.25)" },
@@ -1073,7 +1501,10 @@ const KpiCard = ({ icon, title, value, caption, tone }) => {
   };
   const t = toneMap[tone] || toneMap.teal;
   return (
-    <div style={{ ...S.kpiCard, background: t.bg, borderColor: t.border }}>
+    <div
+      onClick={onClick}
+      style={{ ...S.kpiCard, background: t.bg, borderColor: t.border, cursor: onClick ? "pointer" : "default" }}
+    >
       <div style={S.kpiIcon}>{icon}</div>
       <div style={S.kpiText}>
         <div style={S.kpiTitle}>{title}</div>
@@ -1281,12 +1712,18 @@ const StudentRow = ({ student, expanded, onToggle, onToggleActive }) => {
   );
 };
 
-const ActionCard = ({ icon, title, sub, onClick }) => (
-  <button style={S.actionCard} type="button" onClick={onClick}>
-    <div style={S.actionIcon}>{icon}</div>
+const ActionCard = ({ icon, title, sub, onClick, highlight }) => (
+  <button style={{
+    ...S.actionCard,
+    ...(highlight ? { borderColor: "rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.04)" } : {}),
+  }} type="button" onClick={onClick}>
+    <div style={{
+      ...S.actionIcon,
+      ...(highlight ? { background: "rgba(245,158,11,0.12)", borderColor: "rgba(245,158,11,0.28)" } : {}),
+    }}>{icon}</div>
     <div style={S.actionText}>
       <div style={S.actionTitle}>{title}</div>
-      <div style={S.actionSub}>{sub}</div>
+      <div style={{ ...S.actionSub, ...(highlight ? { color: "rgba(146,84,0,0.90)", fontWeight: 800 } : {}) }}>{sub}</div>
     </div>
     <ChevronRight size={17} />
   </button>

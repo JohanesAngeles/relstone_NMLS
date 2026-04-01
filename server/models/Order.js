@@ -23,13 +23,10 @@ const orderSchema = new mongoose.Schema({
     required: true
   },
   status: {
-    type: String,
-    // ── FIX: added 'completed' to enum so it saves correctly.
-    // 'paid' is kept for backward compat with existing orders.
-    // Going forward all new orders will be 'completed'.
-    enum: ['pending', 'paid', 'completed', 'cancelled'],
-    default: 'completed',  // ← new orders default to completed (no payment gateway)
-  },
+  type: String,
+  enum: ['pending', 'paid', 'completed', 'cancelled'],
+  default: 'pending',  // ← change this from 'completed' to 'pending'
+},
   payment_reference: {
     type: String,
     default: null

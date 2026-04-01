@@ -677,7 +677,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
             />
 
             {/* Fallback if GSI script hasn't loaded */}
-            {!window.google && (
+            {/* {!window.google && (
               <button
                 type="button"
                 style={S.googleBtn}
@@ -686,7 +686,7 @@ const AuthModal = ({ mode = 'login', onClose, logoSrc = RelstoneBlackLogo }) => 
               >
                 <GoogleIcon /> {googleLoading ? 'Signing in...' : 'Sign in with Google'}
               </button>
-            )}
+            )} */}
 
             <p style={S.switchText}>
               Don't have an account?{' '}

@@ -90,10 +90,10 @@ const Layout = ({ children, pageTitle, pageSubtitle }) => {
       )}
 
       {/* Mobile Backdrop Overlay */}
-      <div 
-        className={`mobile-overlay ${sidebarOpen ? 'visible' : ''}`} 
-        onClick={() => setSidebarOpen(false)} 
-      />
+      <div
+  className={`mobile-overlay ${sidebarOpen && window.innerWidth <= 1024 ? 'visible' : ''}`}
+  onClick={() => setSidebarOpen(false)}
+/>
 
       {/* ── TOP BAR ──────────────────────────────────────────── */}
       <header style={S.topbar} className="topbar">
@@ -212,8 +212,19 @@ body{font-family:'Poppins',sans-serif;background:#F0F4F8;}
 .layout-how-btn:hover{background:#2EABFE !important;color:#fff !important;border-color:#2EABFE !important;}
 
 /* Mobile Overlay */
-.mobile-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); z-index: 90; opacity: 0; visibility: hidden; transition: 0.3s; }
-.mobile-overlay.visible { opacity: 1; visibility: visible; }
+/* Replace this in your css string */
+.mobile-overlay { 
+  position: fixed; inset: 0; 
+  background: rgba(0,0,0,0.4); 
+  backdrop-filter: blur(2px); 
+  z-index: 90; 
+  display: none;          /* ← use display:none instead of opacity/visibility */
+  transition: opacity 0.3s; 
+}
+.mobile-overlay.visible { 
+  display: block;          /* ← show it */
+  opacity: 1; 
+}
 
 @media (max-width: 1024px) {
   .sidebar {

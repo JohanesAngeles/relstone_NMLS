@@ -52,8 +52,15 @@ const Dashboard = () => {
   const orders           = dashboard?.orders           || [];
   const availableCourses = dashboard?.available_courses || [];
   const ceTracker        = dashboard?.ce_tracker       || null;
-  const inProgressCount  = availableCourses.filter(c => !c.already_completed).length;
+  const paidCourseIds = new Set(
+  orders
+    .filter(o => ["paid", "completed"].includes(String(o.status).toLowerCase()))
+    .flatMap(o => (o.items || []).map(i => String(i.course_id?._id || i.course_id)))
+);
 
+const inProgressCount = availableCourses.filter(
+  c => !c.already_completed && paidCourseIds.has(String(c.course_id))
+).length;
   const recentCompletions = useMemo(() => {
     const fromDash = [...(completions?.PE || []), ...(completions?.CE || [])];
     const list = fromDash.length > 0 ? fromDash : certificates.map(c => ({
@@ -127,10 +134,21 @@ const Dashboard = () => {
               <button style={S.viewAllBtn} onClick={() => navigate("/my-courses")} type="button">View all →</button>
             </div>
             <div style={S.divider}/>
-            {availableCourses.length === 0
-              ? <div style={S.emptyMsg}>No courses enrolled yet.</div>
-              : availableCourses.slice(0,5).map((c,i) => <CourseRow key={i} course={c} onStart={() => navigate(`/courses/${c.course_id}/learn`)}/>)
-            }
+            {availableCourses.filter(c =>
+    ["paid","completed"].includes(String(
+      orders.find(o => (o.items||[]).some(i => String(i.course_id?._id||i.course_id) === String(c.course_id)))?.status || ""
+    ).toLowerCase())
+  ).length === 0
+  ? <div style={S.emptyMsg}>No courses enrolled yet.</div>
+  : availableCourses
+      .filter(c =>
+        ["paid","completed"].includes(String(
+          orders.find(o => (o.items||[]).some(i => String(i.course_id?._id||i.course_id) === String(c.course_id)))?.status || ""
+        ).toLowerCase())
+      )
+      .slice(0,5)
+      .map((c,i) => <CourseRow key={i} course={c} onStart={() => navigate(`/courses/${c.course_id}/learn`)}/>)
+}
           </div>
 
           <div style={{display:"flex",flexDirection:"column",gap:14,flex:1,minWidth:0}}>
