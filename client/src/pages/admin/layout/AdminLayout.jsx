@@ -78,7 +78,7 @@ const AdminLayout = () => {
   { label: 'Students',    sub: 'View & manage students',  path: '/admin/students',    icon: <GraduationCap size={20} /> },
   { label: 'Instructors', sub: 'Manage instructors',      path: '/admin/instructors', icon: <UserCheck size={20} /> },
   { label: 'Orders',      sub: 'Revenue & orders',        path: '/admin/orders',      icon: <ShoppingCart size={20} /> },
-  { label: 'Reports',     sub: 'Analytics & reports',     path: '/admin/reports',     icon: <BarChart2 size={20} /> },
+  { label: 'Reportss',     sub: 'Analytics & reports',     path: '/admin/reports',     icon: <BarChart2 size={20} /> },
   ...(user?.role === 'super_admin' ? [
     { label: 'Manage Admins', sub: 'Add & manage admins', path: '/admin/manage-admins', icon: <Users size={20} /> },
   ] : []),
