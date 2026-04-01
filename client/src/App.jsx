@@ -33,6 +33,27 @@ import EditCourseModal from './pages/dashboard/EditCourseModal';
 import InstructorAddCourse from './pages/instructor_page/InstructorAddCourse';
 // FIX: Removed the .JSX extension to avoid casing conflicts and circular errors
 
+// ── Admin pages ──
+import AdminLayout from './pages/admin/layout/AdminLayout';
+
+import AdminDashboard from './pages/admin/dashboard/index';
+import AdminCourses from './pages/admin/courses/index';
+import AdminStudents from './pages/admin/students/index';
+import AdminReports from './pages/admin/reports/index';
+
+import AdminLogin from './pages/admin/login/index';
+import AdminStudentDetail from './pages/admin/students/StudentDetail';
+import AdminCourseDetail from './pages/admin/courses/CourseDetail';
+
+import AdminInstructors from './pages/admin/instructors/index';
+import AdminInstructorDetail from './pages/admin/instructors/InstructorDetail';
+
+import AdminSettings from './pages/admin/settings/index';
+
+import AdminOrders from './pages/admin/orders/index';
+import AdminOrderDetail from './pages/admin/orders/OrderDetail';
+
+
 /* ─── Role helpers ───────────────────────────────────────────────── */
 const isInstructor = (user) =>
   user?.role === 'instructor' || user?.role === 'admin';
@@ -73,6 +94,26 @@ const InstructorRoute = ({ children }) => {
   if (loading) return null;
   if (!user) return <Navigate to="/" replace />;
   if (!isInstructor(user)) return <Navigate to="/dashboard" replace />;
+  return children;
+};
+
+/* ─── AdminRoute ──────────────────────────────────────────────────── */
+const ADMIN_ROLES = ['admin', 'super_admin'];
+
+const AdminRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  if (!ADMIN_ROLES.includes(user?.role)) return <Navigate to="/admin/login" replace />;
+  return children;
+};
+
+// Super Admin only route
+const SuperAdminRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  if (user?.role !== 'super_admin') return <Navigate to="/admin/dashboard" replace />;
   return children;
 };
 
@@ -193,6 +234,8 @@ function App() {
           } />
           <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
 
+          <Route path="/admin/login" element={<AdminLogin />} />
+          
           {/* ── Instructor-only pages ── */}
           <Route path="/instructor/dashboard" element={<InstructorRoute><InstructorDashboard /></InstructorRoute>} />
           <Route path="/instructor/students" element={<InstructorRoute><ViewStudents /></InstructorRoute>} />
@@ -208,6 +251,23 @@ function App() {
           <Route path="/courses/:id/learn" element={<PrivateRoute><CoursePortal /></PrivateRoute>} />
           <Route path="/certificate/:courseId" element={<PrivateRoute><Certificate /></PrivateRoute>} />
           <Route path="/checkout" element={<PrivateRoute><Checkout /></PrivateRoute>} />
+
+          {/* ── Admin-only pages ── */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="courses" element={<AdminCourses />} />
+              <Route path="students" element={<AdminStudents />} />
+              <Route path="reports" element={<AdminReports />} />
+              <Route path="students/:id" element={<AdminStudentDetail />} />
+              <Route path="courses/:id" element={<AdminCourseDetail />} />
+              <Route path="instructors"     element={<AdminInstructors />} />
+              <Route path="instructors/:id" element={<AdminInstructorDetail />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="orders"     element={<AdminOrders />} />
+              <Route path="orders/:id" element={<AdminOrderDetail />} />
+            </Route>
+
 
         </Routes>
       </Router>
