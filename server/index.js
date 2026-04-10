@@ -35,7 +35,7 @@ try { biosigRoutes      = require('./routes/biosig');         } catch (e) { cons
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
 const authMiddleware = require('./middleware/auth');
-
+const examRequestRoutes = require('./routes/exam-requests');
 // ── Admin routes ──────────────────────────────────────────────────────────────
 const adminAuthRoutes     = require('./routes/admin/auth');
 const adminCourseRoutes   = require('./routes/admin/courses');
@@ -47,7 +47,9 @@ const adminUploadRoutes = require('./routes/admin/upload');
 const adminInstructorRoutes = require('./routes/admin/instructors');
 const adminSettingsRoutes = require('./routes/admin/settings');
 const adminOrderRoutes = require('./routes/admin/orders');
-
+const adminManageRoutes = require('./routes/admin/admins');
+const adminVoucherRoutes = require('./routes/admin/vouchers');
+const announcementRoutes = require('./routes/announcements');
 
 const app = express();
 
@@ -98,8 +100,10 @@ app.use('/api/admin/upload', authMiddleware, adminUploadRoutes);
 app.use('/api/admin/instructors', authMiddleware, adminInstructorRoutes);
 app.use('/api/admin/settings', authMiddleware, adminSettingsRoutes);
 app.use('/api/admin/orders', authMiddleware, adminOrderRoutes);
-
-
+app.use('/api/admin/admins', authMiddleware, adminManageRoutes);
+app.use('/api/exam-requests', authMiddleware, examRequestRoutes); // ← ADD THIS
+app.use('/api/admin/vouchers', authMiddleware, adminVoucherRoutes);
+app.use('/api/admin/announcements', authMiddleware, announcementRoutes);
 
 
 // ── Serve React build in production ──────────────────────────────────────────

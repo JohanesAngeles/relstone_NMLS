@@ -52,7 +52,11 @@ import AdminSettings from './pages/admin/settings/index';
 
 import AdminOrders from './pages/admin/orders/index';
 import AdminOrderDetail from './pages/admin/orders/OrderDetail';
-
+import AdminManage from './pages/admin/admins/index';
+import InstructorContactAdmin from './pages/instructor_page/InstructorContactAdmin';
+import AdminExamRequests from './pages/admin/exam-requests/index';
+import AdminAddStudent from './pages/admin/students/AdminAddStudent';
+import AdminVouchers from './pages/admin/vouchers/index';
 
 /* ─── Role helpers ───────────────────────────────────────────────── */
 const isInstructor = (user) =>
@@ -250,6 +254,8 @@ function App() {
           <Route path="/courses/:id" element={<PrivateRoute><CourseDetails /></PrivateRoute>} />
           <Route path="/courses/:id/learn" element={<PrivateRoute><CoursePortal /></PrivateRoute>} />
           <Route path="/certificate/:courseId" element={<PrivateRoute><Certificate /></PrivateRoute>} />
+          <Route path="/instructor/contact-admin" element={<InstructorRoute><InstructorContactAdmin /></InstructorRoute>} />
+
           <Route path="/checkout" element={<PrivateRoute><Checkout /></PrivateRoute>} />
 
           {/* ── Admin-only pages ── */}
@@ -266,6 +272,17 @@ function App() {
               <Route path="settings" element={<AdminSettings />} />
               <Route path="orders"     element={<AdminOrders />} />
               <Route path="orders/:id" element={<AdminOrderDetail />} />
+                <Route path="support" element={<SupportInbox />} />  {/* ← ADD THIS */}
+              <Route path="exam-requests" element={<AdminExamRequests />} />
+              <Route path="students/add" element={<AdminAddStudent />} />
+              <Route path="vouchers" element={<AdminVouchers />} />
+
+              <Route path="manage-admins" element={
+                <SuperAdminRoute>
+                  <AdminManage />
+                </SuperAdminRoute>
+              } />
+              
             </Route>
 
 

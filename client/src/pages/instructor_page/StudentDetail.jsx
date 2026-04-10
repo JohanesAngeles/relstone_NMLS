@@ -5,7 +5,7 @@ import {
   ArrowLeft, User, Mail, Phone, MapPin, BookOpen,
   CheckCircle, Clock, Award, BarChart2, Calendar,
   FileText, Shield, UserCheck, UserX, RefreshCw,
-  GraduationCap, TrendingUp, Hash, Target, Layers,
+  GraduationCap, TrendingUp, Hash, Target, Layers, Trash2, X,
 } from "lucide-react";
 
 /* ─── StudentDetail ──────────────────────────────────────────────── */
@@ -20,13 +20,14 @@ const StudentDetail = () => {
   const [error,    setError]    = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [toggling,  setToggling] = useState(false);
+  const [removingCourseId, setRemovingCourseId] = useState(null);
+  const [confirmRemove, setConfirmRemove] = useState(null); // { courseId, title }
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       setError("");
       try {
-        // Fetch student detail + course enrollments
         const [studentRes, courseRes] = await Promise.all([
           API.get(`/instructor/students/${studentId}`),
           API.get(`/instructor/students/${studentId}/courses`).catch(() => ({ data: { courses: [] } })),
@@ -35,13 +36,11 @@ const StudentDetail = () => {
         const s = studentRes.data;
         setStudent(s);
 
-        // Build course list from completions + enrolled orders
         const completedIds = new Set(
           (s.completions || []).map(c => String(c.course_id?._id || c.course_id))
         );
 
         const raw = courseRes.data?.courses || [];
-        // Enrich with completion status
         const enriched = raw.map(c => ({
           ...c,
           status:       completedIds.has(String(c._id || c.course_id)) ? "completed" : "in_progress",
@@ -51,7 +50,6 @@ const StudentDetail = () => {
         }));
         setCourses(enriched);
 
-        // Try fetching quiz attempts
         const quizRes = await API.get(`/quiz-attempts/instructor/student/${studentId}`).catch(() => ({ data: { attempts: [] } }));
         setQuizzes(quizRes.data?.attempts || []);
 
@@ -81,6 +79,33 @@ const StudentDetail = () => {
     }
   };
 
+  // ── Remove course handler ──────────────────────────────────────
+  const handleRemoveCourse = async (courseId) => {
+    setRemovingCourseId(courseId);
+    try {
+      await API.delete(`/instructor/students/${studentId}/courses/${courseId}`);
+      // Remove from local courses list
+      setCourses(prev => prev.filter(c => String(c._id || c.course_id) !== String(courseId)));
+      // Also remove from student completions so stats update
+      setStudent(prev => ({
+        ...prev,
+        completions: (prev.completions || []).filter(
+          c => String(c.course_id?._id || c.course_id) !== String(courseId)
+        ),
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to remove course. Please try again.");
+    } finally {
+      setRemovingCourseId(null);
+      setConfirmRemove(null);
+    }
+  };
+
+  const openConfirm = (courseId, title) => setConfirmRemove({ courseId, title });
+  const closeConfirm = () => setConfirmRemove(null);
+
+  // ── Loading ────────────────────────────────────────────────────
   if (loading) return (
     <div style={S.page}>
       <style>{css}</style>
@@ -128,9 +153,62 @@ const StudentDetail = () => {
     { key: "profile",  label: "Profile" },
   ];
 
+  // Build fallback course list from completions
+  const fallbackCourses = (student.completions || []).map(c => ({
+    _id:            c.course_id?._id || c.course_id,
+    title:          c.course_id?.title || "Course",
+    type:           c.course_id?.type,
+    credit_hours:   c.course_id?.credit_hours,
+    nmls_course_id: c.course_id?.nmls_course_id,
+    status:         "completed",
+    completed_at:   c.completed_at,
+    certificate_url: c.certificate_url,
+  }));
+
+  const displayCourses = courses.length > 0 ? courses : fallbackCourses;
+
   return (
     <div style={S.page}>
       <style>{css}</style>
+
+      {/* ── Confirm Remove Modal ─────────────────────────────────── */}
+      {confirmRemove && (
+        <div style={S.modalOverlay}>
+          <div style={S.modal}>
+            <div style={S.modalIcon}>
+              <Trash2 size={24} color="rgba(185,28,28,1)" />
+            </div>
+            <div style={S.modalTitle}>Remove Course?</div>
+            <div style={S.modalBody}>
+              Are you sure you want to remove{" "}
+              <strong>"{confirmRemove.title}"</strong> from this student?
+              This will also remove their completion record for this course.
+            </div>
+            <div style={S.modalActions}>
+              <button
+                type="button"
+                style={S.modalCancelBtn}
+                onClick={closeConfirm}
+                disabled={removingCourseId === confirmRemove.courseId}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={S.modalConfirmBtn}
+                onClick={() => handleRemoveCourse(confirmRemove.courseId)}
+                disabled={removingCourseId === confirmRemove.courseId}
+              >
+                {removingCourseId === confirmRemove.courseId ? (
+                  <><RefreshCw size={13} className="sd-spin-icon" /> Removing…</>
+                ) : (
+                  <><Trash2 size={13} /> Remove Course</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Back bar ─────────────────────────────────────────────── */}
       <div style={S.backBar}>
@@ -155,7 +233,6 @@ const StudentDetail = () => {
           <div style={S.heroGradient} />
           <div style={S.heroContent}>
 
-            {/* Avatar + basic info */}
             <div style={S.heroLeft}>
               <div style={{ ...S.avatar, ...(isActive ? {} : S.avatarInactive) }}>
                 {(student.name || "S")[0].toUpperCase()}
@@ -189,7 +266,6 @@ const StudentDetail = () => {
               </div>
             </div>
 
-            {/* Actions */}
             <div style={S.heroActions}>
               <button
                 type="button"
@@ -203,7 +279,6 @@ const StudentDetail = () => {
             </div>
           </div>
 
-          {/* Stats row */}
           <div style={S.statsRow}>
             <StatBox icon={<BookOpen size={16} />}     label="Courses Enrolled" value={totalCourses}   />
             <StatBox icon={<CheckCircle size={16} />}  label="Completed"        value={completedCount} color="rgba(0,180,180,1)" />
@@ -229,30 +304,26 @@ const StudentDetail = () => {
             {/* ── OVERVIEW ──────────────────────────────────────── */}
             {activeTab === "overview" && (
               <div style={S.gridTwo}>
-                {/* Course progress */}
                 <div style={S.panel}>
                   <div style={S.panelHead}>
                     <div style={S.panelTitle}><BookOpen size={15} /> Course Progress</div>
                   </div>
-                  {courses.length === 0 && completedCount === 0 ? (
+                  {displayCourses.length === 0 ? (
                     <EmptyInPanel text="No courses enrolled yet." />
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      {(courses.length > 0 ? courses : (student.completions || []).map(c => ({
-                        _id:          c.course_id?._id || c.course_id,
-                        title:        c.course_id?.title || "Course",
-                        type:         c.course_id?.type,
-                        credit_hours: c.course_id?.credit_hours,
-                        status:       "completed",
-                        completed_at: c.completed_at,
-                      }))).map((c, i) => (
-                        <CourseProgressRow key={i} course={c} />
+                      {displayCourses.map((c, i) => (
+                        <CourseProgressRow
+                          key={i}
+                          course={c}
+                          onRemove={() => openConfirm(String(c._id || c.course_id), c.title || "Course")}
+                          removing={removingCourseId === String(c._id || c.course_id)}
+                        />
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* Recent quizzes */}
                 <div style={S.panel}>
                   <div style={S.panelHead}>
                     <div style={S.panelTitle}><BarChart2 size={15} /> Recent Quiz Results</div>
@@ -283,21 +354,17 @@ const StudentDetail = () => {
                   <div style={S.sectionSub}>{totalCourses} course{totalCourses !== 1 ? "s" : ""} · {completedCount} completed</div>
                 </div>
 
-                {totalCourses === 0 ? (
+                {displayCourses.length === 0 ? (
                   <EmptyInPanel text="This student hasn't enrolled in any courses yet." />
                 ) : (
                   <div style={S.courseGrid}>
-                    {(courses.length > 0 ? courses : (student.completions || []).map(c => ({
-                      _id:          c.course_id?._id || c.course_id,
-                      title:        c.course_id?.title || "Course",
-                      type:         c.course_id?.type,
-                      credit_hours: c.course_id?.credit_hours,
-                      nmls_course_id: c.course_id?.nmls_course_id,
-                      status:       "completed",
-                      completed_at: c.completed_at,
-                      certificate_url: c.certificate_url,
-                    }))).map((c, i) => (
-                      <CourseCard key={i} course={c} />
+                    {displayCourses.map((c, i) => (
+                      <CourseCard
+                        key={i}
+                        course={c}
+                        onRemove={() => openConfirm(String(c._id || c.course_id), c.title || "Course")}
+                        removing={removingCourseId === String(c._id || c.course_id)}
+                      />
                     ))}
                   </div>
                 )}
@@ -448,14 +515,14 @@ const StatBox = ({ icon, label, value, color = "rgba(11,18,32,0.82)" }) => (
   </div>
 );
 
-const CourseProgressRow = ({ course }) => {
+const CourseProgressRow = ({ course, onRemove, removing }) => {
   const isCompleted = course.status === "completed";
   const type        = String(course.type || "").toUpperCase();
   const completedAt = course.completed_at
     ? new Date(course.completed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : null;
   return (
-    <div style={S.courseProgressRow}>
+    <div style={S.courseProgressRow} className="sd-row-hover">
       <div style={{ ...S.cpDot, background: isCompleted ? "rgba(0,180,180,1)" : "rgba(245,158,11,0.90)" }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 800, fontSize: 13, color: "rgba(11,18,32,0.86)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -470,11 +537,22 @@ const CourseProgressRow = ({ course }) => {
       <span style={isCompleted ? S.passedBadge : S.inProgressBadge}>
         {isCompleted ? "✓ Done" : "In Progress"}
       </span>
+      {/* Remove button */}
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={removing}
+        title="Remove course"
+        style={S.removeIconBtn}
+        className="sd-remove-btn"
+      >
+        {removing ? <RefreshCw size={13} className="sd-spin-icon" /> : <Trash2 size={13} />}
+      </button>
     </div>
   );
 };
 
-const CourseCard = ({ course }) => {
+const CourseCard = ({ course, onRemove, removing }) => {
   const isCompleted = course.status === "completed";
   const type        = String(course.type || "").toUpperCase();
   const completedAt = course.completed_at
@@ -518,6 +596,19 @@ const CourseCard = ({ course }) => {
             </a>
           )}
         </div>
+
+        {/* ── Remove Course Button ── */}
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={removing}
+          style={S.removeCardBtn}
+        >
+          {removing
+            ? <><RefreshCw size={13} className="sd-spin-icon" /> Removing…</>
+            : <><Trash2 size={13} /> Remove Course</>
+          }
+        </button>
       </div>
     </div>
   );
@@ -574,9 +665,9 @@ const formatTime = (seconds) => {
 };
 
 const quizTypeLabel = (type) => {
-  if (type === "final_exam")       return "Final Exam";
-  if (type === "quiz_fundamentals")return "Fundamentals";
-  if (type === "checkpoint")       return "Checkpoint";
+  if (type === "final_exam")        return "Final Exam";
+  if (type === "quiz_fundamentals") return "Fundamentals";
+  if (type === "checkpoint")        return "Checkpoint";
   return type || "Quiz";
 };
 
@@ -603,6 +694,9 @@ body{margin:0;font-family:Inter,system-ui,sans-serif;}
 @keyframes sdspin{to{transform:rotate(360deg);}}
 .sd-spin-icon{animation:sdspin 1s linear infinite;}
 .sd-tr:hover{background:rgba(0,180,180,0.03);}
+.sd-row-hover:hover .sd-remove-btn{opacity:1!important;}
+.sd-remove-btn{opacity:0;transition:opacity 0.15s;}
+.sd-row-hover:hover{background:rgba(239,68,68,0.02);}
 `;
 
 /* ─── Styles ─────────────────────────────────────────────────────── */
@@ -610,6 +704,16 @@ const S = {
   page:    { minHeight: "100vh", background: "#f6f7fb", fontFamily: "Inter, system-ui, sans-serif" },
   center:  { minHeight: "60vh", display: "grid", placeItems: "center", gap: 16 },
   errorBox:{ padding: "14px 20px", borderRadius: 14, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.20)", color: "rgba(180,30,30,1)", fontWeight: 700, fontSize: 13 },
+
+  // ── Modal ──
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(2,8,23,0.45)", backdropFilter: "blur(6px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 },
+  modal:        { background: "#fff", borderRadius: 20, padding: "28px 28px 24px", maxWidth: 420, width: "100%", boxShadow: "0 24px 64px rgba(2,8,23,0.22)", border: "1px solid rgba(2,8,23,0.08)" },
+  modalIcon:    { width: 48, height: 48, borderRadius: 14, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.20)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  modalTitle:   { fontWeight: 950, fontSize: 18, color: "rgba(11,18,32,0.92)", marginBottom: 10 },
+  modalBody:    { fontSize: 14, fontWeight: 600, color: "rgba(11,18,32,0.60)", lineHeight: 1.6, marginBottom: 22 },
+  modalActions: { display: "flex", gap: 10 },
+  modalCancelBtn:  { flex: 1, padding: "11px 0", borderRadius: 12, border: "1px solid rgba(2,8,23,0.14)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 13, color: "rgba(11,18,32,0.65)" },
+  modalConfirmBtn: { flex: 1, padding: "11px 0", borderRadius: 12, border: "1px solid rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.08)", cursor: "pointer", fontWeight: 900, fontSize: 13, color: "rgba(185,28,28,1)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 },
 
   // ── Back bar ──
   backBar:      { background: "rgba(246,247,251,0.92)", borderBottom: "1px solid rgba(2,8,23,0.08)", backdropFilter: "blur(10px)", position: "sticky", top: 0, zIndex: 20 },
@@ -666,8 +770,12 @@ const S = {
   sectionSub: { fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.50)", marginTop: 4 },
 
   // ── Course Progress Row ──
-  courseProgressRow: { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.07)", background: "rgba(2,8,23,0.015)" },
+  courseProgressRow: { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.07)", background: "rgba(2,8,23,0.015)", transition: "background 0.15s" },
   cpDot:             { width: 10, height: 10, borderRadius: "50%", flexShrink: 0 },
+
+  // ── Remove buttons ──
+  removeIconBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(239,68,68,0.28)", background: "rgba(239,68,68,0.06)", cursor: "pointer", color: "rgba(185,28,28,1)", flexShrink: 0, padding: 0 },
+  removeCardBtn: { marginTop: 14, width: "100%", padding: "9px 0", borderRadius: 10, border: "1px solid rgba(239,68,68,0.28)", background: "rgba(239,68,68,0.06)", cursor: "pointer", fontWeight: 900, fontSize: 12, color: "rgba(185,28,28,1)", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 },
 
   // ── Course Card ──
   courseGrid:    { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 14 },

@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import API from "../../api/axios";
 import Layout from "../../components/Layout";
+import AnnouncementModal from '../../components/AnnouncementModal';
+
 import {
   FileText, BookOpen, Clock, CheckCircle, Award,
   ChevronRight, Search, PlayCircle, Lock, User, Download, TrendingUp, MapPin,
@@ -104,6 +106,7 @@ const inProgressCount = availableCourses.filter(
 
   return (
     <Layout>
+      <AnnouncementModal />
       <style>{CSS}</style>
 <div style={S.wrap} className="dash-wrap">
 

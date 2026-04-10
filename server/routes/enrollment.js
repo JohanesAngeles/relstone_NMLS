@@ -25,7 +25,17 @@ router.post('/enroll', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-
+// ── GET /api/enrollment/my ─────────────────────────────────────────────
+router.get('/my', async (req, res) => {
+  try {
+    const enrollments = await Enrollment.find({ user_id: req.user.id })
+      .select('course_id status')
+      .lean();
+    res.json(enrollments);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
 // ── GET /api/enrollment/:courseId ─────────────────────────────────────
 router.get('/:courseId', async (req, res) => {
   try {

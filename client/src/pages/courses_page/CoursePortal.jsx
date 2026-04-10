@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle2, PlayCircle,
   BookOpen, ClipboardList, Trophy, Lock, ChevronRight,
   AlertCircle, Star, X, FileText, ExternalLink, Award, Clock,
-  Eye, Menu,
+  Eye, Menu,Send
 } from "lucide-react";
 import API from "../../api/axios";
 import RocsModal from "../../components/RocsModal";
@@ -795,25 +795,214 @@ const ReviewAnswersPanel = ({ item, attemptInfo }) => {
 };
 
 /* ─── Checkpoint View ────────────────────────────────────────────── */
+/* ─── CheckpointView — drop-in replacement for CoursePortal.jsx ─────
+   Paste this over the existing CheckpointView function.
+   After 3 failed attempts, student must request admin approval
+   instead of being permanently locked with no action.
+──────────────────────────────────────────────────────────────────── */
+
 const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAttemptLogged, reviewMode }) => {
-  const [answers, setAnswers]       = useState({});
-  const [submitted, setSubmitted]   = useState(false);
+  const [answers, setAnswers]     = useState({});
+  const [submitted, setSubmitted] = useState(false);
   const [allCorrect, setAllCorrect] = useState(false);
   const startedAt = useRef(Date.now());
 
-  useEffect(() => {
-    if (!reviewMode) { setAnswers({}); setSubmitted(false); setAllCorrect(false); startedAt.current = Date.now(); }
-  }, [item.id, reviewMode]);
+  // ── Access request state ─────────────────────────────────────────
+  const [accessRequest,     setAccessRequest]     = useState(null);
+  const [requestLoading,    setRequestLoading]    = useState(false);
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [requestMessage,    setRequestMessage]    = useState('');
+  const [requestError,      setRequestError]      = useState('');
+  const [showRequestForm,   setShowRequestForm]   = useState(false);
 
   const attemptCount = attemptInfo?.count || 0;
   const isLocked     = !reviewMode && attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
-  if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
 
+  // Load existing request when locked
+  useEffect(() => {
+    if (!isLocked || reviewMode) return;
+    const loadRequest = async () => {
+      setRequestLoading(true);
+      try {
+        const res = await API.get(`/exam-requests/mine/${courseId}/${item.id}`);
+        setAccessRequest(res.data?.request || null);
+      } catch {
+        setAccessRequest(null);
+      } finally {
+        setRequestLoading(false);
+      }
+    };
+    loadRequest();
+  }, [item.id, courseId, isLocked, reviewMode]);
+
+  useEffect(() => {
+    if (!reviewMode) {
+      setAnswers({});
+      setSubmitted(false);
+      setAllCorrect(false);
+      startedAt.current = Date.now();
+      setShowRequestForm(false);
+      setRequestError('');
+    }
+  }, [item.id, reviewMode]);
+
+  const handleSubmitRequest = async () => {
+    setRequestSubmitting(true);
+    setRequestError('');
+    try {
+      const res = await API.post('/exam-requests', {
+        courseId,
+        quizId:    item.id,
+        quizTitle: item.title,
+        quizType:  'checkpoint',
+        message:   requestMessage,
+      });
+      setAccessRequest(res.data.request);
+      setShowRequestForm(false);
+    } catch (err) {
+      setRequestError(err.response?.data?.message || 'Failed to submit request.');
+    } finally {
+      setRequestSubmitting(false);
+    }
+  };
+
+  // ── Locked screen with request-access flow ───────────────────────
+  if (isLocked) return (
+    <div style={S.checkWrap}>
+      <div style={S.typePillAmber}><ClipboardList size={14} /> Checkpoint</div>
+      <h1 style={S.lessonTitle}>{item.title}</h1>
+
+      <div style={{
+        borderRadius: 18, padding: '28px 24px', textAlign: 'center',
+        background: 'rgba(239,68,68,0.05)', border: '2px dashed rgba(239,68,68,0.28)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+      }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)', display: 'grid', placeItems: 'center' }}>
+          <Lock size={28} style={{ color: 'rgba(185,28,28,0.80)' }} />
+        </div>
+
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: 'rgba(185,28,28,1)', marginBottom: 8 }}>
+            Checkpoint Locked — Admin Approval Required
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(10,22,40,0.65)', lineHeight: 1.7, maxWidth: 480 }}>
+            You have failed this checkpoint <strong>3 times</strong>.
+            To unlock another attempt, you must submit a request to the admin for approval.
+          </div>
+        </div>
+
+        {/* Loading */}
+        {requestLoading && (
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(10,22,40,0.45)' }}>
+            Checking request status…
+          </div>
+        )}
+
+        {/* Pending */}
+        {!requestLoading && accessRequest?.status === 'pending' && (
+          <div style={{ width: '100%', maxWidth: 420, padding: '16px 20px', borderRadius: 14, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.30)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 14, color: 'rgba(146,84,0,1)' }}>
+              <Clock size={16} /> Request Pending Review
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(10,22,40,0.60)', lineHeight: 1.6 }}>
+              Your request was submitted on {new Date(accessRequest.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
+              The admin will review it and notify you.
+            </div>
+          </div>
+        )}
+
+        {/* Denied */}
+        {!requestLoading && accessRequest?.status === 'denied' && (
+          <div style={{ width: '100%', maxWidth: 420, padding: '16px 20px', borderRadius: 14, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 14, color: 'rgba(185,28,28,1)' }}>
+              <AlertCircle size={16} /> Request Denied
+            </div>
+            {accessRequest.admin_note && (
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(10,22,40,0.60)', lineHeight: 1.6 }}>
+                Admin note: {accessRequest.admin_note}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: 'rgba(10,22,40,0.45)', fontWeight: 600 }}>
+              Contact your instructor or administrator for further assistance.
+            </div>
+          </div>
+        )}
+
+        {/* No request yet */}
+        {!requestLoading && !accessRequest && (
+          <>
+            {!showRequestForm ? (
+              <button
+                type="button"
+                onClick={() => setShowRequestForm(true)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  padding: '12px 24px', borderRadius: 12, border: 'none',
+                  background: '#2EABFE', color: '#fff', fontWeight: 800,
+                  fontSize: 14, cursor: 'pointer',
+                  boxShadow: '0 4px 16px rgba(46,171,254,0.28)',
+                }}
+              >
+                <Send size={16} /> Request Unlock Access
+              </button>
+            ) : (
+              <div style={{ width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(10,22,40,0.70)', textAlign: 'left' }}>
+                  Add a message for the admin (optional):
+                </div>
+                <textarea
+                  value={requestMessage}
+                  onChange={e => setRequestMessage(e.target.value)}
+                  placeholder="Explain why you need another attempt on this checkpoint..."
+                  rows={4}
+                  style={{
+                    width: '100%', padding: '10px 13px', borderRadius: 10,
+                    border: '1px solid rgba(2,8,23,0.14)', background: '#fff',
+                    fontSize: 13, fontWeight: 500, color: 'rgba(10,22,40,0.85)',
+                    outline: 'none', resize: 'vertical', lineHeight: 1.6,
+                    fontFamily: 'inherit',
+                  }}
+                />
+                {requestError && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 9, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.22)', color: 'rgba(185,28,28,1)', fontSize: 12, fontWeight: 700 }}>
+                    <AlertCircle size={14} /> {requestError}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => { setShowRequestForm(false); setRequestError(''); }}
+                    style={{ flex: 1, padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(2,8,23,0.12)', background: '#fff', fontWeight: 700, fontSize: 13, color: 'rgba(10,22,40,0.65)', cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmitRequest}
+                    disabled={requestSubmitting}
+                    style={{ flex: 2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', background: requestSubmitting ? '#c8d8e4' : '#2EABFE', color: '#fff', fontWeight: 800, fontSize: 13, cursor: requestSubmitting ? 'not-allowed' : 'pointer' }}
+                  >
+                    {requestSubmitting ? 'Submitting…' : <><Send size={14} /> Submit Request</>}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div style={S.navRow}>
+        <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
+      </div>
+    </div>
+  );
+
+  // ── Review mode ──────────────────────────────────────────────────
   if (reviewMode) return (
     <div style={S.checkWrap}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
         <div style={S.typePillAmber}><ClipboardList size={14} /> Checkpoint</div>
-        <div style={{ ...S.typePill, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)" }}>
+        <div style={{ ...S.typePill, background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.28)', color: 'rgba(146,84,0,1)' }}>
           <Eye size={12} /> Review
         </div>
       </div>
@@ -826,6 +1015,7 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
     </div>
   );
 
+  // ── Normal attempt flow ──────────────────────────────────────────
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
   const allAnswered  = item.questions.every((q) => answers[q.id] !== undefined);
   const correctCount = item.questions.filter((q) => answers[q.id] === q.correct).length;
@@ -835,33 +1025,43 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
     const pct = Math.round((correctCount / item.questions.length) * 100);
     setAllCorrect(ok); setSubmitted(true);
     try {
-      await API.post("/quiz-attempts", {
-        courseId, quizId: item.id, quizTitle: item.title, quizType: "checkpoint",
+      await API.post('/quiz-attempts', {
+        courseId, quizId: item.id, quizTitle: item.title, quizType: 'checkpoint',
         moduleOrder: item.moduleOrder, scorePct: pct, correct: correctCount,
         total: item.questions.length, passed: ok, passingScore: 100,
         timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
         answers,
       });
       await onAttemptLogged();
-    } catch (err) { console.error("[CheckpointView]", err); }
+    } catch (err) { console.error('[CheckpointView]', err); }
   };
 
-  const handleRetry = () => { setAnswers({}); setSubmitted(false); setAllCorrect(false); startedAt.current = Date.now(); };
+  const handleRetry = () => {
+    setAnswers({});
+    setSubmitted(false);
+    setAllCorrect(false);
+    startedAt.current = Date.now();
+  };
 
   return (
     <div style={S.checkWrap}>
       <div style={S.typePillAmber}><ClipboardList size={14} /> Checkpoint</div>
       <h1 style={S.lessonTitle}>{item.title}</h1>
       <p style={S.checkSubtitle}>Answer all questions correctly to continue · {item.questions.length} questions</p>
+
       {attemptCount === 0 && !submitted && <AttemptWarning1st />}
       {attemptCount === 1 && !submitted && <AttemptWarning2nd />}
       {attemptCount === 2 && !submitted && <AttemptWarning3rd />}
+
       {submitted && (
         <div style={allCorrect ? S.scorePassed : S.scoreFailed}>
           <div style={S.scoreNumber}>{correctCount}/{item.questions.length}</div>
-          <div style={S.scoreLabel}>{allCorrect ? "All correct! You may continue." : `${item.questions.length - correctCount} incorrect — review and try again.`}</div>
+          <div style={S.scoreLabel}>
+            {allCorrect ? 'All correct! You may continue.' : `${item.questions.length - correctCount} incorrect — review and try again.`}
+          </div>
         </div>
       )}
+
       <div style={S.questionList}>
         {item.questions.map((q, qi) => {
           const sel = answers[q.id];
@@ -880,8 +1080,8 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
                       onClick={() => handleSelect(q.id, oi)}>
                       <span style={S.optionLetter}>{String.fromCharCode(65 + oi)}</span>
                       <span style={S.optionText}>{opt}</span>
-                      {showCorrect && <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(34,197,94,1)" }} />}
-                      {showWrong   && <X size={15} style={{ flexShrink: 0, color: "rgba(239,68,68,1)" }} />}
+                      {showCorrect && <CheckCircle2 size={15} style={{ flexShrink: 0, color: 'rgba(34,197,94,1)' }} />}
+                      {showWrong   && <X size={15} style={{ flexShrink: 0, color: 'rgba(239,68,68,1)' }} />}
                     </button>
                   );
                 })}
@@ -890,11 +1090,15 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
           );
         })}
       </div>
+
       {submitted && (
         <div style={allCorrect ? S.resultSuccess : S.resultFail}>
-          {allCorrect ? <><CheckCircle2 size={18} /> All correct! You may continue.</> : <><AlertCircle size={18} /> Some answers were incorrect. Review and try again.</>}
+          {allCorrect
+            ? <><CheckCircle2 size={18} /> All correct! You may continue.</>
+            : <><AlertCircle size={18} /> Some answers were incorrect. Review and try again.</>}
         </div>
       )}
+
       <div style={S.navRow}>
         <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
         {!submitted
@@ -908,28 +1112,88 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
   );
 };
 
-/* ─── Quiz View ──────────────────────────────────────────────────── */
 const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogged, reviewMode }) => {
   const [answers, setAnswers]     = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore]         = useState(0);
   const [passed, setPassed]       = useState(false);
   const startedAt = useRef(Date.now());
-
-  const attemptCount = attemptInfo?.count || 0;
-  const isLocked     = !reviewMode && attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
-
+ 
+  // ── Exam access request state (final exam only) ──────────────────
+  const [accessRequest,     setAccessRequest]     = useState(null);   // null | { status, ... }
+  const [requestLoading,    setRequestLoading]    = useState(false);
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [requestMessage,    setRequestMessage]    = useState('');
+  const [requestError,      setRequestError]      = useState('');
+  const [showRequestForm,   setShowRequestForm]   = useState(false);
+ 
+  const isFinalExam    = item.id === 'final-exam' || item.type === 'quiz';
+  const isFundamentals = item.type === 'quiz_fundamentals';
+  const attemptCount   = attemptInfo?.count || 0;
+  const isLocked       = !reviewMode && attemptInfo?.locked && !attemptInfo?.unlocked_by_instructor;
+ 
+  // ── Load existing access request when on 2nd failed attempt ──────
   useEffect(() => {
-    if (!reviewMode) { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); startedAt.current = Date.now(); }
+    if (!isFinalExam || reviewMode) return;
+    if (attemptCount < 2) return;
+ 
+    const loadRequest = async () => {
+      setRequestLoading(true);
+      try {
+        const res = await API.get(`/exam-requests/mine/${courseId}/${item.id}`);
+        setAccessRequest(res.data?.request || null);
+      } catch {
+        setAccessRequest(null);
+      } finally {
+        setRequestLoading(false);
+      }
+    };
+    loadRequest();
+  }, [item.id, courseId, attemptCount, isFinalExam, reviewMode]);
+ 
+  useEffect(() => {
+    if (!reviewMode) {
+      setAnswers({});
+      setSubmitted(false);
+      setScore(0);
+      setPassed(false);
+      startedAt.current = Date.now();
+      setShowRequestForm(false);
+      setRequestError('');
+    }
   }, [item.id, reviewMode]);
-
+ 
+  // ── Submit access request to admin ───────────────────────────────
+  const handleSubmitRequest = async () => {
+    setRequestSubmitting(true);
+    setRequestError('');
+    try {
+      const res = await API.post('/exam-requests', {
+        courseId,
+        quizId:    item.id,
+        quizTitle: item.title,
+        quizType:  item.type,
+        message:   requestMessage,
+      });
+      setAccessRequest(res.data.request);
+      setShowRequestForm(false);
+    } catch (err) {
+      setRequestError(err.response?.data?.message || 'Failed to submit request.');
+    } finally {
+      setRequestSubmitting(false);
+    }
+  };
+ 
   if (isLocked) return <InstructorLockScreen item={item} onPrev={onPrev} />;
-
+ 
   if (reviewMode) return (
     <div style={S.checkWrap}>
-      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 4 }}>
-        <div style={S.typePillGreen}><Trophy size={14} /> {item.type === "quiz_fundamentals" ? "Fundamentals Exam" : "Final Exam"}</div>
-        <div style={{ ...S.typePill, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: "rgba(146,84,0,1)" }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 4 }}>
+        <div style={isFundamentals ? S.typePillAmber : S.typePillGreen}>
+          {isFundamentals ? <ClipboardList size={14} /> : <Trophy size={14} />}
+          {isFundamentals ? ' Fundamentals Exam' : ' Final Exam'}
+        </div>
+        <div style={{ ...S.typePill, background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.28)', color: 'rgba(146,84,0,1)' }}>
           <Eye size={12} /> Review
         </div>
       </div>
@@ -941,15 +1205,15 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
       </div>
     </div>
   );
-
+ 
   const doSubmit = async () => {
     const correct = item.questions.filter((q) => answers[q.id] === q.correct).length;
     const pct     = Math.round((correct / item.questions.length) * 100);
     const ok      = pct >= (item.passingScore || 70);
     setScore(pct); setPassed(ok); setSubmitted(true);
-    const quizType = item.id === "final-exam" ? "final_exam" : "quiz_fundamentals";
+    const quizType = item.id === 'final-exam' ? 'final_exam' : 'quiz_fundamentals';
     try {
-      await API.post("/quiz-attempts", {
+      await API.post('/quiz-attempts', {
         courseId, quizId: item.id, quizTitle: item.title, quizType,
         moduleOrder: item.moduleOrder, scorePct: pct, correct, total: item.questions.length,
         passed: ok, passingScore: item.passingScore || 70,
@@ -957,62 +1221,231 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
         answers,
       });
       await onAttemptLogged();
-    } catch (err) { console.error("[QuizView]", err); }
+    } catch (err) { console.error('[QuizView]', err); }
   };
-
+ 
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
   const handleRetry  = () => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); startedAt.current = Date.now(); };
-
-  const allAnswered    = item.questions.every((q) => answers[q.id] !== undefined);
-  const answered       = Object.keys(answers).length;
-  const correctCount   = item.questions.filter((q) => answers[q.id] === q.correct).length;
-  const isFundamentals = item.type === "quiz_fundamentals";
-
-  return (
-    <div style={S.checkWrap}>
-      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div style={isFundamentals ? S.typePillAmber : S.typePillGreen}>
-          {isFundamentals ? <ClipboardList size={14} /> : <Trophy size={14} />}
-          {isFundamentals ? " Fundamentals Exam" : " Final Exam"}
+ 
+  const allAnswered  = item.questions.every((q) => answers[q.id] !== undefined);
+  const answered     = Object.keys(answers).length;
+  const correctCount = item.questions.filter((q) => answers[q.id] === q.correct).length;
+ 
+  // ── After 2nd failed attempt: show request-access screen ─────────
+  // This replaces the old "3rd attempt" warning — student must request
+  // access from admin before the 3rd attempt is unlocked.
+  const showRequestAccessScreen =
+    isFinalExam && !submitted && attemptCount >= 2 && !attemptInfo?.unlocked_by_instructor;
+ 
+  if (showRequestAccessScreen) {
+    return (
+      <div style={S.checkWrap}>
+        <div style={S.typePillGreen}><Trophy size={14} /> Final Exam</div>
+        <h1 style={S.lessonTitle}>{item.title}</h1>
+ 
+        {/* Locked after 2 fails */}
+        <div style={{
+          borderRadius: 18, padding: '28px 24px', textAlign: 'center',
+          background: 'rgba(239,68,68,0.05)', border: '2px dashed rgba(239,68,68,0.28)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+        }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)', display: 'grid', placeItems: 'center' }}>
+            <Lock size={28} style={{ color: 'rgba(185,28,28,0.80)' }} />
+          </div>
+ 
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900, color: 'rgba(185,28,28,1)', marginBottom: 8 }}>
+              2 Attempts Used — Admin Approval Required
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(10,22,40,0.65)', lineHeight: 1.7, maxWidth: 480 }}>
+              You have used <strong>2 of 3 attempts</strong> on this final exam.
+              To access your <strong>last remaining attempt</strong>, you must submit a
+              request to the admin for approval.
+            </div>
+          </div>
+ 
+          {/* Loading state */}
+          {requestLoading && (
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(10,22,40,0.45)' }}>
+              Checking request status…
+            </div>
+          )}
+ 
+          {/* Already has a pending request */}
+          {!requestLoading && accessRequest?.status === 'pending' && (
+            <div style={{ width: '100%', maxWidth: 420, padding: '16px 20px', borderRadius: 14, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.30)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 14, color: 'rgba(146,84,0,1)' }}>
+                <Clock size={16} /> Request Pending Review
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(10,22,40,0.60)', lineHeight: 1.6 }}>
+                Your request was submitted on {new Date(accessRequest.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}.
+                The admin will review it and notify you.
+              </div>
+            </div>
+          )}
+ 
+          {/* Request was denied */}
+          {!requestLoading && accessRequest?.status === 'denied' && (
+            <div style={{ width: '100%', maxWidth: 420, padding: '16px 20px', borderRadius: 14, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 14, color: 'rgba(185,28,28,1)' }}>
+                <AlertCircle size={16} /> Request Denied
+              </div>
+              {accessRequest.admin_note && (
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(10,22,40,0.60)', lineHeight: 1.6 }}>
+                  Admin note: {accessRequest.admin_note}
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: 'rgba(10,22,40,0.45)', fontWeight: 600 }}>
+                Contact your instructor or administrator for further assistance.
+              </div>
+            </div>
+          )}
+ 
+          {/* No request yet — show request form */}
+          {!requestLoading && !accessRequest && (
+            <>
+              {!showRequestForm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowRequestForm(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '12px 24px', borderRadius: 12, border: 'none',
+                    background: '#2EABFE', color: '#fff', fontWeight: 800,
+                    fontSize: 14, cursor: 'pointer',
+                    boxShadow: '0 4px 16px rgba(46,171,254,0.28)',
+                  }}
+                >
+                  <Send size={16} /> Request Final Attempt Access
+                </button>
+              ) : (
+                <div style={{ width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(10,22,40,0.70)', textAlign: 'left' }}>
+                    Add a message for the admin (optional):
+                  </div>
+                  <textarea
+                    value={requestMessage}
+                    onChange={e => setRequestMessage(e.target.value)}
+                    placeholder="Explain why you are requesting a 3rd attempt..."
+                    rows={4}
+                    style={{
+                      width: '100%', padding: '10px 13px', borderRadius: 10,
+                      border: '1px solid rgba(2,8,23,0.14)', background: '#fff',
+                      fontSize: 13, fontWeight: 500, color: 'rgba(10,22,40,0.85)',
+                      outline: 'none', resize: 'vertical', lineHeight: 1.6,
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                  {requestError && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 9, background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.22)', color: 'rgba(185,28,28,1)', fontSize: 12, fontWeight: 700 }}>
+                      <AlertCircle size={14} /> {requestError}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => { setShowRequestForm(false); setRequestError(''); }}
+                      style={{ flex: 1, padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(2,8,23,0.12)', background: '#fff', fontWeight: 700, fontSize: 13, color: 'rgba(10,22,40,0.65)', cursor: 'pointer' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmitRequest}
+                      disabled={requestSubmitting}
+                      style={{ flex: 2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '10px 20px', borderRadius: 10, border: 'none', background: requestSubmitting ? '#c8d8e4' : '#2EABFE', color: '#fff', fontWeight: 800, fontSize: 13, cursor: requestSubmitting ? 'not-allowed' : 'pointer' }}
+                    >
+                      {requestSubmitting ? 'Submitting…' : <><Send size={14} /> Submit Request</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+ 
+        <div style={S.navRow}>
+          <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>
         </div>
       </div>
+    );
+  }
+ 
+  // ── Normal exam flow (attempt 1, attempt 2, or approved 3rd attempt) ──
+  return (
+    <div style={S.checkWrap}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div style={isFundamentals ? S.typePillAmber : S.typePillGreen}>
+          {isFundamentals ? <ClipboardList size={14} /> : <Trophy size={14} />}
+          {isFundamentals ? ' Fundamentals Exam' : ' Final Exam'}
+        </div>
+        {/* Show "Admin Approved" badge when on unlocked 3rd attempt */}
+        {isFinalExam && attemptCount >= 2 && attemptInfo?.unlocked_by_instructor && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.28)', color: 'rgba(21,128,61,1)', fontWeight: 800, fontSize: 12 }}>
+            <CheckCircle2 size={13} /> Admin Approved — Final Attempt
+          </div>
+        )}
+      </div>
+ 
       <h1 style={S.lessonTitle}>{item.title}</h1>
       <p style={S.checkSubtitle}>
         Score {item.passingScore || 70}%+ to pass · {item.questions.length} questions
         {!submitted && ` · ${answered}/${item.questions.length} answered`}
       </p>
+ 
+      {/* Attempt warnings — only for attempts 1 and 2 */}
       {attemptCount === 0 && !submitted && <AttemptWarning1st />}
       {attemptCount === 1 && !submitted && <AttemptWarning2nd />}
-      {attemptCount === 2 && !submitted && <AttemptWarning3rd />}
+ 
+      {/* Final attempt warning (admin approved 3rd attempt) */}
+      {isFinalExam && attemptCount >= 2 && attemptInfo?.unlocked_by_instructor && !submitted && (
+        <div style={{ ...S.attemptWarning, background: 'rgba(185,28,28,0.08)', border: '1px solid rgba(185,28,28,0.35)', color: 'rgba(185,28,28,1)' }}>
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <div style={{ fontWeight: 800, marginBottom: 3 }}>🔴 Final Attempt — Admin Approved</div>
+            <div style={{ fontWeight: 600, fontSize: 13, lineHeight: 1.6 }}>
+              This is your <strong>last attempt</strong>. Read every question carefully before submitting.
+            </div>
+          </div>
+        </div>
+      )}
+ 
       {submitted && (
         <div style={passed ? S.scorePassed : S.scoreFailed}>
           <div style={S.scoreNumber}>{score}%</div>
           <div style={S.scoreLabel}>
-            {passed ? `Passed! ${correctCount}/${item.questions.length} correct.` : `Need ${item.passingScore || 70}% — got ${correctCount}/${item.questions.length} correct.`}
+            {passed
+              ? `Passed! ${correctCount}/${item.questions.length} correct.`
+              : `Need ${item.passingScore || 70}% — got ${correctCount}/${item.questions.length} correct.`}
           </div>
-          {!passed && attemptCount >= 2 && (
-            <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 12, background: "rgba(185,28,28,0.08)", border: "1px solid rgba(185,28,28,0.25)", color: "rgba(185,28,28,1)", fontSize: 13, fontWeight: 700 }}>
-              All 3 attempts used. Please contact your instructor to unlock this exam.
+          {/* After failing the approved 3rd attempt */}
+          {!passed && isFinalExam && attemptCount >= 2 && attemptInfo?.unlocked_by_instructor && (
+            <div style={{ marginTop: 14, padding: '12px 16px', borderRadius: 12, background: 'rgba(185,28,28,0.08)', border: '1px solid rgba(185,28,28,0.25)', color: 'rgba(185,28,28,1)', fontSize: 13, fontWeight: 700 }}>
+              All attempts exhausted. Please contact your instructor for further assistance.
             </div>
           )}
-          {!passed && attemptCount === 1 && (
-            <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 12, background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", color: "rgba(146,84,0,1)", fontSize: 13, fontWeight: 700 }}>
-              1 retake remaining. Fail again = must contact instructor.
+          {/* After failing attempt 2 (non-final exam) */}
+          {!passed && !isFinalExam && attemptCount >= 2 && (
+            <div style={{ marginTop: 14, padding: '12px 16px', borderRadius: 12, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: 'rgba(146,84,0,1)', fontSize: 13, fontWeight: 700 }}>
+              Contact your instructor to unlock this exam.
             </div>
           )}
         </div>
       )}
+ 
       {!submitted && (
-        <div style={{ background: "rgba(2,8,23,0.07)", borderRadius: 999, height: 6, overflow: "hidden" }}>
-          <div style={{ height: "100%", borderRadius: 999, background: "var(--cp-blue)", width: `${(answered / item.questions.length) * 100}%`, transition: "width 0.3s" }} />
+        <div style={{ background: 'rgba(2,8,23,0.07)', borderRadius: 999, height: 6, overflow: 'hidden' }}>
+          <div style={{ height: '100%', borderRadius: 999, background: 'var(--cp-blue)', width: `${(answered / item.questions.length) * 100}%`, transition: 'width 0.3s' }} />
         </div>
       )}
+ 
       {!submitted && allAnswered && (
         <div style={S.earlySubmitHint}>
-          <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(21,128,61,1)" }} />
+          <CheckCircle2 size={15} style={{ flexShrink: 0, color: 'rgba(21,128,61,1)' }} />
           All questions answered — you can submit now or review your answers.
         </div>
       )}
+ 
       <div style={S.questionList}>
         {item.questions.map((q, qi) => {
           const sel = answers[q.id];
@@ -1031,8 +1464,8 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
                       onClick={() => handleSelect(q.id, oi)}>
                       <span style={S.optionLetter}>{String.fromCharCode(65 + oi)}</span>
                       <span style={S.optionText}>{opt}</span>
-                      {markCorrect && <CheckCircle2 size={15} style={{ flexShrink: 0, color: "rgba(34,197,94,1)" }} />}
-                      {markWrong   && <X size={15} style={{ flexShrink: 0, color: "rgba(239,68,68,1)" }} />}
+                      {markCorrect && <CheckCircle2 size={15} style={{ flexShrink: 0, color: 'rgba(34,197,94,1)' }} />}
+                      {markWrong   && <X size={15} style={{ flexShrink: 0, color: 'rgba(239,68,68,1)' }} />}
                     </button>
                   );
                 })}
@@ -1041,6 +1474,7 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
           );
         })}
       </div>
+ 
       <div style={S.navRow}>
         {!submitted && <button style={S.prevBtn} onClick={onPrev} type="button"><ArrowLeft size={16} /> Previous</button>}
         {!submitted

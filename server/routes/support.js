@@ -1,9 +1,11 @@
 const express  = require('express');
 const router   = express.Router();
-const Ticket = require('../models/SupportTicket');
+const Ticket   = require('../models/SupportTicket');
 const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
+
+const STAFF_ROLES = ['instructor', 'admin', 'super_admin'];
 
 /* ── POST /api/support ─────────────────────────────────────────────── */
 router.post('/', async (req, res) => {
@@ -13,12 +15,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Subject and message are required' });
 
     const User = require('../models/User');
-    const user = await User.findById(req.user.id).select('name email').lean();
+    const user = await User.findById(req.user.id).select('name email role').lean();
 
     const ticket = await Ticket.create({
       user_id:    req.user.id,
       user_name:  user?.name  || 'Unknown',
       user_email: user?.email || '',
+      user_role:  user?.role  || 'student',
       subject:    subject.trim(),
       category:   category || 'other',
       message:    message.trim(),
@@ -48,14 +51,15 @@ router.get('/mine', async (req, res) => {
 /* ── GET /api/support/admin/all ────────────────────────────────────── */
 router.get('/admin/all', async (req, res) => {
   try {
-    if (!['instructor', 'admin'].includes(req.user.role))
-      return res.status(403).json({ message: 'Instructors only' });
+    if (!STAFF_ROLES.includes(req.user.role))
+      return res.status(403).json({ message: 'Access denied' });
 
     const filter = {};
-    const { status, priority, category } = req.query;
-    if (status   && status   !== 'all') filter.status   = status;
-    if (priority && priority !== 'all') filter.priority = priority;
-    if (category && category !== 'all') filter.category = category;
+    const { status, priority, category, user_role } = req.query;
+    if (status    && status    !== 'all') filter.status    = status;
+    if (priority  && priority  !== 'all') filter.priority  = priority;
+    if (category  && category  !== 'all') filter.category  = category;
+    if (user_role && user_role !== 'all') filter.user_role = user_role;
 
     const tickets = await Ticket.find(filter).sort({ createdAt: -1 }).lean();
     res.json({ tickets, total: tickets.length });
@@ -71,8 +75,8 @@ router.get('/:ticketId', async (req, res) => {
     const ticket = await Ticket.findById(req.params.ticketId).lean();
     if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
-    const isInstructor = ['instructor', 'admin'].includes(req.user.role);
-    if (!isInstructor && String(ticket.user_id) !== String(req.user.id))
+    const isStaff = STAFF_ROLES.includes(req.user.role);
+    if (!isStaff && String(ticket.user_id) !== String(req.user.id))
       return res.status(403).json({ message: 'Access denied' });
 
     res.json({ ticket });
@@ -91,8 +95,8 @@ router.post('/:ticketId/reply', async (req, res) => {
     const ticket = await Ticket.findById(req.params.ticketId);
     if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
 
-    const isInstructor = ['instructor', 'admin'].includes(req.user.role);
-    if (!isInstructor && String(ticket.user_id) !== String(req.user.id))
+    const isStaff = STAFF_ROLES.includes(req.user.role);
+    if (!isStaff && String(ticket.user_id) !== String(req.user.id))
       return res.status(403).json({ message: 'Access denied' });
 
     const User = require('../models/User');
@@ -105,7 +109,7 @@ router.post('/:ticketId/reply', async (req, res) => {
       message:     message.trim(),
     });
 
-    if (isInstructor && ticket.status === 'open') ticket.status = 'in_progress';
+    if (isStaff && ticket.status === 'open') ticket.status = 'in_progress';
 
     await ticket.save();
     res.json({ ticket, message: 'Reply added' });
@@ -118,8 +122,8 @@ router.post('/:ticketId/reply', async (req, res) => {
 /* ── PUT /api/support/:ticketId/status ─────────────────────────────── */
 router.put('/:ticketId/status', async (req, res) => {
   try {
-    if (!['instructor', 'admin'].includes(req.user.role))
-      return res.status(403).json({ message: 'Instructors only' });
+    if (!STAFF_ROLES.includes(req.user.role))
+      return res.status(403).json({ message: 'Access denied' });
 
     const { status, priority } = req.body;
     const ticket = await Ticket.findById(req.params.ticketId);

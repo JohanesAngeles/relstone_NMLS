@@ -4,7 +4,7 @@ import API from "../../api/axios.js";
 import Layout from "../../components/Layout.jsx";
 import {
   BookOpen, Clock, CheckCircle, PlayCircle, Award,
-  ChevronRight, Heart, Filter, Search, Eye, MessageSquare,
+  ChevronRight, Heart, Filter, Search, Eye, MessageSquare, Lock,
 } from "lucide-react";
 
 /* ─── MyCourses ──────────────────────────────────────────────────── */
@@ -19,7 +19,7 @@ const MyCourses = () => {
   const [typeFilter, setTypeFilter]   = useState("all");
   const [search, setSearch]           = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [myReviews,   setMyReviews]   = useState([]);   // student's submitted testimonials
+  const [myReviews, setMyReviews]     = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -44,51 +44,95 @@ const MyCourses = () => {
     const orders     = data.dashboard?.orders || [];
     const transcript = data.transcript?.transcript || [];
 
+    // ── Build courseId → order status map ──
+    const orderStatusMap = {};
+    orders.forEach(o => {
+      const status = String(o.status || '').toLowerCase();
+      (o.items || []).forEach(item => {
+        const courseId = String(item.course_id?._id || item.course_id || '');
+        if (courseId) orderStatusMap[courseId] = status;
+      });
+    });
+
     // ── Completed courses from transcript ──
     const completedCourses = transcript.map((t) => {
       const courseObj = t.course_id || {};
       const courseId  = courseObj?._id || courseObj || t._id;
       return {
-        id:              courseId,
-        title:           t.course_title || courseObj?.title || "—",
-        type:            t.type         || courseObj?.type,
-        credit_hours:    t.credit_hours || courseObj?.credit_hours,
-        nmls_id:         t.nmls_course_id,
-        completed_at:    t.completed_at,
+        id:                    courseId,
+        title:                 t.course_title || courseObj?.title || "—",
+        type:                  t.type         || courseObj?.type,
+        credit_hours:          t.credit_hours || courseObj?.credit_hours,
+        nmls_id:               t.nmls_course_id,
+        completed_at:          t.completed_at,
         certificate_course_id: courseObj?._id || courseId,
-        state:           t.state || "Federal",
-        progress:        100,
-        status:          "completed",
+        state:                 t.state || "Federal",
+        progress:              100,
+        status:                "completed",
+        is_paid:               true,
       };
     });
-const paidCourseIds = new Set(
-  orders
-    .filter(o => ["paid", "completed"].includes(String(o.status).toLowerCase()))
-    .flatMap(o => (o.items || []).map(i => String(i.course_id?._id || i.course_id)))
-);
-    // ── In-progress courses ──
+
+    // ── In-progress: show ALL courses that have an order (paid or pending) ──
+    const completedIds = new Set(completedCourses.map(c => String(c.id)));
+
     const inProgressCourses = available
-  .filter((c) => !c.already_completed && paidCourseIds.has(String(c.course_id)))
-  .map((c) => {
-        const order = orders.find((o) =>
-          (o.items || []).some((i) => String(i.course_id?._id) === String(c.course_id))
-        );
+      .filter((c) => {
+        const courseId = String(c.course_id);
+        // Must have an order and not already completed
+        return !c.already_completed &&
+               !completedIds.has(courseId) &&
+               orderStatusMap[courseId] !== undefined;
+      })
+      .map((c) => {
+        const courseId    = String(c.course_id);
+        const orderStatus = orderStatusMap[courseId] ?? '';
+        const isPaid      = orderStatus === 'paid'; // only 'paid' unlocks access
         const completedCount = Number.isFinite(c.completed_steps) ? c.completed_steps : 0;
-        const totalSteps     = Number.isFinite(c.total_steps) ? c.total_steps : 0;
-        const progress       = Number.isFinite(c.progress) ? c.progress : 0;
+        const totalSteps     = Number.isFinite(c.total_steps)     ? c.total_steps     : 0;
+        const progress       = Number.isFinite(c.progress)        ? c.progress        : 0;
         return {
-          id:            c.course_id,
-          title:         c.title,
-          type:          c.type,
-          credit_hours:  c.credit_hours,
-          state:         c.state || "Federal",
+          id:             c.course_id,
+          title:          c.title,
+          type:           c.type,
+          credit_hours:   c.credit_hours,
+          state:          c.state || "Federal",
           progress,
           completedSteps: completedCount,
           totalSteps,
-          last_accessed: order?.updatedAt || order?.createdAt || null,
-          status:        "inprogress",
+          status:         "inprogress",
+          is_paid:        isPaid,
+          order_status:   orderStatus, // keep for debugging if needed
         };
       });
+
+    // ── Also include orders NOT yet in available_courses ──
+    const availableIds = new Set(available.map(c => String(c.course_id)));
+    orders.forEach(o => {
+      const orderStatus = String(o.status || '').toLowerCase();
+      const isPaid      = orderStatus === 'paid';
+      (o.items || []).forEach(item => {
+        const courseObj = item.course_id || {};
+        const courseId  = String(courseObj._id || courseObj || '');
+        if (!courseId) return;
+        if (availableIds.has(courseId)) return;   // already handled above
+        if (completedIds.has(courseId)) return;   // already completed
+        inProgressCourses.push({
+          id:             courseId,
+          title:          courseObj.title          ?? '—',
+          type:           courseObj.type           ?? '',
+          credit_hours:   courseObj.credit_hours,
+          nmls_id:        courseObj.nmls_course_id,
+          state:          (courseObj.states_approved?.[0]) ?? 'Federal',
+          progress:       0,
+          completedSteps: 0,
+          totalSteps:     0,
+          status:         'inprogress',
+          is_paid:        isPaid,
+          order_status:   orderStatus,
+        });
+      });
+    });
 
     const allStates = [...new Set([
       ...completedCourses.map((c) => c.state),
@@ -195,7 +239,6 @@ const paidCourseIds = new Set(
           </div>
         )}
 
-        {/* ── Completed tab info banner ── */}
         {activeTab === "completed" && completed.length > 0 && (
           <div style={S.reviewInfoBanner}>
             <Eye size={14} style={{ flexShrink: 0 }} />
@@ -229,11 +272,9 @@ const paidCourseIds = new Set(
 const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasReviewed }) => {
   const isCompleted = course.status === "completed";
   const isWishlist  = course.status === "wishlist";
+  const isPaid      = course.is_paid === true;
   const progress    = course.progress || 0;
 
-  const lastAccessed = course.last_accessed
-    ? new Date(course.last_accessed).toLocaleDateString("en-US", { month:"short",day:"numeric",year:"numeric" })
-    : null;
   const completedAt = course.completed_at
     ? new Date(course.completed_at).toLocaleDateString("en-US", { month:"short",day:"numeric",year:"numeric" })
     : null;
@@ -245,7 +286,6 @@ const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasRev
 
   return (
     <div style={S.card} className="mc-card">
-      {/* ── Colored top accent bar ── */}
       <div style={{ ...S.cardAccent, background: course.type === "PE" ? "#2EABFE" : course.type === "CE" ? "#00B4B4" : "#F59E0B" }} />
 
       <div style={S.cardBody}>
@@ -260,9 +300,10 @@ const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasRev
           <div style={S.cardBadges}>
             <span style={badgeStyle(course.type)}>{String(course.type || "").toUpperCase()}</span>
             {course.state && course.state !== "Federal" && <span style={S.stateBadge}>{course.state}</span>}
-            {/* ── Completed badge shown on card header ── */}
-            {isCompleted && (
-              <span style={S.completedHeaderBadge}>✓ Completed</span>
+            {isCompleted && <span style={S.completedHeaderBadge}>✓ Completed</span>}
+            {/* Show pending badge in header if not paid */}
+            {!isCompleted && !isWishlist && !isPaid && (
+              <span style={S.pendingHeaderBadge}>⏳ Pending</span>
             )}
           </div>
         </div>
@@ -274,8 +315,8 @@ const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasRev
           {course.nmls_id && <span style={S.metaItem}>NMLS #{course.nmls_id}</span>}
         </div>
 
-        {/* ── Progress bar for in-progress courses ── */}
-        {!isCompleted && !isWishlist && (
+        {/* Progress bar — only show if paid and in progress */}
+        {!isCompleted && !isWishlist && isPaid && (
           <div style={S.progressWrap}>
             <div style={S.progressTop}>
               <span style={S.progressLabel}>Progress</span>
@@ -284,14 +325,11 @@ const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasRev
             <div style={S.progressTrack}>
               <div style={{ ...S.progressFill, width:`${progress}%` }} />
             </div>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-              {lastAccessed && <div style={S.lastAccessed}>Last accessed {lastAccessed}</div>}
-              {stepsLabel   && <div style={S.stepsLabel}>{stepsLabel}</div>}
-            </div>
+            {stepsLabel && <div style={S.stepsLabel}>{stepsLabel}</div>}
           </div>
         )}
 
-        {/* ── Completion date row ── */}
+        {/* Completion date */}
         {isCompleted && (
           <div style={S.completedBadgeRow}>
             <div style={S.completedBadge}>
@@ -302,11 +340,10 @@ const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasRev
         )}
 
         {/* ── Action buttons ── */}
-        <div style={{ ...S.cardActions, flexDirection: "column", gap: 8 }}>
+        <div style={{ ...S.cardActions, flexDirection:"column", gap:8 }}>
           {isCompleted ? (
             <>
-              {/* Top row — Certificate + Review Course */}
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display:"flex", gap:8 }}>
                 <button style={S.certBtn} onClick={onViewCertificate} type="button">
                   <Award size={14} /> Certificate
                 </button>
@@ -314,14 +351,13 @@ const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasRev
                   <Eye size={14} /> Review Course
                 </button>
               </div>
-              {/* Bottom row — Leave a Review (only if not yet reviewed) */}
               {!hasReviewed ? (
                 <button style={S.leaveReviewBtn} onClick={onLeaveReview} type="button">
                   <MessageSquare size={14} /> Leave a Review
                 </button>
               ) : (
                 <div style={S.alreadyReviewedBadge}>
-                  <CheckCircle size={13} style={{ color: "#22C55E" }} /> Review Submitted
+                  <CheckCircle size={13} style={{ color:"#22C55E" }} /> Review Submitted
                 </div>
               )}
             </>
@@ -329,6 +365,11 @@ const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasRev
             <button style={S.resumeBtn} onClick={onResume} type="button">
               <BookOpen size={14} /> Enroll Now
             </button>
+          ) : !isPaid ? (
+            // 🔒 Payment not confirmed yet
+            <div style={S.pendingBadge}>
+              <Lock size={14} /> Payment Pending — Access Locked
+            </div>
           ) : (
             <button style={S.resumeBtn} onClick={onResume} type="button">
               <PlayCircle size={14} /> {progress > 0 ? "Resume" : "Start"} Learning
@@ -391,18 +432,18 @@ const S = {
   pageTitle:  { fontSize:26,fontWeight:950,color:"#091925",letterSpacing:"-0.4px" },
   browsBtn:   { display:"inline-flex",alignItems:"center",gap:8,padding:"10px 16px",borderRadius:12,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,color:"rgba(9,25,37,0.75)" },
 
-  toolbar:        { display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:14 },
-  tabs:           { display:"flex",gap:6 },
-  tab:            { display:"inline-flex",alignItems:"center",gap:7,padding:"9px 14px",borderRadius:999,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,color:"rgba(9,25,37,0.60)" },
-  tabActive:      { background:"#091925",color:"#fff",border:"1px solid #091925",boxShadow:"0 4px 14px rgba(9,25,37,0.18)" },
-  tabCount:       { display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,height:20,borderRadius:999,background:"rgba(2,8,23,0.08)",fontSize:11,fontWeight:900,color:"rgba(9,25,37,0.55)",padding:"0 5px" },
-  tabCountActive: { background:"rgba(255,255,255,0.18)",color:"#fff" },
-  toolRight:      { display:"flex",alignItems:"center",gap:8 },
-  searchWrap:     { display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderRadius:10,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",minWidth:220 },
-  searchInput:    { border:"none",outline:"none",fontSize:13,fontWeight:600,color:"rgba(9,25,37,0.80)",background:"transparent",width:"100%" },
-  filterBtn:      { display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:10,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,color:"rgba(9,25,37,0.65)",position:"relative" },
-  filterBtnActive:{ border:"1px solid rgba(46,171,254,0.40)",color:"#2EABFE",background:"rgba(46,171,254,0.06)" },
-  filterDot:      { position:"absolute",top:6,right:6,width:7,height:7,borderRadius:999,background:"#2EABFE",border:"2px solid #fff" },
+  toolbar:         { display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:14 },
+  tabs:            { display:"flex",gap:6 },
+  tab:             { display:"inline-flex",alignItems:"center",gap:7,padding:"9px 14px",borderRadius:999,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,color:"rgba(9,25,37,0.60)" },
+  tabActive:       { background:"#091925",color:"#fff",border:"1px solid #091925",boxShadow:"0 4px 14px rgba(9,25,37,0.18)" },
+  tabCount:        { display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,height:20,borderRadius:999,background:"rgba(2,8,23,0.08)",fontSize:11,fontWeight:900,color:"rgba(9,25,37,0.55)",padding:"0 5px" },
+  tabCountActive:  { background:"rgba(255,255,255,0.18)",color:"#fff" },
+  toolRight:       { display:"flex",alignItems:"center",gap:8 },
+  searchWrap:      { display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderRadius:10,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",minWidth:220 },
+  searchInput:     { border:"none",outline:"none",fontSize:13,fontWeight:600,color:"rgba(9,25,37,0.80)",background:"transparent",width:"100%" },
+  filterBtn:       { display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:10,border:"1px solid rgba(2,8,23,0.10)",background:"#fff",cursor:"pointer",fontWeight:800,fontSize:13,color:"rgba(9,25,37,0.65)",position:"relative" },
+  filterBtnActive: { border:"1px solid rgba(46,171,254,0.40)",color:"#2EABFE",background:"rgba(46,171,254,0.06)" },
+  filterDot:       { position:"absolute",top:6,right:6,width:7,height:7,borderRadius:999,background:"#2EABFE",border:"2px solid #fff" },
 
   filterPanel:   { display:"flex",gap:24,flexWrap:"wrap",alignItems:"flex-start",padding:"16px 18px",borderRadius:16,border:"1px solid rgba(46,171,254,0.18)",background:"rgba(46,171,254,0.04)",marginBottom:16 },
   filterGroup:   { display:"grid",gap:8 },
@@ -412,15 +453,7 @@ const S = {
   chipActive:    { background:"#091925",color:"#fff",border:"1px solid #091925" },
   clearFilters:  { alignSelf:"flex-end",padding:"6px 12px",borderRadius:999,border:"1px solid rgba(239,68,68,0.25)",background:"rgba(239,68,68,0.06)",cursor:"pointer",fontSize:12,fontWeight:700,color:"rgba(180,30,30,0.85)" },
 
-  // ── Review info banner shown on completed tab ──
-  reviewInfoBanner: {
-    display:"flex",alignItems:"center",gap:10,
-    padding:"12px 16px",borderRadius:12,marginBottom:16,
-    background:"rgba(245,158,11,0.07)",
-    border:"1px solid rgba(245,158,11,0.25)",
-    color:"rgba(146,84,0,1)",
-    fontSize:13,fontWeight:700,lineHeight:1.5,
-  },
+  reviewInfoBanner: { display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderRadius:12,marginBottom:16,background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.25)",color:"rgba(146,84,0,1)",fontSize:13,fontWeight:700,lineHeight:1.5 },
 
   grid: { display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16 },
 
@@ -432,14 +465,10 @@ const S = {
   cardBadges:  { display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end",alignItems:"center" },
   stateBadge:  { display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,fontSize:11,fontWeight:700,color:"rgba(9,25,37,0.65)",background:"rgba(2,8,23,0.05)",border:"1px solid rgba(2,8,23,0.10)" },
 
-  // ── Small "✓ Completed" badge shown in card header ──
-  completedHeaderBadge: {
-    display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,
-    fontSize:11,fontWeight:800,
-    color:"rgba(21,128,61,1)",
-    background:"rgba(34,197,94,0.10)",
-    border:"1px solid rgba(34,197,94,0.25)",
-  },
+  completedHeaderBadge: { display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,fontSize:11,fontWeight:800,color:"rgba(21,128,61,1)",background:"rgba(34,197,94,0.10)",border:"1px solid rgba(34,197,94,0.25)" },
+
+  // ── ⏳ Pending badge shown in card header ──
+  pendingHeaderBadge: { display:"inline-flex",alignItems:"center",padding:"3px 8px",borderRadius:999,fontSize:11,fontWeight:800,color:"rgba(146,84,0,1)",background:"rgba(245,158,11,0.12)",border:"1px solid rgba(245,158,11,0.30)" },
 
   cardTitle:   { fontWeight:900,fontSize:14,color:"rgba(9,25,37,0.88)",lineHeight:1.45,marginBottom:8 },
   cardMeta:    { display:"flex",gap:10,flexWrap:"wrap",marginBottom:14 },
@@ -451,7 +480,6 @@ const S = {
   progressPct:   { fontSize:12,fontWeight:900,color:"#2EABFE" },
   progressTrack: { height:6,borderRadius:999,background:"rgba(2,8,23,0.07)",overflow:"hidden",marginBottom:6 },
   progressFill:  { height:"100%",borderRadius:999,background:"linear-gradient(90deg,#2EABFE,#00B4B4)",transition:"width .4s" },
-  lastAccessed:  { fontSize:11,fontWeight:700,color:"rgba(9,25,37,0.42)" },
   stepsLabel:    { fontSize:11,fontWeight:700,color:"rgba(9,25,37,0.42)" },
 
   completedBadgeRow: { marginBottom:12 },
@@ -459,55 +487,18 @@ const S = {
 
   cardActions: { display:"flex",gap:8,marginTop:4 },
 
-  // ── Resume / Start Learning button ──
-  resumeBtn: {
-    flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,
-    padding:"10px",borderRadius:11,border:"none",
-    background:"#091925",color:"#fff",
-    cursor:"pointer",fontWeight:800,fontSize:13,
-  },
+  resumeBtn: { flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px",borderRadius:11,border:"none",background:"#091925",color:"#fff",cursor:"pointer",fontWeight:800,fontSize:13 },
 
-  // ── View Certificate button ──
-  certBtn: {
-    flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
-    padding:"10px",borderRadius:11,
-    border:"1px solid rgba(245,158,11,0.40)",
-    background:"linear-gradient(135deg,rgba(245,158,11,0.14),rgba(245,158,11,0.06))",
-    color:"rgba(146,84,0,1)",
-    cursor:"pointer",fontWeight:800,fontSize:13,
-    boxShadow:"0 2px 10px rgba(245,158,11,0.15)",
-  },
+  certBtn: { flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px",borderRadius:11,border:"1px solid rgba(245,158,11,0.40)",background:"linear-gradient(135deg,rgba(245,158,11,0.14),rgba(245,158,11,0.06))",color:"rgba(146,84,0,1)",cursor:"pointer",fontWeight:800,fontSize:13,boxShadow:"0 2px 10px rgba(245,158,11,0.15)" },
 
-  // ── Review Course button — new style ──
-  reviewBtn: {
-    flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
-    padding:"10px",borderRadius:11,
-    border:"1px solid rgba(46,171,254,0.30)",
-    background:"rgba(46,171,254,0.08)",
-    color:"#2EABFE",
-    cursor:"pointer",fontWeight:800,fontSize:13,
-  },
+  reviewBtn: { flex:1,display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px",borderRadius:11,border:"1px solid rgba(46,171,254,0.30)",background:"rgba(46,171,254,0.08)",color:"#2EABFE",cursor:"pointer",fontWeight:800,fontSize:13 },
 
-  // ── Leave a Review button — full width, amber accent ──
-  leaveReviewBtn: {
-    width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
-    padding:"10px",borderRadius:11,
-    border:"1px solid rgba(245,158,11,0.35)",
-    background:"linear-gradient(135deg,rgba(245,158,11,0.10),rgba(245,158,11,0.04))",
-    color:"rgba(146,84,0,1)",
-    cursor:"pointer",fontWeight:800,fontSize:13,
-    transition:"all 0.18s",
-  },
+  leaveReviewBtn: { width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px",borderRadius:11,border:"1px solid rgba(245,158,11,0.35)",background:"linear-gradient(135deg,rgba(245,158,11,0.10),rgba(245,158,11,0.04))",color:"rgba(146,84,0,1)",cursor:"pointer",fontWeight:800,fontSize:13 },
 
-  // ── Already reviewed badge ──
-  alreadyReviewedBadge: {
-    width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,
-    padding:"10px",borderRadius:11,
-    background:"rgba(34,197,94,0.06)",
-    border:"1px solid rgba(34,197,94,0.22)",
-    color:"rgba(21,128,61,1)",
-    fontSize:13,fontWeight:800,
-  },
+  alreadyReviewedBadge: { width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px",borderRadius:11,background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.22)",color:"rgba(21,128,61,1)",fontSize:13,fontWeight:800 },
+
+  // 🔒 Payment pending lock banner
+  pendingBadge: { width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,padding:"10px",borderRadius:11,background:"#FFF7ED",border:"1px solid rgba(245,158,11,0.40)",color:"rgba(146,84,0,1)",fontSize:13,fontWeight:800 },
 
   empty:      { textAlign:"center",padding:"60px 20px",borderRadius:20,border:"1px dashed rgba(2,8,23,0.14)",background:"rgba(2,8,23,0.02)",marginTop:8 },
   emptyIcon:  { fontSize:40,marginBottom:14 },

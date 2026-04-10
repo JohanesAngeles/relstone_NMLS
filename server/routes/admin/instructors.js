@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const User = require('../../models/User');
 const Course = require('../../models/Course');
+const InstructorLog = require('../../models/InstructorLog');
 
 // GET /api/admin/instructors — Get all instructors
 router.get('/', async (req, res) => {
@@ -36,7 +37,34 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/admin/instructors/:id — Get single instructor
+// GET /api/admin/instructors/logs — All logs (must be before /:id)
+router.get('/logs', async (req, res) => {
+  try {
+    const { limit = 100, action, instructor_id, student_id } = req.query;
+
+    const filter = {};
+    if (action)        filter.action        = action;
+    if (student_id)    filter.student_id    = student_id;
+    if (instructor_id) filter.instructor_id = instructor_id;
+
+    const logs = await InstructorLog.find(filter)
+      .populate('instructor_id', 'name')
+      .sort({ timestamp: -1 })
+      .limit(Number(limit))
+      .lean();
+
+    const enriched = logs.map(log => ({
+      ...log,
+      instructor_name: log.instructor_name || log.instructor_id?.name || 'Staff Member',
+    }));
+
+    res.json({ logs: enriched, total: enriched.length });
+  } catch (err) {
+    console.error('Get admin logs error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // GET /api/admin/instructors/:id — Get single instructor
 router.get('/:id', async (req, res) => {
   try {
@@ -47,26 +75,23 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Instructor not found' });
     }
 
-    // Get courses where this instructor is assigned
     const Enrollment = require('../../models/Enrollment');
     const courses = await Course.find({}).select('title nmls_course_id type is_active');
 
-    // Get student count per course
     const coursesWithCount = await Promise.all(
       courses.map(async (c) => {
         const studentCount = await Enrollment.countDocuments({ course_id: c._id });
         return {
-          _id:          c._id,
-          title:        c.title,
+          _id:            c._id,
+          title:          c.title,
           nmls_course_id: c.nmls_course_id,
-          type:         c.type,
-          is_active:    c.is_active,
+          type:           c.type,
+          is_active:      c.is_active,
           studentCount,
         };
       })
     );
 
-    // Recent login logs — last 10 users who logged in
     const recentLogs = await User.find({
       last_login_at: { $ne: null }
     })
@@ -78,6 +103,36 @@ router.get('/:id', async (req, res) => {
 
   } catch (err) {
     console.error('Get instructor error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/admin/instructors/:id/logs — Logs for one specific instructor
+router.get('/:id/logs', async (req, res) => {
+  try {
+    const { limit = 50, action } = req.query;
+
+    const instructor = await User.findById(req.params.id);
+    if (!instructor || instructor.role !== 'instructor') {
+      return res.status(404).json({ message: 'Instructor not found' });
+    }
+
+    const filter = { instructor_id: req.params.id };
+    if (action) filter.action = action;
+
+    const logs = await InstructorLog.find(filter)
+      .sort({ timestamp: -1 })
+      .limit(Number(limit))
+      .lean();
+
+    const enriched = logs.map(log => ({
+      ...log,
+      instructor_name: log.instructor_name || instructor.name || 'Staff Member',
+    }));
+
+    res.json({ logs: enriched, total: enriched.length });
+  } catch (err) {
+    console.error('Get instructor logs error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -103,11 +158,22 @@ router.post('/', async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      role: 'instructor',
+      role:       'instructor',
       isVerified: true,
-      is_active: true,
-      phone:   phone   || null,
-      address: address || null,
+      is_active:  true,
+      phone:      phone   || null,
+      address:    address || null,
+    });
+
+    await InstructorLog.create({
+      instructor_id:   instructor._id,
+      instructor_name: instructor.name,
+      action:          'toggle_active',
+      student_id:      instructor._id,
+      student_name:    instructor.name,
+      student_email:   instructor.email,
+      details:         `Instructor account created by admin`,
+      timestamp:       new Date(),
     });
 
     res.status(201).json({
@@ -152,6 +218,17 @@ router.put('/:id', async (req, res) => {
       { new: true }
     ).select('-password -otp -otpExpires');
 
+    await InstructorLog.create({
+      instructor_id:   instructor._id,
+      instructor_name: instructor.name,
+      action:          'toggle_active',
+      student_id:      instructor._id,
+      student_name:    instructor.name,
+      student_email:   instructor.email,
+      details:         `Instructor profile updated by admin`,
+      timestamp:       new Date(),
+    });
+
     res.json({ message: 'Instructor updated successfully', instructor: updated });
 
   } catch (err) {
@@ -172,8 +249,19 @@ router.patch('/:id/toggle-status', async (req, res) => {
     instructor.deactivated_at = instructor.is_active ? null : new Date();
     await instructor.save();
 
+    await InstructorLog.create({
+      instructor_id:   instructor._id,
+      instructor_name: instructor.name,
+      action:          'toggle_active',
+      student_id:      instructor._id,
+      student_name:    instructor.name,
+      student_email:   instructor.email,
+      details:         `Instructor account ${instructor.is_active ? 'activated' : 'deactivated'} by admin`,
+      timestamp:       new Date(),
+    });
+
     res.json({
-      message: `Instructor ${instructor.is_active ? 'activated' : 'deactivated'} successfully`,
+      message:   `Instructor ${instructor.is_active ? 'activated' : 'deactivated'} successfully`,
       is_active: instructor.is_active,
     });
 
@@ -197,9 +285,20 @@ router.patch('/:id/reset-password', async (req, res) => {
       return res.status(404).json({ message: 'Instructor not found' });
     }
 
-    const salt       = await bcrypt.genSalt(10);
+    const salt          = await bcrypt.genSalt(10);
     instructor.password = await bcrypt.hash(newPassword, salt);
     await instructor.save();
+
+    await InstructorLog.create({
+      instructor_id:   instructor._id,
+      instructor_name: instructor.name,
+      action:          'toggle_active',
+      student_id:      instructor._id,
+      student_name:    instructor.name,
+      student_email:   instructor.email,
+      details:         `Password reset by admin`,
+      timestamp:       new Date(),
+    });
 
     res.json({ message: 'Password reset successfully.' });
 

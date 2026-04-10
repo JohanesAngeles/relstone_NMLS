@@ -12,7 +12,7 @@ import {
   MessageSquare, ThumbsUp, ThumbsDown, Trash2,
   UserCheck, UserX, Activity, BookPlus, BookMinus,
   Filter, Calendar, User, Pencil, Bell, Plus,
-  DollarSign, XCircle, CreditCard, Package,
+  DollarSign, XCircle, CreditCard, Package,HelpCircle
 } from "lucide-react";
 
 /* ─── Logout Confirm ─────────────────────────────────────────────── */
@@ -522,7 +522,7 @@ const OrderCard = ({ order, onConfirm, onReject }) => {
         </div>
       </div>
 
-      {/* ── Order meta strip ── */}
+     {/* ── Order meta strip ── */}
       <div style={{
         display: "flex", gap: 10, alignItems: "center", marginBottom: 12,
         padding: "10px 14px", borderRadius: 12,
@@ -540,6 +540,18 @@ const OrderCard = ({ order, onConfirm, onReject }) => {
         <span style={{ fontSize: 15, fontWeight: 950, color: "rgba(11,18,32,0.88)", letterSpacing: "-0.3px" }}>
           ${total}
         </span>
+        {order.voucher_code && Number(order.voucher_discount) > 0 && (
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            fontSize: 11, fontWeight: 800,
+            color: "rgba(22,101,52,1)",
+            background: "rgba(16,185,129,0.10)",
+            border: "1px solid rgba(16,185,129,0.25)",
+            padding: "3px 9px", borderRadius: 999,
+          }}>
+            🎟️ {order.voucher_code} &nbsp;-${Number(order.voucher_discount).toFixed(2)}
+          </span>
+        )}
         <span style={{
           marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.42)",
           display: "flex", alignItems: "center", gap: 4,
@@ -548,7 +560,6 @@ const OrderCard = ({ order, onConfirm, onReject }) => {
           {(order.items || []).length} course{(order.items || []).length !== 1 ? "s" : ""}
         </span>
       </div>
-
       {/* ── Course items ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: isPending ? 14 : 0 }}>
         {(order.items || []).map((item, i) => {
@@ -1261,6 +1272,8 @@ const [orderFilter, setOrderFilter] = useState("all");
                     <ActionCard icon={<Activity size={17} />}      title="Activity Logs"     sub="View all course edits and assignments" onClick={() => setActiveTab("logs")} />
                     <ActionCard icon={<Plus size={17} />}          title="Add New Course"    sub="Create a new NMLS course" onClick={() => navigate("/instructor/courses/add")} />
                     <ActionCard icon={<MessageSquare size={17} />} title="Support Inbox"     sub={totalOpenSupport > 0 ? `${totalOpenSupport} open ticket${totalOpenSupport !== 1 ? "s" : ""} waiting` : "View and respond to student tickets"} onClick={() => navigate("/instructor/support")} />
+                  <ActionCard icon={<HelpCircle size={17} />} title="Contact Admin" sub="Submit tickets for website concerns or admin help" onClick={() => navigate("/instructor/contact-admin")} />
+
                   </div>
                 </div>
               </div>

@@ -9,11 +9,12 @@ const replySchema = new mongoose.Schema({
 }, { _id: false });
 
 const ticketSchema = new mongoose.Schema({
-  user_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  user_name:   { type: String },
-  user_email:  { type: String },
-  subject:     { type: String, required: true, trim: true },
-  category:    {
+  user_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  user_name:  { type: String },
+  user_email: { type: String },
+  user_role:  { type: String, enum: ['student', 'instructor', 'admin'], default: 'student' }, // ← NEW
+  subject:    { type: String, required: true, trim: true },
+  category:   {
     type:    String,
     enum:    ['technical', 'billing', 'course', 'certificate', 'account', 'other'],
     default: 'other',

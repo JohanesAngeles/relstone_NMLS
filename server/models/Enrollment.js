@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const moduleProgressSchema = new mongoose.Schema({
   module_order:  { type: Number, required: true },
   module_title:  { type: String },
-  seat_seconds:  { type: Number, default: 0 },   // accumulated active seat time
+  seat_seconds:  { type: Number, default: 0 },
   completed:     { type: Boolean, default: false },
   completed_at:  { type: Date, default: null },
   quiz_passed:   { type: Boolean, default: false },
@@ -22,7 +22,11 @@ const enrollmentSchema = new mongoose.Schema({
   rocs_agreed_at: { type: Date,    default: null },
 
   // Overall progress
-  status:         { type: String, enum: ['enrolled', 'in_progress', 'completed'], default: 'enrolled' },
+  status: {
+    type:    String,
+    enum:    ['enrolled', 'in_progress', 'completed', 'removed'], // ← added 'removed'
+    default: 'enrolled',
+  },
   current_idx:    { type: Number, default: 0 },
   completed_idxs: [{ type: Number }],
   total_steps:    { type: Number, default: 0 },
@@ -36,6 +40,10 @@ const enrollmentSchema = new mongoose.Schema({
   // Completion
   completed_at:    { type: Date,   default: null },
   certificate_url: { type: String, default: null },
+
+  // Removal tracking ← added
+  removed_at:     { type: Date,   default: null },
+  removal_reason: { type: String, default: null },
 
   // Last activity (for inactivity tracking)
   last_active_at: { type: Date, default: Date.now },

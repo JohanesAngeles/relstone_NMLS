@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import {
   LayoutDashboard, BookOpen, GraduationCap, BarChart2,
-  Users, LogOut, Menu, X, Shield, UserCheck, Settings, ShoppingCart,
+  Users, LogOut, Menu, X, Shield, UserCheck, Settings, ShoppingCart,MessageSquare,FileKey,Tag
 } from 'lucide-react';
 import logo from '../../../assets/images/Left Side Logo.png';
 
@@ -78,7 +78,12 @@ const AdminLayout = () => {
   { label: 'Students',    sub: 'View & manage students',  path: '/admin/students',    icon: <GraduationCap size={20} /> },
   { label: 'Instructors', sub: 'Manage instructors',      path: '/admin/instructors', icon: <UserCheck size={20} /> },
   { label: 'Orders',      sub: 'Revenue & orders',        path: '/admin/orders',      icon: <ShoppingCart size={20} /> },
-  { label: 'Reportss',     sub: 'Analytics & reports',     path: '/admin/reports',     icon: <BarChart2 size={20} /> },
+  { label: 'Reports',     sub: 'Analytics & reports',     path: '/admin/reports',     icon: <BarChart2 size={20} /> },
+  { label: 'Support Inbox', sub: 'Student & instructor tickets', path: '/admin/support', icon: <MessageSquare size={20} /> },
+  { label: 'Exam Requests',   sub: 'Approve retry access',         path: '/admin/exam-requests',  icon: <FileKey size={20} /> }, // ← ADD
+  { label:'Vouchers', sub:'Discount codes', path:'/admin/vouchers', icon:<Tag size={20} /> },
+
+
   ...(user?.role === 'super_admin' ? [
     { label: 'Manage Admins', sub: 'Add & manage admins', path: '/admin/manage-admins', icon: <Users size={20} /> },
   ] : []),
