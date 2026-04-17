@@ -2,11 +2,12 @@ const mongoose = require("mongoose");
 
 const testimonialSchema = new mongoose.Schema(
   {
-    // ── Who submitted ────────────────────────────────────────────────
+    // Who submitted: optional for public, required for verified
     user_id: {
       type: mongoose.Schema.Types.ObjectId,
-      ref:  "User",
-      required: true,
+      ref: "User",
+      required: false,
+      default: null,
     },
     name: {
       type: String,
@@ -15,51 +16,52 @@ const testimonialSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: true,
+      required: false,
       lowercase: true,
       trim: true,
-    },
-
-    // ── Which course ─────────────────────────────────────────────────
-    course_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref:  "Course",
-      required: true,
-    },
-    course_title: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    course_type: {
-      type: String,   // "PE" | "CE"
       default: null,
     },
 
-    // ── Rating (1–5 stars) ───────────────────────────────────────────
-    rating: {
-      type: Number,
-      min:  1,
-      max:  5,
-      required: true,
+    // Course info: manual string for public, ID for verified
+    course_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      required: false,
+      default: null,
+    },
+    course_title: {
+      type: String,
+      required: false,
+      trim: true,
+    },
+    course_type: {
+      type: String,
+      default: null,
     },
 
-    // ── Written comment ──────────────────────────────────────────────
+    rating: {
+      type: Number,
+      min: 1,
+      max: 5,
+      required: true,
+    },
     comment: {
       type: String,
       required: true,
       trim: true,
       maxlength: 2000,
     },
-
-    // ── Would recommend? ─────────────────────────────────────────────
     would_recommend: {
       type: Boolean,
       required: true,
     },
 
-    // ── Moderation ───────────────────────────────────────────────────
-    // "pending" → admin review → "approved" | "rejected"
+    // Moderation & Metadata
+    source: {
+      type: String,
+      enum: ["verified", "public"],
+      default: "verified",
+    },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
@@ -73,7 +75,17 @@ const testimonialSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// One testimonial per user per course
-testimonialSchema.index({ user_id: 1, course_id: 1 }, { unique: true });
+/**
+ * ⚠️ CRITICAL: PARTIAL INDEX
+ * This replaces the standard unique index. It allows multiple reviews where 
+ * user_id is null (public), but enforces "one review per course" for logged-in users.
+ */
+testimonialSchema.index(
+  { user_id: 1, course_id: 1 },
+  { 
+    unique: true, 
+    partialFilterExpression: { user_id: { $type: "objectId" } } 
+  }
+);
 
 module.exports = mongoose.model("Testimonial", testimonialSchema);

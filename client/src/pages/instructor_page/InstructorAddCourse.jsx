@@ -5,7 +5,7 @@ import {
   ArrowLeft, Plus, Trash2, ChevronDown, ChevronUp,
   BookOpen, FileText, Video, HelpCircle, Award,
   GripVertical, CheckCircle, AlertCircle, Loader,
-  Eye, EyeOff, Save, Info, X
+  Eye, EyeOff, Save, Info, X, Megaphone
 } from "lucide-react";
 
 /* ════════════════════════════════════════════════════════════════════
@@ -74,6 +74,12 @@ export default function InstructorAddCourse() {
   /* ── Final Exam ── */
   const [finalExam, setFinalExam] = useState(emptyFinalExam());
   const [examTab, setExamTab] = useState("official"); // official | bank
+
+  /* ── Announcement ── */
+  const [announcementOpts, setAnnouncementOpts] = useState({
+    create: true,
+    message: "",
+  });
 
   /* ── Toast helper ── */
   const showToast = (msg, type = "success") => {
@@ -176,7 +182,6 @@ export default function InstructorAddCourse() {
   const handleSubmit = async () => {
     setSaving(true);
     try {
-      // Strip internal _key / _open fields before sending
       const cleanQ = (q) => ({
         number: Number(q.number) || 0,
         question: q.question,
@@ -207,8 +212,37 @@ export default function InstructorAddCourse() {
         },
       };
 
-      await API.post("/courses", payload);
-      showToast("Course created successfully!", "success");
+      // 1. Create the course
+      const courseRes = await API.post("/courses", payload);
+      const newCourseId = courseRes.data?._id;
+
+      // 2. Optionally create an announcement
+      if (announcementOpts.create) {
+        const autoMessage =
+          announcementOpts.message.trim() ||
+          `New ${meta.type} course now available: "${meta.title}". ` +
+          `${meta.credit_hours} credit hours · $${meta.price}` +
+          (meta.states_approved
+            ? ` · Approved in: ${meta.states_approved.toUpperCase()}`
+            : "") +
+          ". Enroll today!";
+
+        await API.post("/announcements", {
+          title: `New Course: ${meta.title}`,
+          message: autoMessage,
+          type: "new_course",
+          is_active: meta.is_active,
+          ref_id: newCourseId ?? undefined,
+          expires_at: null,
+        });
+      }
+
+      showToast(
+        announcementOpts.create
+          ? "Course created & announcement posted!"
+          : "Course created successfully!",
+        "success"
+      );
       setTimeout(() => navigate("/instructor/dashboard"), 1500);
     } catch (err) {
       showToast(err?.response?.data?.message || "Failed to create course.", "error");
@@ -313,6 +347,56 @@ export default function InstructorAddCourse() {
               </label>
             </div>
 
+            {/* ── Auto-Announcement Section ── */}
+            <div style={S.announcementBox}>
+              <div style={S.announcementBoxHeader}>
+                <div style={S.announcementIcon}>
+                  <Megaphone size={15} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 900, fontSize: 13, color: "rgba(11,18,32,0.82)" }}>Auto-Announcement</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(11,18,32,0.48)", marginTop: 2 }}>
+                    Automatically post an announcement when this course is created
+                  </div>
+                </div>
+                <label style={{ ...S.toggle, flexShrink: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={announcementOpts.create}
+                    onChange={e => setAnnouncementOpts(o => ({ ...o, create: e.target.checked }))}
+                    style={{ accentColor: "#00B4B4" }}
+                  />
+                  <span style={{ ...S.toggleLabel, fontSize: 12 }}>
+                    {announcementOpts.create ? "Enabled" : "Disabled"}
+                  </span>
+                </label>
+              </div>
+
+              {announcementOpts.create && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(0,180,180,0.15)" }}>
+                  <Field label="Custom Message (leave blank to auto-generate)">
+                    <textarea
+                      style={{ ...S.input, minHeight: 72, resize: "vertical" }}
+                      placeholder={
+                        meta.title
+                          ? `New ${meta.type} course now available: "${meta.title}". ${meta.credit_hours || "?"} credit hours · $${meta.price || "?"}${meta.states_approved ? ` · Approved in: ${meta.states_approved.toUpperCase()}` : ""}. Enroll today!`
+                          : "Auto-generated from course details once you fill in the fields above…"
+                      }
+                      value={announcementOpts.message}
+                      onChange={e => setAnnouncementOpts(o => ({ ...o, message: e.target.value }))}
+                    />
+                  </Field>
+                  <div style={S.announcementPreviewHint}>
+                    <Info size={12} style={{ color: "#00B4B4", flexShrink: 0 }} />
+                    <span>
+                      The announcement title will be: <strong>New Course: {meta.title || "(course title)"}</strong>
+                      {" "}and will be linked to this course record.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <InfoBox>
               The <strong>NMLS Course ID</strong> must be unique. For CE courses, <strong>expires_at</strong> is automatically set to Dec 31 of the current year.
             </InfoBox>
@@ -406,7 +490,7 @@ export default function InstructorAddCourse() {
         {/* ── STEP 4: REVIEW ── */}
         {step === 4 && (
           <Section icon={<Eye size={16} />} title="Review & Create" subtitle="Confirm the course structure before saving">
-            <ReviewPanel meta={meta} modules={modules} finalExam={finalExam} />
+            <ReviewPanel meta={meta} modules={modules} finalExam={finalExam} announcementOpts={announcementOpts} />
           </Section>
         )}
 
@@ -607,7 +691,7 @@ function QuestionCard({ q, qi, onUpdate, onUpdateOption, onRemove }) {
 /* ════════════════════════════════════════════════════════════════════
    REVIEW PANEL
 ════════════════════════════════════════════════════════════════════ */
-function ReviewPanel({ meta, modules, finalExam }) {
+function ReviewPanel({ meta, modules, finalExam, announcementOpts }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Meta summary */}
@@ -670,6 +754,38 @@ function ReviewPanel({ meta, modules, finalExam }) {
           <Pill label="Official Set" value={`${finalExam.questions.length} questions`} />
           <Pill label="Question Bank" value={`${finalExam.question_bank.length} questions`} />
         </div>
+      </div>
+
+      {/* Announcement */}
+      <div style={{ ...S.reviewBlock, border: announcementOpts.create ? "1px solid rgba(0,180,180,0.25)" : "1px solid rgba(2,8,23,0.08)", background: announcementOpts.create ? "rgba(0,180,180,0.03)" : "rgba(2,8,23,0.018)" }}>
+        <div style={S.reviewBlockTitle}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <Megaphone size={11} /> Announcement
+          </span>
+        </div>
+        {announcementOpts.create ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={S.reviewGrid}>
+              <Pill label="Status" value="Will be posted ✓" />
+              <Pill label="Title" value={`New Course: ${meta.title || "—"}`} />
+              <Pill label="Active" value={meta.is_active ? "Yes" : "No"} />
+            </div>
+            {announcementOpts.message && (
+              <div style={{ padding: "10px 12px", borderRadius: 9, background: "#fff", border: "1px solid rgba(2,8,23,0.07)", fontSize: 12, fontWeight: 600, color: "rgba(11,18,32,0.65)", fontStyle: "italic" }}>
+                "{announcementOpts.message}"
+              </div>
+            )}
+            {!announcementOpts.message && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: "rgba(11,18,32,0.45)", fontStyle: "italic" }}>
+                Message will be auto-generated from course details.
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(11,18,32,0.38)" }}>
+            No announcement will be posted.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -775,6 +891,12 @@ const S = {
 
   /* InfoBox */
   infoBox: { display: "flex", gap: 10, padding: "11px 14px", borderRadius: 10, background: "rgba(46,171,254,0.07)", border: "1px solid rgba(46,171,254,0.18)", alignItems: "flex-start" },
+
+  /* Announcement Box */
+  announcementBox: { borderRadius: 14, border: "1.5px solid rgba(0,180,180,0.22)", background: "rgba(0,180,180,0.04)", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 0 },
+  announcementBoxHeader: { display: "flex", alignItems: "center", gap: 12 },
+  announcementIcon: { width: 34, height: 34, borderRadius: 10, background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.25)", display: "flex", alignItems: "center", justifyContent: "center", color: "#00B4B4", flexShrink: 0 },
+  announcementPreviewHint: { display: "flex", gap: 7, alignItems: "flex-start", marginTop: 8, padding: "8px 10px", borderRadius: 8, background: "rgba(0,180,180,0.06)", border: "1px solid rgba(0,180,180,0.15)", fontSize: 11, fontWeight: 600, color: "rgba(11,18,32,0.55)" },
 
   /* Module card */
   moduleCard: { background: "#fff", borderRadius: 16, border: "1.5px solid rgba(2,8,23,0.09)", boxShadow: "0 2px 10px rgba(2,8,23,0.05)", overflow: "hidden" },

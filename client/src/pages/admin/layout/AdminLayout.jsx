@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import {
   LayoutDashboard, BookOpen, GraduationCap, BarChart2,
-  Users, LogOut, Menu, X, Shield, UserCheck, Settings, ShoppingCart,MessageSquare,FileKey,Tag
+  Users, LogOut, Menu, X, Shield, UserCheck, Settings, ShoppingCart,MessageSquare,FileKey,Tag,Megaphone
 } from 'lucide-react';
 import logo from '../../../assets/images/Left Side Logo.png';
 
@@ -82,6 +82,7 @@ const AdminLayout = () => {
   { label: 'Support Inbox', sub: 'Student & instructor tickets', path: '/admin/support', icon: <MessageSquare size={20} /> },
   { label: 'Exam Requests',   sub: 'Approve retry access',         path: '/admin/exam-requests',  icon: <FileKey size={20} /> }, // ← ADD
   { label:'Vouchers', sub:'Discount codes', path:'/admin/vouchers', icon:<Tag size={20} /> },
+  { label: 'Announcements', sub: 'Manage announcements', path: '/admin/announcements', icon: <Megaphone size={20} /> },
 
 
   ...(user?.role === 'super_admin' ? [

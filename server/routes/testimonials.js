@@ -1,9 +1,10 @@
+const mongoose = require('mongoose'); // Add this line
 const express      = require("express");
+
 const router       = express.Router();
 const jwt          = require("jsonwebtoken");
 const Testimonial  = require("../models/Testimonial");
 const User         = require("../models/User");
-
 /* ── Auth middleware ─────────────────────────────────────────────── */
 const auth = (req, res, next) => {
   const header = req.headers.authorization;
@@ -179,7 +180,50 @@ router.post("/", auth, async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
-
+router.post("/public", async (req, res) => {
+  try {
+    const { name, role, rating, comment, course_title, would_recommend } = req.body;
+ 
+    // ── Basic validation ──────────────────────────────────────────
+    if (!name?.trim())
+      return res.status(400).json({ message: "Name is required." });
+    if (!rating || rating < 1 || rating > 5)
+      return res.status(400).json({ message: "Rating must be between 1 and 5." });
+    if (!comment?.trim() || comment.trim().length < 20)
+      return res.status(400).json({ message: "Comment must be at least 20 characters." });
+ 
+    // ── Rate limit: same name + same comment = duplicate ─────────
+    const duplicate = await Testimonial.findOne({
+      name:    name.trim(),
+      comment: comment.trim(),
+    });
+    if (duplicate)
+      return res.status(409).json({ message: "This testimonial has already been submitted." });
+ 
+    // ── Save with source = "public" so admins can distinguish ─────
+    const testimonial = await Testimonial.create({
+      name:            name.trim(),
+      role:            role?.trim() || null,        // e.g. "MLO — California"
+      rating:          Number(rating),
+      comment:         comment.trim(),
+      course_title:    course_title?.trim() || null, // optional, user-provided
+      would_recommend: would_recommend !== undefined ? Boolean(would_recommend) : true,
+      source:          "public",   // ← distinguishes from verified course reviews
+      status:          "pending",  // always starts pending, admin must approve
+      user_id:         null,
+      course_id:       null,
+      email:           null,
+    });
+ 
+    res.status(201).json({
+      message:     "Thank you! Your testimonial has been submitted and will appear after review.",
+      testimonial: { _id: testimonial._id, status: testimonial.status },
+    });
+  } catch (err) {
+    console.error("[POST /api/testimonials/public]", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
 /* ─────────────────────────────────────────────────────────────────
    PUT  /api/testimonials/admin/:id  — Admin: approve / reject / feature
    DELETE /api/testimonials/admin/:id — Admin: delete

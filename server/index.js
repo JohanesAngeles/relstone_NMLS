@@ -36,20 +36,20 @@ try { biosigRoutes      = require('./routes/biosig');         } catch (e) { cons
 // ── Middleware ─────────────────────────────────────────────────────────────────
 const authMiddleware = require('./middleware/auth');
 const examRequestRoutes = require('./routes/exam-requests');
-// ── Admin routes ──────────────────────────────────────────────────────────────
-const adminAuthRoutes     = require('./routes/admin/auth');
-const adminCourseRoutes   = require('./routes/admin/courses');
-const adminStudentRoutes  = require('./routes/admin/students');
-const adminReportRoutes   = require('./routes/admin/reports');
-const adminDashboardRoutes = require('./routes/admin/dashboard');
 
-const adminUploadRoutes = require('./routes/admin/upload');
+// ── Admin routes ──────────────────────────────────────────────────────────────
+const adminAuthRoutes      = require('./routes/admin/auth');
+const adminCourseRoutes    = require('./routes/admin/courses');
+const adminStudentRoutes   = require('./routes/admin/students');
+const adminReportRoutes    = require('./routes/admin/reports');
+const adminDashboardRoutes = require('./routes/admin/dashboard');
+const adminUploadRoutes    = require('./routes/admin/upload');
 const adminInstructorRoutes = require('./routes/admin/instructors');
-const adminSettingsRoutes = require('./routes/admin/settings');
-const adminOrderRoutes = require('./routes/admin/orders');
-const adminManageRoutes = require('./routes/admin/admins');
-const adminVoucherRoutes = require('./routes/admin/vouchers');
-const announcementRoutes = require('./routes/announcements');
+const adminSettingsRoutes  = require('./routes/admin/settings');
+const adminOrderRoutes     = require('./routes/admin/orders');
+const adminManageRoutes    = require('./routes/admin/admins');
+const adminVoucherRoutes   = require('./routes/admin/vouchers');
+const announcementRoutes   = require('./routes/announcements');
 
 const app = express();
 
@@ -67,17 +67,13 @@ app.use(cors({
 
 app.use(express.json());
 
-// ── API routes ─────────────────────────────────────────────────────────────────
-// NOTE: authMiddleware is NOT applied here — each route file handles its own
-// auth internally via the instructorOnly / authMiddleware guards already defined
-// inside them. Applying it twice causes double-verification and can mask errors.
-
+// ── Public API routes ──────────────────────────────────────────────────────────
 if (authRoutes)        app.use('/api/auth',          authRoutes);
 if (courseRoutes)      app.use('/api/courses',        courseRoutes);
 if (orderRoutes)       app.use('/api/orders',         authMiddleware, orderRoutes);
 if (dashboardRoutes)   app.use('/api/dashboard',      authMiddleware, dashboardRoutes);
 if (certificateRoutes) app.use('/api/certificates',   authMiddleware, certificateRoutes);
-if (instructorRoutes)  app.use('/api/instructor',     instructorRoutes);  // ← auth handled inside route file
+if (instructorRoutes)  app.use('/api/instructor',     instructorRoutes);
 if (quizAttemptRoutes) app.use('/api/quiz-attempts',  authMiddleware, quizAttemptRoutes);
 if (enrollmentRoutes)  app.use('/api/enrollment',     authMiddleware, enrollmentRoutes);
 if (rocsRoutes)        app.use('/api/rocs',           authMiddleware, rocsRoutes);
@@ -85,28 +81,29 @@ if (supportRoutes)     app.use('/api/support',        authMiddleware, supportRou
 if (testimonialRoutes) app.use('/api/testimonials',   testimonialRoutes);
 if (biosigRoutes)      app.use('/api/biosig',         biosigRoutes);
 
+// ── Public announcements (web + mobile) ───────────────────────────────────────
+app.use('/api/announcements', announcementRoutes);
+
 // ── Protected test route ───────────────────────────────────────────────────────
 app.get('/api/protected', authMiddleware, (req, res) => {
   res.json({ message: 'Access granted!', user: req.user });
 });
 
 // ── Admin API routes ──────────────────────────────────────────────────────────
-app.use('/api/admin/auth',     adminAuthRoutes);
-app.use('/api/admin/courses',  authMiddleware, adminCourseRoutes);
-app.use('/api/admin/students', authMiddleware, adminStudentRoutes);
-app.use('/api/admin/reports',  authMiddleware, adminReportRoutes);
-app.use('/api/admin/dashboard', authMiddleware, adminDashboardRoutes);
-app.use('/api/admin/upload', authMiddleware, adminUploadRoutes);
-app.use('/api/admin/instructors', authMiddleware, adminInstructorRoutes);
-app.use('/api/admin/settings', authMiddleware, adminSettingsRoutes);
-app.use('/api/admin/orders', authMiddleware, adminOrderRoutes);
-app.use('/api/admin/admins', authMiddleware, adminManageRoutes);
-app.use('/api/exam-requests', authMiddleware, examRequestRoutes); // ← ADD THIS
-app.use('/api/admin/vouchers', authMiddleware, adminVoucherRoutes);
+app.use('/api/admin/auth',          adminAuthRoutes);
+app.use('/api/admin/courses',       authMiddleware, adminCourseRoutes);
+app.use('/api/admin/students',      authMiddleware, adminStudentRoutes);
+app.use('/api/admin/reports',       authMiddleware, adminReportRoutes);
+app.use('/api/admin/dashboard',     authMiddleware, adminDashboardRoutes);
+app.use('/api/admin/upload',        authMiddleware, adminUploadRoutes);
+app.use('/api/admin/instructors',   authMiddleware, adminInstructorRoutes);
+app.use('/api/admin/settings',      authMiddleware, adminSettingsRoutes);
+app.use('/api/admin/orders',        authMiddleware, adminOrderRoutes);
+app.use('/api/admin/admins',        authMiddleware, adminManageRoutes);
+app.use('/api/admin/vouchers',      authMiddleware, adminVoucherRoutes);
 app.use('/api/admin/announcements', authMiddleware, announcementRoutes);
+app.use('/api/exam-requests',       authMiddleware, examRequestRoutes);
 
-
-// ── Serve React build in production ──────────────────────────────────────────
 // ── Serve React build in production ───────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/build')));

@@ -3,12 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 import { HowItWorksModal } from '../components/HowItWorksModal';
-
-const TESTIMONIALS = [
-  { name: 'James R.', role: 'Mortgage Loan Originator — California', avatar: 'JR', rating: 5, text: "RELSTONE helped me get my MLO license the first time around. The course was clear, well-organized, and the NMLS reporting was instant. I'd recommend it to anyone starting in mortgage." },
-  { name: 'Sarah M.', role: 'Senior MLO — Texas',                    avatar: 'SM', rating: 5, text: "I've done my CE renewal with RELSTONE for three years running. The courses are always up to date with the latest regulations, and the platform makes it easy to stay on track so I never miss a deadline." },
-  { name: 'David K.', role: 'Branch Manager — Florida',              avatar: 'DK', rating: 5, text: "The platform is incredibly well-designed and easy to navigate. Everything from enrollment to certificate download was seamless. RELSTONE is the only provider I'll use going forward." },
-];
+import API from '../api/axios';
 
 const FAQS = [
   { q: 'What is the SAFE Act and why does it require 20 hours of education?',          a: 'The SAFE Mortgage Licensing Act (SAFE Act) is a federal law that established minimum standards for the licensing and registration of mortgage loan originators (MLOs). It requires all new MLOs to complete at least 20 hours of NMLS-approved pre-licensing education before sitting for the NMLS exam. This includes 3 hours of federal law, 3 hours of ethics, 2 hours of non-traditional lending, and 12 elective hours.' },
@@ -19,22 +14,226 @@ const FAQS = [
   { q: 'I already completed CE with another provider. Can I retake it with RELSTONE?', a: 'No. NMLS does not allow you to repeat CE coursework that has already been reported and accepted for the current calendar year. Each of the 8 required CE hours can only be counted once per year.' },
 ];
 
-const Stars = () => (
-  <div style={{ display:'flex', gap:2 }}>
+// ── Star SVG ──────────────────────────────────────────────────────
+const Stars = ({ count = 5 }) => (
+  <div style={{ display: 'flex', gap: 2 }}>
     {[1,2,3,4,5].map(i => (
-      <svg key={i} width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B">
+      <svg key={i} width="16" height="16" viewBox="0 0 24 24"
+        fill={i <= count ? "#F59E0B" : "none"}
+        stroke={i <= count ? "#F59E0B" : "rgba(255,255,255,0.25)"}
+        strokeWidth="1.5">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
       </svg>
     ))}
   </div>
 );
 
+// ── Public Testimonial Form ───────────────────────────────────────
+const PublicTestimonialForm = ({ onSuccess }) => {
+  const [name,        setName]        = useState('');
+  const [role,        setRole]        = useState('');
+  const [rating,      setRating]      = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [comment,     setComment]     = useState('');
+  const [courseTitle, setCourseTitle] = useState('');
+  const [recommend,   setRecommend]   = useState(true);
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState('');
+  const [errors,      setErrors]      = useState({});
+
+  const validate = () => {
+    const e = {};
+    if (!name.trim())              e.name    = 'Name is required.';
+    if (rating === 0)              e.rating  = 'Please select a star rating.';
+    if (!comment.trim())           e.comment = 'Please write a comment.';
+    if (comment.trim().length < 20) e.comment = 'Comment must be at least 20 characters.';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setSaving(true);
+    setError('');
+    try {
+      await API.post('/testimonials/public', {
+        name:            name.trim(),
+        role:            role.trim() || undefined,
+        rating,
+        comment:         comment.trim(),
+        course_title:    courseTitle.trim() || undefined,
+        would_recommend: recommend,
+      });
+      onSuccess();
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Could not submit. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const activeRating = hoverRating || rating;
+
+  return (
+    <form onSubmit={handleSubmit} style={FS.form}>
+      <div style={FS.formTitle}>Share Your Experience</div>
+      <div style={FS.formSub}>No account needed. Tell us how RELSTONE helped your career.</div>
+
+      {error && (
+        <div style={FS.errorBanner}>{error}</div>
+      )}
+
+      {/* Name + Role */}
+      <div style={FS.row}>
+        <div style={FS.fieldWrap}>
+          <label style={FS.label}>Your Name *</label>
+          <input
+            value={name} onChange={e => setName(e.target.value)}
+            placeholder="e.g. James R."
+            style={{ ...FS.input, borderColor: errors.name ? '#EF4444' : 'rgba(255,255,255,0.20)' }}
+          />
+          {errors.name && <div style={FS.fieldErr}>{errors.name}</div>}
+        </div>
+        <div style={FS.fieldWrap}>
+          <label style={FS.label}>Your Role / Location <span style={{ opacity: .6 }}>(optional)</span></label>
+          <input
+            value={role} onChange={e => setRole(e.target.value)}
+            placeholder="e.g. MLO — California"
+            style={FS.input}
+          />
+        </div>
+      </div>
+
+      {/* Course (optional) */}
+      <div style={FS.fieldWrap}>
+        <label style={FS.label}>Course Name <span style={{ opacity: .6 }}>(optional — leave blank for general feedback)</span></label>
+        <input
+          value={courseTitle} onChange={e => setCourseTitle(e.target.value)}
+          placeholder="e.g. 20-Hour SAFE Act Pre-Licensing"
+          style={FS.input}
+        />
+      </div>
+
+      {/* Star Rating */}
+      <div style={FS.fieldWrap}>
+        <label style={FS.label}>Overall Rating *</label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {[1,2,3,4,5].map(s => (
+            <button
+              key={s} type="button"
+              onMouseEnter={() => setHoverRating(s)}
+              onMouseLeave={() => setHoverRating(0)}
+              onClick={() => setRating(s)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
+            >
+              <svg width="30" height="30" viewBox="0 0 24 24"
+                fill={s <= activeRating ? "#F59E0B" : "none"}
+                stroke={s <= activeRating ? "#F59E0B" : "rgba(255,255,255,0.35)"}
+                strokeWidth="1.5"
+                style={{ transition: 'all 0.15s', transform: s <= activeRating ? 'scale(1.15)' : 'scale(1)' }}>
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </button>
+          ))}
+          <span style={{ fontSize: 13, fontWeight: 700, color: rating > 0 ? '#F59E0B' : 'rgba(255,255,255,0.40)', fontFamily: "'Poppins',sans-serif" }}>
+            {['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][rating] || ''}
+          </span>
+        </div>
+        {errors.rating && <div style={FS.fieldErr}>{errors.rating}</div>}
+      </div>
+
+      {/* Would recommend */}
+      <div style={FS.fieldWrap}>
+        <label style={FS.label}>Would you recommend RELSTONE?</label>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {[true, false].map(val => (
+            <button
+              key={String(val)} type="button"
+              onClick={() => setRecommend(val)}
+              style={{
+                padding: '8px 20px', borderRadius: 8, cursor: 'pointer',
+                fontFamily: "'Poppins',sans-serif", fontWeight: 700, fontSize: 13,
+                border: recommend === val ? '1.5px solid #2EABFE' : '1px solid rgba(255,255,255,0.20)',
+                background: recommend === val ? 'rgba(46,171,254,0.20)' : 'rgba(255,255,255,0.07)',
+                color: recommend === val ? '#2EABFE' : 'rgba(255,255,255,0.70)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {val ? '👍 Yes' : '👎 No'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Comment */}
+      <div style={FS.fieldWrap}>
+        <label style={FS.label}>Your Review *</label>
+        <textarea
+          value={comment} onChange={e => setComment(e.target.value)}
+          placeholder="Tell others about your experience with RELSTONE — the courses, the platform, how it helped your career…"
+          rows={4} maxLength={2000}
+          style={{
+            ...FS.input, resize: 'vertical', lineHeight: 1.65,
+            borderColor: errors.comment ? '#EF4444' : 'rgba(255,255,255,0.20)',
+          }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+          {errors.comment
+            ? <div style={FS.fieldErr}>{errors.comment}</div>
+            : <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', fontFamily: "'Poppins',sans-serif" }}>Minimum 20 characters</div>
+          }
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', fontFamily: "'Poppins',sans-serif" }}>{comment.length}/2000</div>
+        </div>
+      </div>
+
+      <button
+        type="submit" disabled={saving}
+        style={{
+          width: '100%', padding: '14px', borderRadius: 10, border: 'none',
+          background: saving ? 'rgba(46,171,254,0.50)' : '#2EABFE',
+          color: '#091925', fontSize: 15, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer',
+          fontFamily: "'Poppins',sans-serif", transition: 'all 0.2s',
+        }}
+      >
+        {saving ? 'Submitting…' : 'Submit My Review →'}
+      </button>
+
+      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'center', fontFamily: "'Poppins',sans-serif", marginTop: 4 }}>
+        Reviews are moderated and appear after approval. Your email is never required.
+      </div>
+    </form>
+  );
+};
+
+// ── Form styles ───────────────────────────────────────────────────
+const FS = {
+  form:       { display: 'flex', flexDirection: 'column', gap: 16, background: 'rgba(46,171,254,0.07)', border: '1px solid rgba(46,171,254,0.25)', borderRadius: 16, padding: '28px 24px' },
+  formTitle:  { fontSize: 20, fontWeight: 800, color: '#fff', fontFamily: "'Poppins',sans-serif" },
+  formSub:    { fontSize: 13, color: 'rgba(255,255,255,0.60)', fontFamily: "'Poppins',sans-serif", marginTop: -8 },
+  row:        { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 },
+  fieldWrap:  { display: 'flex', flexDirection: 'column', gap: 6 },
+  label:      { fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.75)', fontFamily: "'Poppins',sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' },
+  input:      { padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.20)', background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: 13, fontFamily: "'Poppins',sans-serif", outline: 'none', width: '100%', boxSizing: 'border-box' },
+  fieldErr:   { fontSize: 11, fontWeight: 700, color: '#FCA5A5', fontFamily: "'Poppins',sans-serif" },
+  errorBanner:{ padding: '10px 14px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)', color: '#FCA5A5', fontSize: 13, fontFamily: "'Poppins',sans-serif" },
+};
+
+// ─────────────────────────────────────────────────────────────────
+// MAIN PAGE
+// ─────────────────────────────────────────────────────────────────
 const HomePage = () => {
-  const { user } = useAuth();
+  const { user }  = useAuth();
   const navigate  = useNavigate();
 
-  const [openFaq, setOpenFaq]               = useState(0);
+  const [openFaq,        setOpenFaq]        = useState(0);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+
+  // ── Real testimonials from API ────────────────────────────────
+  const [testimonials,   setTestimonials]   = useState([]);
+  const [loadingT,       setLoadingT]       = useState(true);
+  const [showForm,       setShowForm]       = useState(false);
+  const [formSuccess,    setFormSuccess]    = useState(false);
 
   useEffect(() => {
     const isNewUser   = sessionStorage.getItem('relstone_is_new_user');
@@ -46,6 +245,24 @@ const HomePage = () => {
     }
   }, []);
 
+  // Fetch approved testimonials for the homepage
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await API.get('/testimonials', { params: { limit: 6 } });
+        const data = res.data;
+        const list = Array.isArray(data) ? data
+          : Array.isArray(data.testimonials) ? data.testimonials : [];
+        setTestimonials(list);
+      } catch {
+        setTestimonials([]);
+      } finally {
+        setLoadingT(false);
+      }
+    };
+    load();
+  }, []);
+
   const handleCloseHowItWorks = () => {
     localStorage.setItem('relstone_how_it_works_seen', '1');
     setShowHowItWorks(false);
@@ -53,6 +270,11 @@ const HomePage = () => {
 
   const handleDashboard = () =>
     navigate(user?.role === 'instructor' ? '/instructor/dashboard' : '/dashboard');
+
+  const handleFormSuccess = () => {
+    setFormSuccess(true);
+    setShowForm(false);
+  };
 
   return (
     <Layout>
@@ -69,7 +291,6 @@ const HomePage = () => {
           <div className="hp-hero-glow" />
 
           <div className="hp-container hp-hero-inner">
-            {/* Left */}
             <div className="hp-hero-left">
               <div className="hp-hero-eyebrow-wrap">
                 <span className="hp-eyebrow-dot" />
@@ -106,7 +327,6 @@ const HomePage = () => {
               </div>
             </div>
 
-            {/* Right — stats card */}
             <div className="hp-hero-right">
               <div className="hp-hero-stats-card">
                 <div className="hp-stats-label">WHY RELSTONE NMLS</div>
@@ -139,7 +359,6 @@ const HomePage = () => {
             </div>
           </div>
 
-          {/* Stats bar */}
           <div className="hp-statsbar">
             <div className="hp-statsbar-line" />
             <div className="hp-container hp-statsbar-inner">
@@ -168,10 +387,10 @@ const HomePage = () => {
             </div>
             <div className="hp-about-cards">
               {[
-                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>, title:'100% Online, Self-Paced',     desc:'Study from any device, anytime. No classroom required.',                         border:'#2EABFE' },
-                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#008000" strokeWidth="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, title:'Direct NMLS Reporting',         desc:'Instant NMLS reporting for completed courses.',                                   border:'#008000' },
-                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>, title:'98% First-Time Pass Rate',      desc:'Exam prep designed specifically for the NMLS exam.',                              border:'#F59E0B' },
-                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#091925" strokeWidth="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>, title:'Dedicated Student Support',     desc:'Live support from licensed professionals, not automated bots.',                   border:'#091925' },
+                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>, title:'100% Online, Self-Paced', desc:'Study from any device, anytime. No classroom required.', border:'#2EABFE' },
+                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#008000" strokeWidth="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>, title:'Direct NMLS Reporting', desc:'Instant NMLS reporting for completed courses.', border:'#008000' },
+                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>, title:'98% First-Time Pass Rate', desc:'Exam prep designed specifically for the NMLS exam.', border:'#F59E0B' },
+                { icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#091925" strokeWidth="1.8"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>, title:'Dedicated Student Support', desc:'Live support from licensed professionals, not automated bots.', border:'#091925' },
               ].map((c,i) => (
                 <div key={i} className="hp-about-card">
                   <div className="hp-about-card-icon" style={{ border:`0.5px solid ${c.border}`, background:`${c.border}18` }}>{c.icon}</div>
@@ -246,27 +465,76 @@ const HomePage = () => {
         </section>
 
         {/* ════════ TESTIMONIALS ════════ */}
-        <section className="hp-testimonials">
+        <section className="hp-testimonials" id="testimonials">
           <div className="hp-container">
             <div className="hp-section-center">
               <p className="hp-eyebrow-blue">STUDENT SUCCESS STORIES</p>
               <h2 className="hp-h2">REAL RESULTS FROM<br /><span className="hp-blue">REAL MORTGAGE PROFESSIONALS</span></h2>
               <p className="hp-sub">Thousands of MLOs have used RELSTONE to get licensed and stay compliant.</p>
             </div>
-            <div className="hp-tcard-grid">
-              {TESTIMONIALS.map((t,i) => (
-                <div key={i} className="hp-tcard">
-                  <Stars />
-                  <p className="hp-tcard-text">"{t.text}"</p>
-                  <div className="hp-tcard-author">
-                    <div className="hp-tcard-avatar">{t.avatar}</div>
-                    <div>
-                      <div className="hp-tcard-name">{t.name}</div>
-                      <div className="hp-tcard-role">{t.role}</div>
+
+            {/* ── Testimonial cards ────────────────────────────── */}
+            {loadingT ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: 'rgba(9,25,37,0.45)' }}>Loading reviews…</div>
+            ) : testimonials.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '32px 0', color: 'rgba(9,25,37,0.40)', fontSize: 14, fontFamily: "'Poppins',sans-serif" }}>
+                No reviews yet — be the first to share your experience!
+              </div>
+            ) : (
+              <div className="hp-tcard-grid">
+                {testimonials.map((t, i) => (
+                  <div key={t._id || i} className="hp-tcard">
+                    <Stars count={t.rating || 5} />
+                    <p className="hp-tcard-text">"{t.comment}"</p>
+                    <div className="hp-tcard-author">
+                      <div className="hp-tcard-avatar">
+                        {(t.name || '?')[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="hp-tcard-name">{t.name || 'Anonymous'}</div>
+                        <div className="hp-tcard-role">
+                          {t.role || (t.course_title ? `Re: ${t.course_title}` : 'RELSTONE Student')}
+                        </div>
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Add Review CTA ────────────────────────────────── */}
+            <div style={{ marginTop: 40 }}>
+              {formSuccess ? (
+                <div style={{ textAlign: 'center', padding: '28px 24px', background: 'rgba(46,171,254,0.08)', border: '1px solid rgba(46,171,254,0.25)', borderRadius: 14 }}>
+                  <div style={{ fontSize: 36, marginBottom: 10 }}>🎉</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#091925', fontFamily: "'Poppins',sans-serif", marginBottom: 8 }}>
+                    Thank you for your review!
+                  </div>
+                  <div style={{ fontSize: 14, color: 'rgba(9,25,37,0.55)', fontFamily: "'Poppins',sans-serif" }}>
+                    Your testimonial is pending approval and will appear here once reviewed by our team.
+                  </div>
                 </div>
-              ))}
+              ) : showForm ? (
+                <PublicTestimonialForm onSuccess={handleFormSuccess} />
+              ) : (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 15, color: 'rgba(9,25,37,0.60)', fontFamily: "'Poppins',sans-serif", marginBottom: 14 }}>
+                    Had a great experience with RELSTONE? We'd love to hear from you.
+                  </div>
+                  <button
+                    onClick={() => setShowForm(true)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                      padding: '13px 28px', borderRadius: 10, border: 'none',
+                      background: '#091925', color: '#fff',
+                      fontFamily: "'Poppins',sans-serif", fontWeight: 800, fontSize: 14,
+                      cursor: 'pointer', transition: 'background 0.2s',
+                    }}
+                  >
+                    ✍️ Write a Review — No Account Needed
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -298,7 +566,7 @@ const HomePage = () => {
           </div>
         </section>
 
-        {/* ════════ FOOTER BAND (replaces CTA — no sign-up) ════════ */}
+        {/* ════════ FOOTER BAND ════════ */}
         <div className="hp-footer-band">
           <div className="hp-footer-band-overlay" />
           <div className="hp-container hp-footer-band-inner">
@@ -335,17 +603,14 @@ const HomePage = () => {
   );
 };
 
-// ─── CSS ───────────────────────────────────────────────────────────────────────
+// ─── CSS (unchanged from original) ───────────────────────────────
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;700;800&display=swap');
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
-
 .hp-root { font-family: 'Poppins', system-ui, sans-serif; color: #091925; overflow-x: hidden; background: #F2F6F9; }
 .hp-container { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
 .hp-blue { color: #2EABFE; }
-
-/* ══ HERO ══ */
 .hp-hero { background: #091925; position: relative; overflow: hidden; display: flex; flex-direction: column; }
 .hp-hero-bg-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(rgba(46,171,254,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(46,171,254,0.05) 1px, transparent 1px); background-size: 52px 52px; }
 .hp-hero-glow { position: absolute; pointer-events: none; width: 700px; height: 700px; border-radius: 50%; background: radial-gradient(circle, rgba(46,171,254,0.14) 0%, transparent 65%); top: -100px; right: -80px; }
@@ -365,8 +630,6 @@ html { scroll-behavior: smooth; }
 .hp-hero-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .hp-badge-item { display: flex; align-items: center; gap: 5px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #fff; }
 .hp-badge-sep { width: 0; height: 9px; border-left: 0.5px solid #2EABFE; margin: 0 10px; }
-
-/* Stats card */
 .hp-hero-stats-card { background: rgba(46,171,254,0.1); border: 0.5px solid #2EABFE; border-radius: 8px; padding: 20px; }
 .hp-stats-label { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500; color: #fff; text-transform: uppercase; margin-bottom: 12px; }
 .hp-stats-grid { display: grid; grid-template-columns: 1fr 1fr; }
@@ -379,8 +642,6 @@ html { scroll-behavior: smooth; }
 .hp-req-item { display: flex; align-items: center; gap: 8px; }
 .hp-req-text { flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #fff; }
 .hp-req-badge { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; color: #2EABFE; white-space: nowrap; }
-
-/* Statsbar */
 .hp-statsbar { background: rgba(9,25,37,0.85); position: relative; z-index: 10; }
 .hp-statsbar-line { width: 100%; height: 0; border-top: 0.5px solid #2EABFE; }
 .hp-statsbar-inner { display: grid; grid-template-columns: repeat(4,1fr); padding: 16px 40px; max-width: 1200px; margin: 0 auto; position: relative; }
@@ -388,8 +649,6 @@ html { scroll-behavior: smooth; }
 .hp-sbar-divider { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 0; height: 100px; border-left: 0.5px solid #2EABFE; }
 .hp-sbar-num { font-family: 'JetBrains Mono', monospace; font-size: 40px; font-weight: 800; color: #2EABFE; line-height: 1.2; }
 .hp-sbar-lbl { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 700; color: #fff; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
-
-/* ══ Shared ══ */
 .hp-eyebrow-small { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 6px; text-transform: uppercase; }
 .hp-eyebrow-blue  { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 6px; text-transform: uppercase; display: inline-block; }
 .hp-eyebrow-sky   { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 500; color: #2EABFE; margin-bottom: 6px; text-transform: uppercase; display: inline-block; }
@@ -400,8 +659,6 @@ html { scroll-behavior: smooth; }
 .hp-body { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 400; line-height: 22px; color: #091925; margin-bottom: 12px; }
 .hp-body strong { font-weight: 600; }
 .hp-section-center { text-align: center; margin-bottom: 40px; }
-
-/* ══ ABOUT ══ */
 .hp-about { padding: 80px 0; background: #fff; }
 .hp-about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
 .hp-btn-dark { display: inline-flex; align-items: center; height: 44px; padding: 0 20px; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; color: #fff; background: #091925; border-radius: 5px; border: 0.5px solid #091925; cursor: pointer; margin-top: 8px; transition: background .15s; }
@@ -412,8 +669,6 @@ html { scroll-behavior: smooth; }
 .hp-about-card-icon { width: 48px; height: 48px; min-width: 48px; border-radius: 5px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .hp-about-card-title { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; color: #091925; margin-bottom: 3px; line-height: 18px; }
 .hp-about-card-desc  { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 400; color: #091925; line-height: 18px; }
-
-/* ══ FEATURES ══ */
 .hp-features { padding: 80px 0; background: #091925; position: relative; overflow: hidden; }
 .hp-features::before { content:''; position:absolute; inset:0; background:linear-gradient(180deg,rgba(9,25,37,0.05) 0%,rgba(46,171,254,0.3) 100%); pointer-events:none; z-index:0; }
 .hp-features .hp-container { position: relative; z-index: 1; }
@@ -423,26 +678,23 @@ html { scroll-behavior: smooth; }
 .hp-feat-icon { width: 52px; height: 52px; border-radius: 5px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
 .hp-feat-title { font-family: 'Poppins', sans-serif; font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 8px; line-height: 22px; }
 .hp-feat-desc  { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 400; line-height: 20px; color: rgba(255,255,255,0.65); }
-
-/* ══ REQUIREMENTS ══ */
 .hp-requirements { padding: 80px 0; background: #F2F6F9; }
 .hp-req-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .hp-req-card { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; border: 0.5px solid #5B7384; border-radius: 5px; background: #fff; }
 .hp-req-check { width: 18px; height: 18px; border-radius: 50%; background: #008000; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
 .hp-req-title { font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; color: #091925; margin-bottom: 4px; }
 .hp-req-desc  { font-family: 'Poppins', sans-serif; font-size: 12px; font-weight: 400; line-height: 16px; color: #091925; }
-
-/* ══ TESTIMONIALS ══ */
-.hp-testimonials { padding: 80px 0; background: #F2F6F9; }
+.hp-testimonials { padding: 80px 0; background: #091925; }
+.hp-testimonials .hp-h2 { color: #fff; }
+.hp-testimonials .hp-sub { color: rgba(255,255,255,0.65); }
+.hp-testimonials .hp-eyebrow-blue { color: #2EABFE; }
 .hp-tcard-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
-.hp-tcard { background: #fff; border: 0.5px solid rgba(46,171,254,0.5); border-radius: 5px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
-.hp-tcard-text   { font-family: 'Poppins', sans-serif; font-size: 13px; line-height: 18px; color: #091925; font-style: italic; flex: 1; }
+.hp-tcard { background: rgba(255,255,255,0.06); border: 0.5px solid rgba(46,171,254,0.35); border-radius: 5px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.hp-tcard-text   { font-family: 'Poppins', sans-serif; font-size: 13px; line-height: 18px; color: rgba(255,255,255,0.85); font-style: italic; flex: 1; }
 .hp-tcard-author { display: flex; align-items: center; gap: 10px; }
-.hp-tcard-avatar { width: 36px; height: 36px; border-radius: 50%; background: #2EABFE; display: flex; align-items: center; justify-content: center; font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; color: #091925; flex-shrink: 0; }
-.hp-tcard-name   { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; color: #091925; }
-.hp-tcard-role   { font-family: 'Poppins', sans-serif; font-size: 12px; color: #5B7384; }
-
-/* ══ FAQ ══ */
+.hp-tcard-avatar { width: 36px; height: 36px; border-radius: 50%; background: #2EABFE; display: flex; align-items: center; justify-content: center; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 800; color: #091925; flex-shrink: 0; }
+.hp-tcard-name   { font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 700; color: #fff; }
+.hp-tcard-role   { font-family: 'Poppins', sans-serif; font-size: 12px; color: rgba(255,255,255,0.50); }
 .hp-faq { padding: 80px 0; background: #F2F6F9; }
 .hp-faq-wrap { max-width: 700px; margin: 0 auto; padding: 0 18px; }
 .hp-faq-list { display: flex; flex-direction: column; gap: 8px; }
@@ -453,8 +705,6 @@ html { scroll-behavior: smooth; }
 .hp-faq-toggle { width: 28px; height: 28px; border-radius: 5px; border: 0.5px solid #5B7384; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .2s; }
 .hp-faq-toggle--open { background: #2EABFE; border-color: #2EABFE; }
 .hp-faq-a { padding: 12px 18px 16px; font-family: 'Poppins', sans-serif; font-size: 14px; line-height: 20px; color: #091925; background: rgba(46,171,254,0.05); }
-
-/* ══ FOOTER BAND ══ */
 .hp-footer-band { background: #091925; padding: 52px 0; position: relative; overflow: hidden; }
 .hp-footer-band-overlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,25,37,0.05) 0%, rgba(46,171,254,0.3) 100%); z-index: 0; }
 .hp-footer-band-inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
@@ -465,8 +715,6 @@ html { scroll-behavior: smooth; }
 .hp-btn-enroll:hover { background: #60C3FF; transform: translateY(-2px); }
 .hp-btn-enroll-ghost { display: inline-flex; align-items: center; justify-content: center; padding: 0 32px; height: 54px; min-width: 220px; background: transparent; color: #fff; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 700; border-radius: 999px; border: 1px solid rgba(255,255,255,0.35); cursor: pointer; transition: all .2s; }
 .hp-btn-enroll-ghost:hover { border-color: #fff; background: rgba(255,255,255,0.06); }
-
-/* ══ FOOTER ══ */
 .hp-footer { background: #091925; border-top: 1px solid rgba(255,255,255,0.07); padding: 16px 0; }
 .hp-footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .hp-footer-copy      { font-family: 'Poppins', sans-serif; font-size: 11px; color: rgba(255,255,255,0.42); }
@@ -475,31 +723,10 @@ html { scroll-behavior: smooth; }
 .hp-footer-link      { font-family: 'Poppins', sans-serif; font-size: 11px; color: rgba(255,255,255,0.42); text-decoration: none; transition: color .15s; }
 .hp-footer-link:hover { color: #fff; }
 .hp-footer-dot        { color: rgba(255,255,255,0.25); font-size: 11px; }
-
-/* ══ RESPONSIVE ══ */
-@media (max-width: 1024px) {
-  .hp-container { padding: 0 32px; }
-  .hp-hero-inner { padding: 48px 32px 40px; }
-  .hp-statsbar-inner { padding: 12px 32px; }
-}
-@media (max-width: 900px) {
-  .hp-hero-inner { grid-template-columns: 1fr; gap: 28px; padding: 40px 24px; }
-  .hp-about-grid { grid-template-columns: 1fr; gap: 32px; }
-  .hp-feat-grid { grid-template-columns: 1fr 1fr; }
-  .hp-req-grid { grid-template-columns: 1fr; }
-  .hp-tcard-grid { grid-template-columns: 1fr 1fr; }
-  .hp-statsbar-inner { grid-template-columns: repeat(2,1fr); padding: 12px 24px; }
-  .hp-footer-band-inner { flex-direction: column; }
-}
-@media (max-width: 640px) {
-  .hp-container { padding: 0 16px; }
-  .hp-hero-inner { padding: 32px 16px; }
-  .hp-feat-grid { grid-template-columns: 1fr; }
-  .hp-tcard-grid { grid-template-columns: 1fr; }
-  .hp-statsbar-inner { grid-template-columns: repeat(2,1fr); padding: 12px 16px; }
-  .hp-footer-inner { flex-direction: column; text-align: center; }
-  .hp-footer-links { justify-content: center; }
-}
+@media (max-width: 1024px) { .hp-container { padding: 0 32px; } .hp-hero-inner { padding: 48px 32px 40px; } .hp-statsbar-inner { padding: 12px 32px; } }
+@media (max-width: 900px) { .hp-hero-inner { grid-template-columns: 1fr; gap: 28px; padding: 40px 24px; } .hp-about-grid { grid-template-columns: 1fr; gap: 32px; } .hp-feat-grid { grid-template-columns: 1fr 1fr; } .hp-req-grid { grid-template-columns: 1fr; } .hp-tcard-grid { grid-template-columns: 1fr 1fr; } .hp-statsbar-inner { grid-template-columns: repeat(2,1fr); padding: 12px 24px; } .hp-footer-band-inner { flex-direction: column; } }
+@media (max-width: 640px) { .hp-container { padding: 0 16px; } .hp-hero-inner { padding: 32px 16px; } .hp-feat-grid { grid-template-columns: 1fr; } .hp-tcard-grid { grid-template-columns: 1fr; } .hp-statsbar-inner { grid-template-columns: repeat(2,1fr); padding: 12px 16px; } .hp-footer-inner { flex-direction: column; text-align: center; } .hp-footer-links { justify-content: center; } }
+input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.35); }
 `;
 
 export default HomePage;

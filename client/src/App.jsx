@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
 import LandingPage from './pages/landing_page/LandingPage';
@@ -31,25 +31,19 @@ import ContactSupport from './pages/dashboard/ContactSupport';
 import SupportInbox   from './pages/instructor_page/SupportInbox';
 import EditCourseModal from './pages/dashboard/EditCourseModal';
 import InstructorAddCourse from './pages/instructor_page/InstructorAddCourse';
-// FIX: Removed the .JSX extension to avoid casing conflicts and circular errors
 
 // ── Admin pages ──
 import AdminLayout from './pages/admin/layout/AdminLayout';
-
 import AdminDashboard from './pages/admin/dashboard/index';
 import AdminCourses from './pages/admin/courses/index';
 import AdminStudents from './pages/admin/students/index';
 import AdminReports from './pages/admin/reports/index';
-
 import AdminLogin from './pages/admin/login/index';
 import AdminStudentDetail from './pages/admin/students/StudentDetail';
 import AdminCourseDetail from './pages/admin/courses/CourseDetail';
-
 import AdminInstructors from './pages/admin/instructors/index';
 import AdminInstructorDetail from './pages/admin/instructors/InstructorDetail';
-
 import AdminSettings from './pages/admin/settings/index';
-
 import AdminOrders from './pages/admin/orders/index';
 import AdminOrderDetail from './pages/admin/orders/OrderDetail';
 import AdminManage from './pages/admin/admins/index';
@@ -57,10 +51,49 @@ import InstructorContactAdmin from './pages/instructor_page/InstructorContactAdm
 import AdminExamRequests from './pages/admin/exam-requests/index';
 import AdminAddStudent from './pages/admin/students/AdminAddStudent';
 import AdminVouchers from './pages/admin/vouchers/index';
+import AdminAnnouncements from './pages/admin/AdminAnnouncements';
 
 /* ─── Role helpers ───────────────────────────────────────────────── */
 const isInstructor = (user) =>
   user?.role === 'instructor' || user?.role === 'admin';
+
+/* ─── BioSig Callback ────────────────────────────────────────────────
+ * Handles the redirect back from BioSig-ID after verification.
+ * The backend /api/biosig/callback redirects here with ?biosig=verified
+ * or ?biosig=failed, then we forward the student back into their course.
+ */
+const BioSigCallback = () => {
+  const [params]  = useSearchParams();
+  const navigate  = useNavigate();
+
+  useEffect(() => {
+    const courseId = params.get('courseId');
+    const status   = params.get('biosig');
+
+    if (courseId) {
+      navigate(`/courses/${courseId}?biosig=${status || 'verified'}`, { replace: true });
+    } else {
+      navigate('/dashboard', { replace: true });
+    }
+  }, []);
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100vh', flexDirection: 'column', gap: 16,
+      fontFamily: 'sans-serif', color: '#0a1628',
+    }}>
+      <div style={{
+        width: 40, height: 40, borderRadius: '50%',
+        border: '3px solid rgba(2,8,23,0.10)',
+        borderTopColor: '#2EABFE',
+        animation: 'spin 0.9s linear infinite',
+      }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <div style={{ fontSize: 16, fontWeight: 700 }}>Returning to your course…</div>
+    </div>
+  );
+};
 
 /* ─── Landing wrapper ──────────────────────────────────────────────── */
 const LandingWrapper = () => {
@@ -131,9 +164,12 @@ function App() {
           <Route path="/"                   element={<LandingWrapper />} />
           <Route path="/certificate-test"   element={<Certificate />} />
 
+          {/* ── BioSig-ID callback — called after identity verification ── */}
+          <Route path="/biosig/callback"    element={<BioSigCallback />} />
+
           {/* Public resources */}
-          <Route path="/resources" element={<ResourcesHub />} />
-          <Route path="/resources/:slug" element={<ResourceArticlePage />} />
+          <Route path="/resources"          element={<ResourcesHub />} />
+          <Route path="/resources/:slug"    element={<ResourceArticlePage />} />
 
           {/* ── /home — role-aware entry point ── */}
           <Route path="/home" element={
@@ -143,148 +179,101 @@ function App() {
           } />
 
           {/* ── Student-only pages ── */}
-          <Route path="/dashboard" element={<StudentRoute><Dashboard /></StudentRoute>} />
-          <Route path="/my-courses" element={<StudentRoute><MyCourses /></StudentRoute>} />
-          <Route path="/account-setup" element={<StudentRoute><AccountSetup /></StudentRoute>} />
-          <Route path="/testimonials" element={<StudentRoute><Testimonials /></StudentRoute>} />
-          <Route path="/profile" element={<StudentRoute><Profile /></StudentRoute>} />
-          <Route path="/certificates" element={<StudentRoute><MyCertificates /></StudentRoute>} />
-          <Route path="/orders" element={<StudentRoute><OrdersBilling /></StudentRoute>} />
-          <Route path="/support" element={<StudentRoute><ContactSupport /></StudentRoute>} />
+          <Route path="/dashboard"      element={<StudentRoute><Dashboard /></StudentRoute>} />
+          <Route path="/my-courses"     element={<StudentRoute><MyCourses /></StudentRoute>} />
+          <Route path="/account-setup"  element={<StudentRoute><AccountSetup /></StudentRoute>} />
+          <Route path="/testimonials"   element={<StudentRoute><Testimonials /></StudentRoute>} />
+          <Route path="/profile"        element={<StudentRoute><Profile /></StudentRoute>} />
+          <Route path="/certificates"   element={<StudentRoute><MyCertificates /></StudentRoute>} />
+          <Route path="/orders"         element={<StudentRoute><OrdersBilling /></StudentRoute>} />
+          <Route path="/support"        element={<StudentRoute><ContactSupport /></StudentRoute>} />
           <Route path="/instructor/courses/add" element={<InstructorAddCourse />} />
 
           {/* CE Tracker */}
           <Route path="/ce-tracker" element={
-            <PrivateRoute>
-              <CETracker />
-            </PrivateRoute>
+            <PrivateRoute><CETracker /></PrivateRoute>
           } />
 
           {/* Instructor dashboard */}
           <Route path="/instructor/dashboard" element={
-            <PrivateRoute>
-              <InstructorDashboard />
-            </PrivateRoute>
+            <PrivateRoute><InstructorDashboard /></PrivateRoute>
           } />
 
           {/* Instructor students */}
           <Route path="/instructor/students" element={
-            <PrivateRoute>
-              <ViewStudents />
-            </PrivateRoute>
+            <PrivateRoute><ViewStudents /></PrivateRoute>
           } />
 
           {/* Checkout */}
           <Route path="/checkout" element={
-            <PrivateRoute>
-              <Checkout />
-            </PrivateRoute>
+            <PrivateRoute><Checkout /></PrivateRoute>
           } />
 
           {/* Courses */}
           <Route path="/courses" element={
-            <PrivateRoute>
-              <Courses />
-            </PrivateRoute>
+            <PrivateRoute><Courses /></PrivateRoute>
           } />
 
           {/* Discover pages */}
           <Route path="/state-requirements" element={
-            <PrivateRoute>
-              <StateRequirements />
-            </PrivateRoute>
+            <PrivateRoute><StateRequirements /></PrivateRoute>
           } />
 
           <Route path="/pricing" element={
-            <PrivateRoute>
-              <PricingPage />
-            </PrivateRoute>
+            <PrivateRoute><PricingPage /></PrivateRoute>
           } />
 
           {/* Course detail */}
           <Route path="/courses/:id" element={
-            <PrivateRoute>
-              <CourseDetails />
-            </PrivateRoute>
+            <PrivateRoute><CourseDetails /></PrivateRoute>
           } />
 
           {/* Course portal / LMS */}
           <Route path="/courses/:id/learn" element={
-            <PrivateRoute>
-              <CoursePortal />
-            </PrivateRoute>
+            <PrivateRoute><CoursePortal /></PrivateRoute>
           } />
 
           {/* Certificate */}
           <Route path="/certificate/:courseId" element={
-            <PrivateRoute>
-              <Certificate />
-            </PrivateRoute>
+            <PrivateRoute><Certificate /></PrivateRoute>
           } />
-          <Route path="/my-courses" element={
-            <PrivateRoute>
-              <MyCourses />
-            </PrivateRoute>
-          } />
-          <Route path="/profile" element={
-            <PrivateRoute>
-              <Profile />
-            </PrivateRoute>
-          } />
-          <Route path="/certificates" element={
-            <PrivateRoute>
-              <MyCertificates />
-            </PrivateRoute>
-          } />
+
           <Route path="/orders" element={<PrivateRoute><OrdersBilling /></PrivateRoute>} />
 
           <Route path="/admin/login" element={<AdminLogin />} />
-          
+
           {/* ── Instructor-only pages ── */}
-          <Route path="/instructor/dashboard" element={<InstructorRoute><InstructorDashboard /></InstructorRoute>} />
-          <Route path="/instructor/students" element={<InstructorRoute><ViewStudents /></InstructorRoute>} />
-          <Route path="/instructor/testimonials" element={<InstructorRoute><TestimonialApproval /></InstructorRoute>} />
+          <Route path="/instructor/dashboard"        element={<InstructorRoute><InstructorDashboard /></InstructorRoute>} />
+          <Route path="/instructor/students"         element={<InstructorRoute><ViewStudents /></InstructorRoute>} />
+          <Route path="/instructor/testimonials"     element={<InstructorRoute><TestimonialApproval /></InstructorRoute>} />
           <Route path="/instructor/course/:courseId" element={<InstructorRoute><CourseDetail /></InstructorRoute>} />
           <Route path="/instructor/students/:studentId" element={<InstructorRoute><StudentDetail /></InstructorRoute>} />
-          <Route path="/instructor/support" element={<InstructorRoute><SupportInbox /></InstructorRoute>} />
+          <Route path="/instructor/support"          element={<InstructorRoute><SupportInbox /></InstructorRoute>} />
           <Route path="/instructor/course/:courseId/edit" element={<InstructorRoute><EditCourseModal /></InstructorRoute>} />
-
-          {/* ── Shared private pages ── */}
-          <Route path="/courses" element={<PrivateRoute><Courses /></PrivateRoute>} />
-          <Route path="/courses/:id" element={<PrivateRoute><CourseDetails /></PrivateRoute>} />
-          <Route path="/courses/:id/learn" element={<PrivateRoute><CoursePortal /></PrivateRoute>} />
-          <Route path="/certificate/:courseId" element={<PrivateRoute><Certificate /></PrivateRoute>} />
-          <Route path="/instructor/contact-admin" element={<InstructorRoute><InstructorContactAdmin /></InstructorRoute>} />
-
-          <Route path="/checkout" element={<PrivateRoute><Checkout /></PrivateRoute>} />
+          <Route path="/instructor/contact-admin"    element={<InstructorRoute><InstructorContactAdmin /></InstructorRoute>} />
 
           {/* ── Admin-only pages ── */}
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
-              <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="courses" element={<AdminCourses />} />
-              <Route path="students" element={<AdminStudents />} />
-              <Route path="reports" element={<AdminReports />} />
-              <Route path="students/:id" element={<AdminStudentDetail />} />
-              <Route path="courses/:id" element={<AdminCourseDetail />} />
-              <Route path="instructors"     element={<AdminInstructors />} />
-              <Route path="instructors/:id" element={<AdminInstructorDetail />} />
-              <Route path="settings" element={<AdminSettings />} />
-              <Route path="orders"     element={<AdminOrders />} />
-              <Route path="orders/:id" element={<AdminOrderDetail />} />
-                <Route path="support" element={<SupportInbox />} />  {/* ← ADD THIS */}
-              <Route path="exam-requests" element={<AdminExamRequests />} />
-              <Route path="students/add" element={<AdminAddStudent />} />
-              <Route path="vouchers" element={<AdminVouchers />} />
-
-              <Route path="manage-admins" element={
-                <SuperAdminRoute>
-                  <AdminManage />
-                </SuperAdminRoute>
-              } />
-              
-            </Route>
-
+          <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+            <Route path="dashboard"    element={<AdminDashboard />} />
+            <Route path="courses"      element={<AdminCourses />} />
+            <Route path="students"     element={<AdminStudents />} />
+            <Route path="reports"      element={<AdminReports />} />
+            <Route path="students/:id" element={<AdminStudentDetail />} />
+            <Route path="courses/:id"  element={<AdminCourseDetail />} />
+            <Route path="instructors"     element={<AdminInstructors />} />
+            <Route path="instructors/:id" element={<AdminInstructorDetail />} />
+            <Route path="settings"     element={<AdminSettings />} />
+            <Route path="orders"       element={<AdminOrders />} />
+            <Route path="orders/:id"   element={<AdminOrderDetail />} />
+            <Route path="support"      element={<SupportInbox />} />
+            <Route path="exam-requests" element={<AdminExamRequests />} />
+            <Route path="students/add" element={<AdminAddStudent />} />
+            <Route path="vouchers"     element={<AdminVouchers />} />
+            <Route path="/admin/announcements" element={<AdminAnnouncements />} />
+            <Route path="manage-admins" element={
+              <SuperAdminRoute><AdminManage /></SuperAdminRoute>
+            } />
+          </Route>
 
         </Routes>
       </Router>

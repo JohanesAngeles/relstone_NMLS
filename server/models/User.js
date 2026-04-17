@@ -13,11 +13,12 @@ const userSchema = new mongoose.Schema({
   deactivated_at: { type: Date,    default: null },
   last_login_at:  { type: Date,    default: null },
   company:    { type: String, trim: true, default: null },
-work_phone: { type: String, trim: true, default: null },
-home_phone: { type: String, trim: true, default: null },
-course_type:{ type: String, default: null },
-town_city:  { type: String, trim: true, default: null }, // ADD THIS ✅
+  work_phone: { type: String, trim: true, default: null },
+  home_phone: { type: String, trim: true, default: null },
+  course_type:{ type: String, default: null },
+  town_city:  { type: String, trim: true, default: null },
   zip_code:   { type: String, trim: true, default: null },
+
   // ── Google OAuth ──────────────────────────────────────────────────
   googleId:       { type: String, default: null },
   profilePicture: { type: String, default: null },
@@ -28,7 +29,8 @@ town_city:  { type: String, trim: true, default: null }, // ADD THIS ✅
   phone:    { type: String, trim: true, default: null },
   address:  { type: String, trim: true, default: null },
 
-  // ── BioSig-ID (BSI) History ───────────────────────────────────────
+  // ── BioSig-ID (BSI) ───────────────────────────────────────────────
+  biosig_enrolled_at: { type: Date, default: null }, // set on first successful verification
   biosig_verifications: [
     {
       course_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
@@ -36,6 +38,10 @@ town_city:  { type: String, trim: true, default: null }, // ADD THIS ✅
       session_token: { type: String },
       provider:      { type: String, default: 'BioSig-ID' },
       module_order:  { type: Number },
+      result:        { type: String, default: null },  // 'pass' | 'fail' | raw value from callback
+      verified:      { type: Boolean, default: false }, // true only on confirmed pass
+      score:         { type: String, default: null },   // biometric score from BioSig-ID
+      uid:           { type: String, default: null },   // NMLS-ID#... value returned by BioSig-ID
     }
   ],
 
@@ -82,6 +88,6 @@ town_city:  { type: String, trim: true, default: null }, // ADD THIS ✅
 
 // ── Indexes ───────────────────────────────────────────────────────
 userSchema.index({ 'biosig_verifications.course_id': 1 });
-userSchema.index({ googleId: 1 }, { sparse: true }); // sparse: only indexes non-null googleId values
+userSchema.index({ googleId: 1 }, { sparse: true });
 
 module.exports = mongoose.model('User', userSchema);
