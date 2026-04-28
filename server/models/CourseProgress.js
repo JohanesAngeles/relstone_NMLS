@@ -6,13 +6,13 @@ const courseProgressSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
-      index: true,
+      // removed index: true — covered by compound index below
     },
     course_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Course',
       required: true,
-      index: true,
+      // removed index: true — covered by compound index below
     },
     completed_idxs: {
       type: [Number],
@@ -29,7 +29,7 @@ const courseProgressSchema = new mongoose.Schema(
     is_completed: {
       type: Boolean,
       default: false,
-      index: true,
+      index: true, // keep — standalone index for filtering completed courses
     },
     completed_at: {
       type: Date,

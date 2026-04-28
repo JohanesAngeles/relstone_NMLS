@@ -54,7 +54,6 @@ const voucherSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-voucherSchema.index({ code: 1 });
 voucherSchema.index({ is_active: 1, valid_until: 1 });
 
 module.exports = mongoose.model('Voucher', voucherSchema);

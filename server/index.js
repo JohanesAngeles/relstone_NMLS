@@ -38,18 +38,18 @@ const authMiddleware = require('./middleware/auth');
 const examRequestRoutes = require('./routes/exam-requests');
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
-const adminAuthRoutes      = require('./routes/admin/auth');
-const adminCourseRoutes    = require('./routes/admin/courses');
-const adminStudentRoutes   = require('./routes/admin/students');
-const adminReportRoutes    = require('./routes/admin/reports');
-const adminDashboardRoutes = require('./routes/admin/dashboard');
-const adminUploadRoutes    = require('./routes/admin/upload');
+const adminAuthRoutes       = require('./routes/admin/auth');
+const adminCourseRoutes     = require('./routes/admin/courses');
+const adminStudentRoutes    = require('./routes/admin/students');
+const adminReportRoutes     = require('./routes/admin/reports');
+const adminDashboardRoutes  = require('./routes/admin/dashboard');
+const adminUploadRoutes     = require('./routes/admin/upload');
 const adminInstructorRoutes = require('./routes/admin/instructors');
-const adminSettingsRoutes  = require('./routes/admin/settings');
-const adminOrderRoutes     = require('./routes/admin/orders');
-const adminManageRoutes    = require('./routes/admin/admins');
-const adminVoucherRoutes   = require('./routes/admin/vouchers');
-const announcementRoutes   = require('./routes/announcements');
+const adminSettingsRoutes   = require('./routes/admin/settings');
+const adminOrderRoutes      = require('./routes/admin/orders');
+const adminManageRoutes     = require('./routes/admin/admins');
+const adminVoucherRoutes    = require('./routes/admin/vouchers');
+const announcementRoutes    = require('./routes/announcements');
 
 const app = express();
 
@@ -61,10 +61,16 @@ app.use(cors({
     'http://10.0.2.2:8000',
     'http://192.168.100.3:8000',
     'https://relstone-nmls-62fc9b1f5f80.herokuapp.com',
+    'https://sandbox.verifyexpress.com', // BioSig sandbox server
   ],
   credentials: true,
 }));
 
+// ── Body Parsers ───────────────────────────────────────────────────────────────
+// IMPORTANT: BioSig POSTs encrypted form data to /api/biosig/callback.
+// express.text() must be registered for that path BEFORE express.json(),
+// otherwise express.json() consumes (and discards) the body first.
+app.use('/api/biosig/callback', express.text({ type: '*/*' }));
 app.use(express.json());
 
 // ── Public API routes ──────────────────────────────────────────────────────────
@@ -79,7 +85,7 @@ if (enrollmentRoutes)  app.use('/api/enrollment',     authMiddleware, enrollment
 if (rocsRoutes)        app.use('/api/rocs',           authMiddleware, rocsRoutes);
 if (supportRoutes)     app.use('/api/support',        authMiddleware, supportRoutes);
 if (testimonialRoutes) app.use('/api/testimonials',   testimonialRoutes);
-if (biosigRoutes)      app.use('/api/biosig',         biosigRoutes);
+if (biosigRoutes)      app.use('/api/biosig',         biosigRoutes);  // auth handled inside route
 
 // ── Public announcements (web + mobile) ───────────────────────────────────────
 app.use('/api/announcements', announcementRoutes);
