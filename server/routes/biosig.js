@@ -15,7 +15,7 @@ const BSI_CONFIG = {
   passPhrase:  '1000f370-2302-4c90-be1a-d78eaf9ed330',
   salt:        'a71fcb46-f86a-4ec0-bbb6-ae61e2ec8e67',
   vector:      'eccc351afa28460c',
-  callbackUrl: 'https://deafness-triangle-mace.ngrok-free.dev/api/biosig/callback',
+  callbackUrl: 'https://www.relstonenmls.com/api/biosig/callback',
 };
 
 // ── Valid BioSig action values per NMLS requirements ──────────────────────
@@ -190,15 +190,15 @@ async function handleVerification({ userId, courseId, action, result, uid, score
 
 // ── Shared callback handler (used by both GET and POST) ────────────────────
 async function handleCallbackArgs(encryptedArgs, fallbackCourseId, res) {
-  const successRedirect = 'https://deafness-triangle-mace.ngrok-free.dev/biosig/finished';
-const failureRedirect = 'https://deafness-triangle-mace.ngrok-free.dev/biosig/failure';
+  const successRedirect = 'https://www.relstonenmls.com/biosig/finished';
+const failureRedirect = 'https://www.relstonenmls.com/biosig/failure';
 
   encryptedArgs = (encryptedArgs || '').replace(/ /g, '+');
 
   if (!encryptedArgs) {
     console.warn('[BioSig] Callback: no encrypted args found');
     return res.status(200).type('text/xml').send(
-      buildSsoResponseXml('Failure', '250', 'Timestamp not found or not accepted', failureRedirect)
+buildSsoResponseXml('Failure', '250', err.message, 'https://www.relstonenmls.com/biosig/failure')
     );
   }
 
