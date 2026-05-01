@@ -196,11 +196,11 @@ const failureRedirect = 'https://www.relstonenmls.com/biosig/failure';
   encryptedArgs = (encryptedArgs || '').replace(/ /g, '+');
 
   if (!encryptedArgs) {
-    console.warn('[BioSig] Callback: no encrypted args found');
-    return res.status(200).type('text/xml').send(
-buildSsoResponseXml('Failure', '250', err.message, 'https://www.relstonenmls.com/biosig/failure')
-    );
-  }
+  console.warn('[BioSig] Callback: no encrypted args found');
+  return res.status(200).type('text/xml').send(
+    buildSsoResponseXml('Failure', '250', 'No args provided', 'https://www.relstonenmls.com/biosig/failure')
+  );
+}
 
   let decrypted;
   try {
