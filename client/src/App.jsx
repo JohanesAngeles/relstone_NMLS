@@ -31,6 +31,7 @@ import ContactSupport from './pages/dashboard/ContactSupport';
 import SupportInbox   from './pages/instructor_page/SupportInbox';
 import EditCourseModal from './pages/dashboard/EditCourseModal';
 import InstructorAddCourse from './pages/instructor_page/InstructorAddCourse';
+import BioSigFinished from './components/BioSigFinished';
 
 // ── Admin pages ──
 import AdminLayout from './pages/admin/layout/AdminLayout';
@@ -163,7 +164,8 @@ function App() {
           {/* ── Public ── */}
           <Route path="/"                   element={<LandingWrapper />} />
           <Route path="/certificate-test"   element={<Certificate />} />
-
+          <Route path="/biosig/finished" element={<BioSigFinished />} />
+          <Route path="/biosig/failure" element={<BioSigFinished />} />
           {/* ── BioSig-ID callback — called after identity verification ── */}
           <Route path="/biosig/callback"    element={<BioSigCallback />} />
 
@@ -188,6 +190,7 @@ function App() {
           <Route path="/orders"         element={<StudentRoute><OrdersBilling /></StudentRoute>} />
           <Route path="/support"        element={<StudentRoute><ContactSupport /></StudentRoute>} />
           <Route path="/instructor/courses/add" element={<InstructorAddCourse />} />
+          
 
           {/* CE Tracker */}
           <Route path="/ce-tracker" element={

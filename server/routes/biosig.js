@@ -18,6 +18,14 @@ const BSI_CONFIG = {
   callbackUrl: 'https://deafness-triangle-mace.ngrok-free.dev/api/biosig/callback',
 };
 
+// ── Valid BioSig action values per NMLS requirements ──────────────────────
+// Begin     → first access of course content
+// Resuming  → returning after logout or inactivity
+// FinalExam → before taking the final exam
+// Middle#1  → midpoint check on longer courses (~2-3hr content)
+// Middle#2  → second midpoint check on longer courses
+const VALID_ACTIONS = ['Begin', 'Resuming', 'FinalExam', 'Middle#1', 'Middle#2'];
+
 // ── Key Derivation ─────────────────────────────────────────────────────────
 function createSecureKey(pass, salt, count, dklen) {
   let t = pass + salt;
@@ -43,7 +51,6 @@ function encrypt(value) {
 }
 
 // ── Decrypt ────────────────────────────────────────────────────────────────
-// Used to decrypt the encrypted args BioSig POSTs back to our callback URL.
 function decrypt(encryptedValue) {
   const key      = deriveKey();
   const iv       = Buffer.from(BSI_CONFIG.vector, 'utf8');
@@ -66,9 +73,12 @@ function buildTimestamp() {
 }
 
 // ── Build SSO args param ───────────────────────────────────────────────────
-function buildSSOParams({ nmlsId, isResuming, user }) {
-  const ts     = buildTimestamp();
-  const action = isResuming ? 'Resuming' : 'Begin';
+// action: 'Begin' | 'Resuming' | 'FinalExam' | 'Middle#1' | 'Middle#2'
+function buildSSOParams({ nmlsId, action, user }) {
+  const ts = buildTimestamp();
+
+  // Validate action — default to Begin if invalid
+  const d3 = VALID_ACTIONS.includes(action) ? action : 'Begin';
 
   const argString = [
     `ts=${ts}`,
@@ -86,7 +96,7 @@ function buildSSOParams({ nmlsId, isResuming, user }) {
     `as=CE-course`,
     `d1=${new Date().getFullYear()}`,
     `d2=${user?.courseId       || '1234'}`,
-    `d3=${action}`,
+    `d3=${d3}`,
     `d4=${user?.courseTitle    || 'Test SAFE Course'}`,
     `d5=${user?.courseDuration || '1'}`,
     `cb=${BSI_CONFIG.callbackUrl}`,
@@ -98,8 +108,8 @@ function buildSSOParams({ nmlsId, isResuming, user }) {
 }
 
 // ── Hit BioSig SSO server-side and return REDIRECT URL ────────────────────
-async function getBioSigRedirectUrl({ nmlsId, isResuming, user }) {
-  const query  = buildSSOParams({ nmlsId, isResuming, user });
+async function getBioSigRedirectUrl({ nmlsId, action, user }) {
+  const query  = buildSSOParams({ nmlsId, action, user });
   const ssoUrl = `${BSI_CONFIG.ssoUrl}?${query}`;
 
   console.log('[BioSig] Calling SSO:', ssoUrl);
@@ -126,7 +136,7 @@ async function getBioSigRedirectUrl({ nmlsId, isResuming, user }) {
   return redirectUrl;
 }
 
-// ── Parse key=value arg string (from decrypted callback body) ──────────────
+// ── Parse key=value arg string ─────────────────────────────────────────────
 function parseArgString(str) {
   const result = {};
   str.split('&').filter(Boolean).forEach(pair => {
@@ -137,7 +147,6 @@ function parseArgString(str) {
 }
 
 // ── Build SSO_RESPONSE XML — Ron's exact required format ───────────────────
-// BioSig will retry the POST if we don't respond with this exact structure.
 function buildSsoResponseXml(status, code, message, redirectUrl) {
   return (
     `<?xml version="1.0" encoding="utf-8"?>\n` +
@@ -150,8 +159,8 @@ function buildSsoResponseXml(status, code, message, redirectUrl) {
   );
 }
 
-// ── Shared verification writer (used by GET + POST callbacks) ──────────────
-async function handleVerification({ userId, courseId, result, uid, score, rawBody }) {
+// ── Shared verification writer ─────────────────────────────────────────────
+async function handleVerification({ userId, courseId, action, result, uid, score, rawBody }) {
   const verified = result === 'pass' || result === '1' || result === 'true';
 
   const verificationRecord = {
@@ -159,6 +168,7 @@ async function handleVerification({ userId, courseId, result, uid, score, rawBod
     verified_at:   new Date(),
     session_token: `bsi-${userId}-${Date.now()}`,
     provider:      'BioSig-ID (NMLS)',
+    action:        action   || 'Begin',   // Begin | Resuming | FinalExam | Middle#1 | Middle#2
     result:        result   || 'unknown',
     score:         score    || null,
     uid:           uid      || null,
@@ -167,16 +177,93 @@ async function handleVerification({ userId, courseId, result, uid, score, rawBod
   };
 
   const updateFields = { $push: { biosig_verifications: verificationRecord } };
-  if (verified) updateFields.$set = { biosig_enrolled_at: new Date() };
 
-  await User.findByIdAndUpdate(userId, updateFields);
+  // Only stamp biosig_enrolled_at on first successful Begin
+  if (verified && action === 'Begin') {
+    updateFields.$set = { biosig_enrolled_at: new Date() };
+  }
+
+  // Fix Mongoose deprecation warning
+  await User.findByIdAndUpdate(userId, updateFields, { returnDocument: 'after' });
   return { verified, verificationRecord };
+}
+
+// ── Shared callback handler (used by both GET and POST) ────────────────────
+async function handleCallbackArgs(encryptedArgs, fallbackCourseId, res) {
+  const successRedirect = 'https://deafness-triangle-mace.ngrok-free.dev/biosig/finished';
+const failureRedirect = 'https://deafness-triangle-mace.ngrok-free.dev/biosig/failure';
+
+  encryptedArgs = (encryptedArgs || '').replace(/ /g, '+');
+
+  if (!encryptedArgs) {
+    console.warn('[BioSig] Callback: no encrypted args found');
+    return res.status(200).type('text/xml').send(
+      buildSsoResponseXml('Failure', '250', 'Timestamp not found or not accepted', failureRedirect)
+    );
+  }
+
+  let decrypted;
+  try {
+    decrypted = decrypt(encryptedArgs);
+    console.log('[BioSig] Callback decrypted args:', decrypted);
+  } catch (decryptErr) {
+    console.error('[BioSig] Callback decrypt failed:', decryptErr.message);
+    return res.status(200).type('text/xml').send(
+      buildSsoResponseXml('Failure', '250', 'Decryption failed', failureRedirect)
+    );
+  }
+
+  const keyedArgs = parseArgString(decrypted);
+  console.log('[BioSig] Callback keyedArgs:', keyedArgs);
+
+  const verified = String(keyedArgs.vs || '').toLowerCase() === 'true';
+  const uid      = keyedArgs.uid   || null;
+  const courseId = keyedArgs.d2    || fallbackCourseId || null;
+  const action   = keyedArgs.d3    || 'Begin';
+  const score    = keyedArgs.score || null;
+  const result   = verified ? 'pass' : 'fail';
+
+  console.log(`[BioSig] Callback: uid=${uid} action=${action} verified=${verified} courseId=${courseId}`);
+
+ let userId = null;
+if (uid) {
+  // First try nmls_id field
+  const userByNmls = await User.findOne({ nmls_id: uid });
+  if (userByNmls) {
+    userId = userByNmls._id;
+  } else {
+    // Fallback: uid is the MongoDB _id (used when user has no nmls_id)
+    try {
+      const userById = await User.findById(uid);
+      if (userById) userId = userById._id;
+    } catch (_) {}
+  }
+}
+
+if (!userId) {
+  console.warn('[BioSig] Callback: cannot resolve user for uid:', uid);
+  return res.status(200).type('text/xml').send(
+    buildSsoResponseXml('Failure', '110', 'User not found', failureRedirect)
+  );
+}
+
+  await handleVerification({ userId, courseId, action, result, uid, score, rawBody: encryptedArgs });
+  console.log(`[BioSig] Callback: saved — userId=${userId} action=${action} verified=${verified}`);
+
+  return res.status(200).type('text/xml').send(
+    buildSsoResponseXml(
+      verified ? 'Success' : 'Failure',
+      verified ? '100'     : '110',
+      verified ? 'None'    : 'Verification failed',
+      verified ? successRedirect : failureRedirect
+    )
+  );
 }
 
 // ── Debug route (NO auth) ──────────────────────────────────────────────────
 router.get('/debug', async (req, res) => {
-  const nmlsId     = req.query.nmlsId || 'test123';
-  const isResuming = req.query.isResuming === 'true';
+  const nmlsId = req.query.nmlsId || 'test123';
+  const action = req.query.action || 'Begin';
 
   const mockUser = {
     email:          'test@test.com',
@@ -188,11 +275,11 @@ router.get('/debug', async (req, res) => {
   };
 
   try {
-    const redirectUrl = await getBioSigRedirectUrl({ nmlsId, isResuming, user: mockUser });
+    const redirectUrl = await getBioSigRedirectUrl({ nmlsId, action, user: mockUser });
     res.json({
       redirect_url: redirectUrl,
       nmlsId,
-      isResuming,
+      action,
       instruction: 'Copy redirect_url and paste in browser to test BioSig page',
     });
   } catch (err) {
@@ -201,90 +288,34 @@ router.get('/debug', async (req, res) => {
   }
 });
 
-// ── POST /callback — NO AUTH REQUIRED ──────────────────────────────────────
-// IMPORTANT: Defined BEFORE router.use(authMiddleware).
-// Ron's BioSig server POSTs here with no session/token — auth would block it.
-// BioSig POSTs an encrypted `args` param (AES-128-CBC, same as SSO outbound).
-// We decrypt it, check vs=True for pass, save to MongoDB, respond SSO_RESPONSE XML.
-// BioSig retries on any non-200 response — always return 200.
+// ── GET /callback — NO AUTH — Ron's C# app sends GET ?args= ───────────────
+router.get('/callback', async (req, res) => {
+  console.log('[BioSig] GET Callback (server-side) query keys:', Object.keys(req.query));
+  try {
+    const encryptedArgs = req.query.args || '';
+    await handleCallbackArgs(encryptedArgs, null, res);
+  } catch (err) {
+    console.error('[BioSig] GET Callback Error:', err);
+    return res.status(200).type('text/xml').send(
+      buildSsoResponseXml('Failure', '250', err.message, 'https://www.relstonenmls.com/biosig/failure')
+    );
+  }
+});
+
+// ── POST /callback — NO AUTH — fallback if BioSig ever POSTs ──────────────
 router.post(
   '/callback',
   express.text({ type: '*/*' }),
   async (req, res) => {
-    const successRedirect = 'https://www.relstonenmls.com/biosig/finished';
-    const failureRedirect = 'https://www.relstonenmls.com/biosig/failure';
-
+    console.log('[BioSig] POST Callback raw body:', typeof req.body === 'string' ? req.body.slice(0, 200) : '(non-string)');
     try {
-      const rawBody = typeof req.body === 'string' ? req.body : '';
-      console.log('[BioSig] POST Callback raw body:', rawBody);
-
-      // Extract encrypted args — BioSig may send via query string or POST body
-      let encryptedArgs = req.query.args || new URLSearchParams(rawBody).get('args') || '';
-      encryptedArgs = encryptedArgs.replace(/ /g, '+'); // normalize spaces back to +
-
-      if (!encryptedArgs) {
-        console.warn('[BioSig] POST Callback: no encrypted args found');
-        return res.status(200).type('text/xml').send(
-          buildSsoResponseXml('Failure', '250', 'Timestamp not found or not accepted', failureRedirect)
-        );
-      }
-
-      // Decrypt using same AES-128-CBC key/vector as SSO
-      let decrypted;
-      try {
-        decrypted = decrypt(encryptedArgs);
-        console.log('[BioSig] POST Callback decrypted args:', decrypted);
-      } catch (decryptErr) {
-        console.error('[BioSig] POST Callback decrypt failed:', decryptErr.message);
-        return res.status(200).type('text/xml').send(
-          buildSsoResponseXml('Failure', '250', 'Decryption failed', failureRedirect)
-        );
-      }
-
-      // Parse decrypted key=value pairs
-      const keyedArgs = parseArgString(decrypted);
-      console.log('[BioSig] POST Callback keyedArgs:', keyedArgs);
-
-      // vs=True means biometric verification passed
-      const verified = String(keyedArgs.vs || '').toLowerCase() === 'true';
-      const uid      = keyedArgs.uid   || null;
-      const courseId = keyedArgs.d2    || null;
-      const score    = keyedArgs.score || null;
-      const result   = verified ? 'pass' : 'fail';
-
-      console.log(`[BioSig] POST Callback: uid=${uid} verified=${verified} courseId=${courseId}`);
-
-      // Resolve user by NMLS uid
-      let userId = null;
-      if (uid) {
-        const userByNmls = await User.findOne({ nmls_id: uid });
-        if (userByNmls) userId = userByNmls._id;
-      }
-
-      if (!userId) {
-        console.warn('[BioSig] POST Callback: cannot resolve user for uid:', uid);
-        // Still 200 so BioSig does not retry — user resolution is our problem
-        return res.status(200).type('text/xml').send(
-          buildSsoResponseXml('Failure', '110', 'User not found', failureRedirect)
-        );
-      }
-
-      await handleVerification({ userId, courseId, result, uid, score, rawBody });
-      console.log(`[BioSig] POST Callback: saved — userId=${userId} verified=${verified}`);
-
-      return res.status(200).type('text/xml').send(
-        buildSsoResponseXml(
-          verified ? 'Success' : 'Failure',
-          verified ? '100'     : '110',
-          verified ? 'None'    : 'Verification failed',
-          verified ? successRedirect : failureRedirect
-        )
-      );
-
+      const rawBody       = typeof req.body === 'string' ? req.body : '';
+      const encryptedArgs = req.query.args || new URLSearchParams(rawBody).get('args') || '';
+      await handleCallbackArgs(encryptedArgs, null, res);
     } catch (err) {
       console.error('[BioSig] POST Callback Error:', err);
       return res.status(200).type('text/xml').send(
-        buildSsoResponseXml('Failure', '250', err.message, failureRedirect)
+        buildSsoResponseXml('Failure', '250', err.message, 'https://www.relstonenmls.com/biosig/failure')
       );
     }
   }
@@ -294,16 +325,29 @@ router.post(
 router.use(authMiddleware);
 
 // ── GET /sso-url ───────────────────────────────────────────────────────────
+// action query param: 'Begin' | 'Resuming' | 'FinalExam' | 'Middle#1' | 'Middle#2'
+// Frontend must pass the correct action depending on where in the course the student is.
 router.get('/sso-url', async (req, res) => {
   try {
-    const { courseId } = req.query;
+    const { courseId, action } = req.query;
     if (!courseId) return res.status(400).json({ message: 'courseId required' });
 
+    // Validate action — default to Begin, or Resuming if enrolled and no action given
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const isResuming = !!(user.biosig_enrolled_at);
-    const nmlsId     = user.nmls_id || user._id.toString();
+    // Determine action:
+    // - If frontend explicitly passes action, use it
+    // - If user is already enrolled and no action given, default to Resuming
+    // - Otherwise Begin
+    let resolvedAction = 'Begin';
+    if (action && VALID_ACTIONS.includes(action)) {
+      resolvedAction = action;
+    } else if (user.biosig_enrolled_at) {
+      resolvedAction = 'Resuming';
+    }
+
+    const nmlsId = user.nmls_id || user._id.toString();
 
     let courseTitle    = 'NMLS Course';
     let courseDuration = '1';
@@ -327,15 +371,17 @@ router.get('/sso-url', async (req, res) => {
       courseDuration,
     };
 
-    const redirectUrl = await getBioSigRedirectUrl({ nmlsId, isResuming, user: userPayload });
+    const redirectUrl = await getBioSigRedirectUrl({ nmlsId, action: resolvedAction, user: userPayload });
 
     req.session = req.session || {};
     req.session.biosig_course_id = courseId;
     req.session.biosig_nmls_id   = nmlsId;
 
+    console.log(`[BioSig] SSO URL generated: action=${resolvedAction} courseId=${courseId} uid=${nmlsId}`);
+
     res.json({
       url:    redirectUrl,
-      action: isResuming ? 'Resuming' : 'Enrolling',
+      action: resolvedAction,
     });
 
   } catch (err) {
@@ -344,79 +390,28 @@ router.get('/sso-url', async (req, res) => {
   }
 });
 
-// ── GET /callback — redirect-based callback (browser flow) ─────────────────
-router.get('/callback', async (req, res) => {
-  try {
-    console.log('[BioSig] GET Callback query:', req.query);
-
-    let result, uid, score, courseId;
-
-    if (req.query.args) {
-      const encryptedArgs = req.query.args.replace(/ /g, '+');
-      try {
-        const decrypted = decrypt(encryptedArgs);
-        console.log('[BioSig] GET Callback decrypted args:', decrypted);
-        const keyedArgs = parseArgString(decrypted);
-        result   = String(keyedArgs.vs || '').toLowerCase() === 'true' ? 'pass' : 'fail';
-        uid      = keyedArgs.uid   || null;
-        score    = keyedArgs.score || null;
-        courseId = keyedArgs.d2    || req.session?.biosig_course_id;
-      } catch (decryptErr) {
-        console.warn('[BioSig] GET Callback decrypt failed, falling back to raw query params:', decryptErr.message);
-        result   = req.query.result;
-        uid      = req.query.uid;
-        score    = req.query.score;
-        courseId = req.session?.biosig_course_id;
-      }
-    } else {
-      result   = req.query.result;
-      uid      = req.query.uid;
-      score    = req.query.score;
-      courseId = req.session?.biosig_course_id;
-    }
-
-    if (!req.user?.id) {
-      return res.redirect('https://www.relstonenmls.com/login?reason=biosig_session_expired');
-    }
-
-    const { verified } = await handleVerification({
-      userId: req.user.id,
-      courseId,
-      result,
-      uid,
-      score,
-    });
-
-    if (verified) {
-      return res.redirect(courseId
-        ? `https://www.relstonenmls.com/courses/${courseId}?biosig=verified`
-        : `https://www.relstonenmls.com/dashboard?biosig=verified`);
-    } else {
-      return res.redirect(
-        `https://www.relstonenmls.com/courses/${courseId || ''}?biosig=failed&reason=${encodeURIComponent(result || 'unknown')}`
-      );
-    }
-  } catch (err) {
-    console.error('[BioSig] GET Callback Error:', err);
-    res.redirect('https://www.relstonenmls.com/dashboard?biosig=error');
-  }
-});
-
 // ── GET /status/:courseId ──────────────────────────────────────────────────
+// Returns verification status for a specific course and action type.
+// Frontend can pass ?action=FinalExam to check if final exam is cleared.
 router.get('/status/:courseId', async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const recentVerification = (user.biosig_verifications || []).find(v =>
-      String(v.course_id) === String(req.params.courseId) &&
-      v.verified_at > twoHoursAgo &&
-      v.verified === true
-    );
+    const actionFilter = req.query.action || null;
+
+    const recentVerification = (user.biosig_verifications || []).find(v => {
+      const courseMatch  = String(v.course_id) === String(req.params.courseId);
+      const recentEnough = v.verified_at > twoHoursAgo;
+      const isVerified   = v.verified === true;
+      const actionMatch  = actionFilter ? v.action === actionFilter : true;
+      return courseMatch && recentEnough && isVerified && actionMatch;
+    });
 
     res.json({
       verified:      !!recentVerification,
+      action:        recentVerification?.action || null,
       last_verified: recentVerification ? recentVerification.verified_at : null,
       enrolled:      !!user.biosig_enrolled_at,
     });

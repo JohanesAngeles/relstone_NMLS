@@ -73,6 +73,27 @@ app.use(cors({
 app.use('/api/biosig/callback', express.text({ type: '*/*' }));
 app.use(express.json());
 
+// ── BioSig redirect pages ──────────────────────────────────────────────────────
+// BioSig redirects the verification tab to these URLs after completing.
+// In production: serve the React build index.html so React Router handles it.
+// In development: redirect to Vite dev server on port 5173.
+app.get('/biosig/finished', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  } else {
+    res.redirect('http://localhost:3000/biosig/finished');
+
+  }
+});
+
+app.get('/biosig/failure', (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+  } else {
+res.redirect('http://localhost:3000/biosig/failure');
+  }
+});
+
 // ── Public API routes ──────────────────────────────────────────────────────────
 if (authRoutes)        app.use('/api/auth',          authRoutes);
 if (courseRoutes)      app.use('/api/courses',        courseRoutes);
