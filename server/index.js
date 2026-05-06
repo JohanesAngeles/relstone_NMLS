@@ -61,7 +61,8 @@ app.use(cors({
     'http://10.0.2.2:8000',
     'http://192.168.100.3:8000',
     'https://relstone-nmls-62fc9b1f5f80.herokuapp.com',
-    'https://sandbox.verifyexpress.com', // BioSig sandbox server
+    'https://www.relstonenmls.com',      // ← ADD THIS
+    'https://sandbox.verifyexpress.com',
   ],
   credentials: true,
 }));
