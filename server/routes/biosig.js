@@ -7,7 +7,7 @@ const User    = require('../models/User');
 
 // ── NMLS BioSig-ID Credentials ─────────────────────────────────────────────
 const BSI_CONFIG = {
-  ssoUrl:      'https://sandbox.verifyexpress.com/interface/standard/nmls/relstone/ssoinbound.aspx',
+  ssoUrl: 'https://sandbox.verifyexpress.com/interface/standard/nmls/relstone/ngrok/ssoinbound.aspx',
   sharedCode:  'NML$.SrR_Pr0j3cT!',
   systemId:    'nmls',
   customerId:  'nmls_relstone',
@@ -15,7 +15,7 @@ const BSI_CONFIG = {
   passPhrase:  '1000f370-2302-4c90-be1a-d78eaf9ed330',
   salt:        'a71fcb46-f86a-4ec0-bbb6-ae61e2ec8e67',
   vector:      'eccc351afa28460c',
-  callbackUrl: 'https://www.relstonenmls.com/api/biosig/callback',
+  callbackUrl: 'https://relstone-nmls.onrender.com/api/biosig/callback',
 };
 
 // ── Valid BioSig action values per NMLS requirements ──────────────────────
@@ -92,12 +92,13 @@ function buildSSOParams({ nmlsId, action, user }) {
     `ln=${user?.lastName       || 'User'}`,
     `lid=${user?.email         || 'test@test.com'}`,
     `uid=${nmlsId}`,
-    `ls=NMLS#relstone`,
+    `ls=NMLS#1405039`,
     `as=CE-course`,
     `d1=${new Date().getFullYear()}`,
     `d2=${user?.courseId       || '1234'}`,
     `d3=${d3}`,
     `d4=${user?.courseTitle    || 'Test SAFE Course'}`,
+    
     `d5=${user?.courseDuration || '1'}`,
     `cb=${BSI_CONFIG.callbackUrl}`,
   ].join('&');
@@ -332,14 +333,9 @@ router.get('/sso-url', async (req, res) => {
     const { courseId, action } = req.query;
     if (!courseId) return res.status(400).json({ message: 'courseId required' });
 
-    // Validate action — default to Begin, or Resuming if enrolled and no action given
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Determine action:
-    // - If frontend explicitly passes action, use it
-    // - If user is already enrolled and no action given, default to Resuming
-    // - Otherwise Begin
     let resolvedAction = 'Begin';
     if (action && VALID_ACTIONS.includes(action)) {
       resolvedAction = action;
@@ -351,12 +347,14 @@ router.get('/sso-url', async (req, res) => {
 
     let courseTitle    = 'NMLS Course';
     let courseDuration = '1';
+    let nmls_course_id = courseId; // ← fallback to MongoDB id if no nmls_course_id
     try {
       const Course = require('../models/Course');
       const course = await Course.findById(courseId);
       if (course) {
-        courseTitle    = course.title    || courseTitle;
-        courseDuration = course.duration || courseDuration;
+        courseTitle    = course.title         || courseTitle;
+        courseDuration = course.duration      || courseDuration;
+        nmls_course_id = course.nmls_course_id || course.courseId || courseId; // ← define it HERE inside the try block
       }
     } catch (e) {
       console.warn('[BioSig] Could not load course:', e.message);
@@ -366,7 +364,7 @@ router.get('/sso-url', async (req, res) => {
       email:          user.email,
       firstName:      user.firstName || user.first_name || 'Student',
       lastName:       user.lastName  || user.last_name  || 'User',
-      courseId,
+      courseId:       nmls_course_id, // ← now correctly defined
       courseTitle,
       courseDuration,
     };
@@ -377,7 +375,7 @@ router.get('/sso-url', async (req, res) => {
     req.session.biosig_course_id = courseId;
     req.session.biosig_nmls_id   = nmlsId;
 
-    console.log(`[BioSig] SSO URL generated: action=${resolvedAction} courseId=${courseId} uid=${nmlsId}`);
+    console.log(`[BioSig] SSO URL generated: action=${resolvedAction} courseId=${nmls_course_id} uid=${nmlsId}`);
 
     res.json({
       url:    redirectUrl,
