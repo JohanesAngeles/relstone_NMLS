@@ -15,7 +15,7 @@ const BSI_CONFIG = {
   passPhrase:  '1000f370-2302-4c90-be1a-d78eaf9ed330',
   salt:        'a71fcb46-f86a-4ec0-bbb6-ae61e2ec8e67',
   vector:      'eccc351afa28460c',
-  callbackUrl: 'https://relstone-nmls.onrender.com/api/biosig/callback',
+callbackUrl: 'https://relstone-nmls-62fc9b1f5f80.herokuapp.com/api/biosig/callback',
 };
 
 // ── Valid BioSig action values per NMLS requirements ──────────────────────
@@ -216,6 +216,7 @@ const failureRedirect = 'https://www.relstonenmls.com/biosig/failure';
 
   const keyedArgs = parseArgString(decrypted);
   console.log('[BioSig] Callback keyedArgs:', keyedArgs);
+console.log('[BioSig] vs value:', keyedArgs.vs); // ← add this
 
   const verified = String(keyedArgs.vs || '').toLowerCase() === 'true';
   const uid      = keyedArgs.uid   || null;
@@ -399,8 +400,19 @@ router.get('/status/:courseId', async (req, res) => {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
     const actionFilter = req.query.action || null;
 
+    // Also load the course to get nmls_course_id for matching
+    let nmls_course_id = req.params.courseId;
+    try {
+      const Course = require('../models/Course');
+      const course = await Course.findById(req.params.courseId);
+      if (course && course.nmls_course_id) {
+        nmls_course_id = course.nmls_course_id;
+      }
+    } catch (e) {}
+
     const recentVerification = (user.biosig_verifications || []).find(v => {
-      const courseMatch  = String(v.course_id) === String(req.params.courseId);
+      const courseMatch  = String(v.course_id) === String(req.params.courseId)
+                        || String(v.course_id) === String(nmls_course_id); // ← also match by nmls_course_id
       const recentEnough = v.verified_at > twoHoursAgo;
       const isVerified   = v.verified === true;
       const actionMatch  = actionFilter ? v.action === actionFilter : true;

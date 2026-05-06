@@ -31,20 +31,18 @@ const userSchema = new mongoose.Schema({
 
   // ── BioSig-ID (BSI) ───────────────────────────────────────────────
   biosig_enrolled_at: { type: Date, default: null }, // set on first successful verification
-  biosig_verifications: [
-    {
-      course_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
-      verified_at:   { type: Date, default: Date.now },
-      session_token: { type: String },
-      provider:      { type: String, default: 'BioSig-ID' },
-      module_order:  { type: Number },
-      result:        { type: String, default: null },  // 'pass' | 'fail' | raw value from callback
-      verified:      { type: Boolean, default: false }, // true only on confirmed pass
-      score:         { type: String, default: null },   // biometric score from BioSig-ID
-      uid:           { type: String, default: null },   // NMLS-ID#... value returned by BioSig-ID
-    }
-  ],
-
+  biosig_verifications: [{
+  course_id: { type: String },
+  verified_at: { type: Date },
+  session_token: { type: String },
+  provider: { type: String },
+  action: { type: String },
+  result: { type: String },
+  score: { type: String },
+  uid: { type: String },
+  raw_response: { type: String },
+  verified: { type: Boolean },
+}],
   // ── License Goals ─────────────────────────────────────────────────
   license_type:  { type: String, default: null },
   target_state:  { type: String, default: null },
