@@ -7,7 +7,9 @@ const User    = require('../models/User');
 
 // ── NMLS BioSig-ID Credentials ─────────────────────────────────────────────
 const BSI_CONFIG = {
-  ssoUrl: 'https://sandbox.verifyexpress.com/interface/standard/nmls/relstone/ngrok/ssoinbound.aspx',
+  ssoUrl: process.env.NODE_ENV === 'production'
+    ? 'https://sandbox.verifyexpress.com/interface/nmls/relstone/dev/ssoinbound.aspx'
+    : 'https://sandbox.verifyexpress.com/interface/standard/nmls/relstone/ngrok/ssoinbound.aspx',
   sharedCode:  'NML$.SrR_Pr0j3cT!',
   systemId:    'nmls',
   customerId:  'nmls_relstone',
@@ -15,7 +17,9 @@ const BSI_CONFIG = {
   passPhrase:  '1000f370-2302-4c90-be1a-d78eaf9ed330',
   salt:        'a71fcb46-f86a-4ec0-bbb6-ae61e2ec8e67',
   vector:      'eccc351afa28460c',
-callbackUrl: 'https://relstone-nmls-62fc9b1f5f80.herokuapp.com/api/biosig/callback',
+  callbackUrl: process.env.NODE_ENV === 'production'
+    ? 'https://www.relstonenmls.com/api/biosig/callback'
+    : 'https://deafness-triangle-mace.ngrok-free.dev/api/biosig/callback'
 };
 
 // ── Valid BioSig action values per NMLS requirements ──────────────────────
