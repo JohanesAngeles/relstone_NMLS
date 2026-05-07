@@ -7,9 +7,9 @@ const User    = require('../models/User');
 
 // ── NMLS BioSig-ID Credentials ─────────────────────────────────────────────
 const BSI_CONFIG = {
-   ssoUrl: process.env.NODE_ENV === 'production'
-    ? 'https://sandbox.verifyexpress.com/interface/standard/nmls/relstone/ssoinbound.aspx'  // ← change this
-    : 'https://sandbox.verifyexpress.com/interface/standard/nmls/relstone/ngrok/ssoinbound.aspx',
+  ssoUrl: process.env.NODE_ENV === 'production'
+  ? 'https://sandbox.verifyexpress.com/interface/standard/nmls/relstone/ssoinbound.aspx'
+  : 'https://sandbox.verifyexpress.com/interface/standard/nmls/relstone/ngrok/ssoinbound.aspx',
   sharedCode:  'NML$.SrR_Pr0j3cT!',
   systemId:    'nmls',
   customerId:  'nmls_relstone',
