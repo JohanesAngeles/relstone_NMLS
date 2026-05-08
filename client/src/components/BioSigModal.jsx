@@ -9,6 +9,7 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
   const [failReason, setFailReason] = useState(null);
   const [bsiUrl,     setBsiUrl]     = useState(null);
   const pollRef = useRef(null);
+  const tabRef  = useRef(null);
 
   const ACTION_LABELS = {
     'Begin':     { title: 'Identity Verification Required',   sub: 'Required before accessing course content.' },
@@ -43,6 +44,7 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (tabRef.current && !tabRef.current.closed) tabRef.current.close();
     };
   }, []);
 
@@ -50,11 +52,17 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
   const startPolling = () => {
     pollRef.current = setInterval(async () => {
       try {
+        const tabClosed = tabRef.current?.closed;
         const res = await API.get(`/biosig/status/${courseId}`);
         if (res.data?.verified) {
           clearInterval(pollRef.current);
+          if (tabRef.current && !tabRef.current.closed) tabRef.current.close();
           setStep('done');
           setTimeout(() => onVerified(), 1200);
+        } else if (tabClosed) {
+          clearInterval(pollRef.current);
+          setFailReason('failed');
+          setStep('failed');
         }
       } catch {
         // Keep polling on network hiccup
@@ -86,6 +94,7 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
 
   const handleCancelWaiting = () => {
     clearInterval(pollRef.current);
+    if (tabRef.current && !tabRef.current.closed) tabRef.current.close();
     setBsiUrl(null);
     setStep('intro');
   };
@@ -119,7 +128,7 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
           )}
         </div>
 
-        {/* ── Course + action label ── */}
+        {/* ── Course banner ── */}
         <div style={S.courseBanner}>
           <span style={S.courseBannerLabel}>Course:</span>
           <span style={S.courseBannerName}>{courseName}</span>
@@ -129,7 +138,7 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
         </div>
 
         {/* ── Body ── */}
-        <div style={S.body}>
+        <div style={step === 'waiting' ? S.bodyFull : S.body}>
 
           {/* Checking */}
           {step === 'checking' && (
@@ -206,24 +215,20 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
 
           {/* Waiting — BioSig iframe */}
           {step === 'waiting' && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+            <div style={S.iframeWrap}>
               {bsiUrl && (
                 <iframe
                   src={bsiUrl}
-                  style={{
-                    width: '100%',
-                    height: '480px',
-                    border: 'none',
-                    borderRadius: 12,
-                    marginBottom: 12,
-                  }}
+                  style={S.iframe}
                   title="BioSig-ID Verification"
                 />
               )}
-              <div style={S.waitingBadge}>Complete verification above — this will update automatically</div>
-              <button style={S.cancelWaitBtn} onClick={handleCancelWaiting} type="button">
-                Cancel — Go Back
-              </button>
+              <div style={S.iframeFooter}>
+                <div style={S.waitingBadge}>✓ Complete verification above — this page updates automatically</div>
+                <button style={S.cancelWaitBtn} onClick={handleCancelWaiting} type="button">
+                  Cancel — Go Back
+                </button>
+              </div>
             </div>
           )}
 
@@ -241,14 +246,15 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
             <div style={S.centerState}>
               <AlertCircle size={56} style={{ color: 'rgba(185,28,28,0.80)', marginBottom: 16 }} />
 
-              {failReason === 'server' && (
+              {failReason === 'popup_blocked' && (
                 <>
-                  <div style={S.stateTitle}>Verification Error</div>
-                  <div style={S.failText}>{error}</div>
+                  <div style={S.stateTitle}>Popup Blocked</div>
+                  <div style={S.failText}>Your browser blocked the BioSig-ID tab from opening.</div>
                   <div style={S.failGuideBox}>
-                    <div style={S.failGuideTitle}>What you can do:</div>
-                    <div style={S.failGuideStep}>• Check your internet connection and try again.</div>
-                    <div style={S.failGuideStep}>• If the issue persists, please contact <strong>Relstone NMLS support</strong>.</div>
+                    <div style={S.failGuideTitle}>How to fix:</div>
+                    <div style={S.failGuideStep}>1. Look for a popup blocked icon in your browser address bar.</div>
+                    <div style={S.failGuideStep}>2. Click it and select "Always allow popups from this site".</div>
+                    <div style={S.failGuideStep}>3. Click "Try Again" below.</div>
                   </div>
                 </>
               )}
@@ -261,6 +267,29 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
                     <div style={S.failGuideStep}>• Your biometric pattern was not recognized.</div>
                     <div style={S.failGuideStep}>• You closed the verification before finishing.</div>
                     <div style={S.failGuideStep}>• Your session timed out.</div>
+                  </div>
+                  <div style={S.failGuideBox}>
+                    <div style={S.failGuideTitle}>What you can do:</div>
+                    <div style={S.failGuideStep}>• Click "Try Again" to restart the verification.</div>
+                    <div style={S.failGuideStep}>• Make sure to draw your signature slowly and clearly.</div>
+                    <div style={S.failGuideStep}>
+                      • For BioSig-ID account issues, visit the{' '}
+                      <a href="https://mortgage.nationwidelicensingsystem.org/help" target="_blank" rel="noopener noreferrer" style={{ color: '#2EABFE', fontWeight: 700 }}>
+                        NMLS Help Center
+                      </a>.
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {failReason === 'server' && (
+                <>
+                  <div style={S.stateTitle}>Verification Error</div>
+                  <div style={S.failText}>{error}</div>
+                  <div style={S.failGuideBox}>
+                    <div style={S.failGuideTitle}>What you can do:</div>
+                    <div style={S.failGuideStep}>• Check your internet connection and try again.</div>
+                    <div style={S.failGuideStep}>• If the issue persists, please contact <strong>Relstone NMLS support</strong>.</div>
                   </div>
                 </>
               )}
@@ -295,43 +324,90 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
 };
 
 const S = {
-  overlay: { position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(9,25,37,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  modal: { background: '#fff', borderRadius: 20, width: '100%', maxWidth: 600, display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden', boxShadow: '0 32px 80px rgba(0,0,0,0.30)' },
-  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', borderBottom: '1px solid rgba(2,8,23,0.08)', flexShrink: 0 },
+  overlay: {
+    position: 'fixed', inset: 0, zIndex: 9999,
+    background: 'rgba(9,25,37,0.75)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: 20,
+  },
+  modal: {
+    background: '#fff', borderRadius: 20,
+    width: '100%', maxWidth: 820,
+    display: 'flex', flexDirection: 'column',
+    height: '92vh',
+    overflow: 'hidden',
+    boxShadow: '0 32px 80px rgba(0,0,0,0.30)',
+  },
+  header: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '16px 20px', borderBottom: '1px solid rgba(2,8,23,0.08)', flexShrink: 0,
+  },
   headerLeft:  { display: 'flex', alignItems: 'center', gap: 12 },
-  iconWrap:    { width: 40, height: 40, borderRadius: 10, background: 'rgba(46,171,254,0.10)', border: '1px solid rgba(46,171,254,0.22)', display: 'grid', placeItems: 'center', flexShrink: 0 },
+  iconWrap:    { width: 38, height: 38, borderRadius: 10, background: 'rgba(46,171,254,0.10)', border: '1px solid rgba(46,171,254,0.22)', display: 'grid', placeItems: 'center', flexShrink: 0 },
   headerTitle: { fontSize: 15, fontWeight: 800, color: '#0a1628' },
   headerSub:   { fontSize: 12, fontWeight: 600, color: 'rgba(10,22,40,0.45)', marginTop: 2 },
   closeBtn:    { width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(2,8,23,0.10)', background: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', color: 'rgba(10,22,40,0.50)', flexShrink: 0 },
+
   courseBanner:      { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: 'rgba(46,171,254,0.06)', borderBottom: '1px solid rgba(46,171,254,0.12)', flexShrink: 0 },
   courseBannerLabel: { fontSize: 11, fontWeight: 800, color: 'rgba(10,22,40,0.40)', letterSpacing: '0.4px', textTransform: 'uppercase', flexShrink: 0 },
   courseBannerName:  { fontSize: 13, fontWeight: 700, color: '#0a1628', flex: 1 },
   actionBadge:       { fontSize: 11, fontWeight: 800, color: '#2EABFE', background: 'rgba(46,171,254,0.10)', border: '1px solid rgba(46,171,254,0.25)', borderRadius: 999, padding: '3px 10px', flexShrink: 0 },
-  body: { flex: 1, overflowY: 'auto', padding: '24px 20px' },
+
+  body:     { flex: 1, overflowY: 'auto', padding: '24px 20px' },
+  bodyFull: { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: 0 },
+
+  // ── Iframe layout ──────────────────────────────────────────────────────────
+  iframeWrap: {
+    flex: 1, display: 'flex', flexDirection: 'column',
+    overflow: 'hidden',
+  },
+  iframe: {
+    flex: 1, width: '100%', border: 'none',
+    minHeight: 0,
+  },
+  iframeFooter: {
+    flexShrink: 0,
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    gap: 10, padding: '12px 20px',
+    borderTop: '1px solid rgba(2,8,23,0.08)',
+    background: '#fff',
+  },
+
   fingerprintWrap: { display: 'flex', justifyContent: 'center', marginBottom: 20 },
   introTitle: { fontSize: 18, fontWeight: 900, color: '#0a1628', marginBottom: 12, textAlign: 'center' },
   introText:  { fontSize: 14, fontWeight: 500, color: 'rgba(10,22,40,0.72)', lineHeight: 1.75, marginBottom: 12 },
+
   enrollBox:   { borderRadius: 12, background: 'rgba(46,171,254,0.05)', border: '1px solid rgba(46,171,254,0.15)', padding: '14px 16px', marginBottom: 16 },
   enrollTitle: { fontSize: 12, fontWeight: 800, color: '#2EABFE', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.4px' },
   enrollStep:  { display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, fontWeight: 600, color: 'rgba(10,22,40,0.75)', marginBottom: 8, lineHeight: 1.5 },
   enrollNum:   { width: 22, height: 22, borderRadius: '50%', background: '#2EABFE', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, flexShrink: 0 },
+
   infoBox:   { borderRadius: 14, border: '1px solid rgba(2,8,23,0.08)', background: 'rgba(2,8,23,0.02)', padding: '14px 16px', marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 },
   infoRow:   { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   infoLabel: { fontSize: 12, fontWeight: 700, color: 'rgba(10,22,40,0.50)' },
   infoValue: { fontSize: 12, fontWeight: 700, color: '#0a1628' },
-  verifyBtn: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px', borderRadius: 12, border: 'none', background: '#2EABFE', color: '#fff', cursor: 'pointer', fontWeight: 800, fontSize: 14, boxShadow: '0 6px 20px rgba(46,171,254,0.28)' },
+
+  verifyBtn: {
+    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    padding: '13px', borderRadius: 12, border: 'none',
+    background: '#2EABFE', color: '#fff', cursor: 'pointer',
+    fontWeight: 800, fontSize: 14, boxShadow: '0 6px 20px rgba(46,171,254,0.28)',
+  },
+
   centerState:   { display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '32px 0' },
   spinner:       { width: 48, height: 48, borderRadius: '50%', border: '3px solid rgba(2,8,23,0.10)', borderTopColor: '#2EABFE', animation: 'biosig-spin 0.9s linear infinite', marginBottom: 20 },
-  pulseWrap:     { marginBottom: 20, animation: 'biosig-pulse 1.8s ease-in-out infinite' },
   stateTitle:    { fontSize: 18, fontWeight: 900, color: '#0a1628', marginBottom: 8 },
   stateSub:      { fontSize: 14, fontWeight: 600, color: 'rgba(10,22,40,0.55)', lineHeight: 1.6, marginBottom: 16 },
-  waitingBadge:  { fontSize: 12, fontWeight: 700, color: 'rgba(46,171,254,0.90)', marginBottom: 16, padding: '6px 14px', borderRadius: 999, background: 'rgba(46,171,254,0.08)', border: '1px solid rgba(46,171,254,0.20)', textAlign: 'center' },
+  waitingBadge:  { fontSize: 12, fontWeight: 700, color: 'rgba(46,171,254,0.90)', padding: '6px 14px', borderRadius: 999, background: 'rgba(46,171,254,0.08)', border: '1px solid rgba(46,171,254,0.20)', textAlign: 'center' },
   cancelWaitBtn: { padding: '10px 22px', borderRadius: 10, border: '1px solid rgba(2,8,23,0.12)', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13, color: 'rgba(10,22,40,0.60)' },
+
   failText:       { fontSize: 14, fontWeight: 600, color: 'rgba(10,22,40,0.65)', lineHeight: 1.6, marginBottom: 12, textAlign: 'left', width: '100%' },
   failGuideBox:   { width: '100%', borderRadius: 12, background: 'rgba(185,28,28,0.04)', border: '1px solid rgba(185,28,28,0.12)', padding: '12px 14px', marginBottom: 10 },
   failGuideTitle: { fontSize: 12, fontWeight: 800, color: 'rgba(185,28,28,0.80)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.4px' },
   failGuideStep:  { fontSize: 13, fontWeight: 600, color: 'rgba(10,22,40,0.70)', marginBottom: 6, lineHeight: 1.5 },
+
   retryBtn: { display: 'flex', alignItems: 'center', padding: '11px 24px', borderRadius: 10, border: 'none', background: '#2EABFE', color: '#fff', cursor: 'pointer', fontWeight: 800, fontSize: 14 },
+
   footer:    { display: 'flex', padding: '14px 20px', borderTop: '1px solid rgba(2,8,23,0.08)', flexShrink: 0 },
   cancelBtn: { padding: '11px 20px', borderRadius: 10, border: '1px solid rgba(2,8,23,0.12)', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 14, color: 'rgba(10,22,40,0.60)' },
 };
