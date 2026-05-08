@@ -380,8 +380,8 @@ const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
 const handleRocsAgreed = () => {
   setRocsAgreed(true);
   setShowRocs(false);
-  setShowBioSig(true); // ← trigger BioSig after ROCS
-  setShowBioSigInstructions(true); 
+  setShowBioSigInstructions(true); // ← show instructions first
+  // REMOVE setShowBioSig(true) from here
 };
 const handleBioSigInstructionsContinue = () => {
   setShowBioSigInstructions(false);
