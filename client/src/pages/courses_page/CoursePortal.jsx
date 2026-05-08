@@ -244,9 +244,12 @@ const CoursePortal = () => {
           Middle2:   false,
           FinalExam: false,
         };
-        setBioSigAction('Begin');
-        setBioSigVerified(false);
-        setShowBioSig(true);
+        if (!agreed) {
+  setShowRocs(true);      // ← ROCS first
+  setShowBioSig(false);   // ← BioSig after ROCS
+} else {
+  setShowBioSig(true);    // ← already agreed, go straight to BioSig
+}
 
         const transcript = transcriptRes.data?.transcript || [];
         const entry = transcript.find(
@@ -372,37 +375,36 @@ const CoursePortal = () => {
     setCompleted(allIdxs);
   };
 
-  const handleRocsAgreed = () => { setRocsAgreed(true); setShowRocs(false); };
+const handleRocsAgreed = () => {
+  setRocsAgreed(true);
+  setShowRocs(false);
+  setShowBioSig(true); // ← trigger BioSig after ROCS
+};
+
   const handleRocsCancel = () => { navigate(`/courses/${id}`); };
 
   // ── BioSig verified handler ───────────────────────────────────────
   // FIX: Mark the correct milestone as done based on which action just verified.
   //      Begin is now marked done here (after actual verification), not on load.
   const handleBioSigVerified = () => {
-    setBioSigVerified(true);
-    setShowBioSig(false);
+  setBioSigVerified(true);
+  setShowBioSig(false);
 
-    // Mark the milestone that just completed as done
-    if (bioSigAction === 'Begin' || bioSigAction === 'Resuming') {
-      bioSigDoneRef.current.Begin = true;
-    }
-    if (bioSigAction === 'FinalExam') {
-      bioSigDoneRef.current.FinalExam = true;
-    }
-    if (bioSigAction === 'Middle#1') {
-      bioSigDoneRef.current.Middle1 = true;
-    }
-    if (bioSigAction === 'Middle#2') {
-      bioSigDoneRef.current.Middle1 = true;
-      bioSigDoneRef.current.Middle2 = true;
-    }
-
-    // FIX: Only show ROCS after a successful Begin flow, and only if not yet agreed.
-    // ROCS was previously shown on load before BioSig — now it correctly gates behind BioSig.
-    if (bioSigAction === 'Begin' && !rocsAgreed) {
-      setShowRocs(true);
-    }
-  };
+  if (bioSigAction === 'Begin' || bioSigAction === 'Resuming') {
+    bioSigDoneRef.current.Begin = true;
+  }
+  if (bioSigAction === 'FinalExam') {
+    bioSigDoneRef.current.FinalExam = true;
+  }
+  if (bioSigAction === 'Middle#1') {
+    bioSigDoneRef.current.Middle1 = true;
+  }
+  if (bioSigAction === 'Middle#2') {
+    bioSigDoneRef.current.Middle1 = true;
+    bioSigDoneRef.current.Middle2 = true;
+  }
+  // ← REMOVE the setShowRocs(true) block here
+};
 
   const handleBioSigCancel = () => { navigate(`/courses/${id}`); };
 
@@ -459,43 +461,49 @@ const CoursePortal = () => {
            FIX: condition uses !bioSigDoneRef.current.Begin implicitly
            via showBioSig being set on load and cleared after verify.
       ── */}
-      {!reviewMode && showBioSig && !bioSigVerified && (
-        <BioSigModal
-          courseId={id}
-          courseName={course?.title || ""}
-          action={bioSigAction}
-          onVerified={handleBioSigVerified}
-          onCancel={handleBioSigCancel}
-        />
-      )}
+      {/* ROCS — shows first, before BioSig */}
+{!reviewMode && showRocs && rocsChecked && !rocsAgreed && (
+  <RocsModal
+    courseId={id}
+    courseName={course?.title || ""}
+    onAgreed={handleRocsAgreed}
+    onCancel={handleRocsCancel}
+  />
+)}
 
-      {/* FIX: ROCS only shown after BioSig verified AND only for Begin flow */}
-      {!reviewMode && showRocs && rocsChecked && !rocsAgreed && bioSigVerified && (
-        <RocsModal courseId={id} courseName={course?.title || ""} onAgreed={handleRocsAgreed} onCancel={handleRocsCancel} />
-      )}
+{/* BioSig — shows after ROCS agreed */}
+{!reviewMode && showBioSig && !bioSigVerified && (
+  <BioSigModal
+    courseId={id}
+    courseName={course?.title || ""}
+    action={bioSigAction}
+    onVerified={handleBioSigVerified}
+    onCancel={handleBioSigCancel}
+  />
+)}
 
-      {inactivityWarning && !reviewMode && (
-        <div style={S.inactivityBanner}>
-          <AlertCircle size={15} style={{ flexShrink: 0 }} />
-          You were logged out due to inactivity. Your progress was saved, but time for this unit was not counted. Please re-verify your identity to continue.
-        </div>
-      )}
-      {expiresWarning !== null && !reviewMode && (
-        <div style={S.inactivityBanner}>
-          <AlertCircle size={15} style={{ flexShrink: 0 }} />
-          This CE course expires on December 31. You have {expiresWarning} day{expiresWarning !== 1 ? "s" : ""} left to complete it.
-        </div>
-      )}
+{inactivityWarning && !reviewMode && (
+  <div style={S.inactivityBanner}>
+    <AlertCircle size={15} style={{ flexShrink: 0 }} />
+    You were logged out due to inactivity. Your progress was saved, but time for this unit was not counted. Please re-verify your identity to continue.
+  </div>
+)}
+{expiresWarning !== null && !reviewMode && (
+  <div style={S.inactivityBanner}>
+    <AlertCircle size={15} style={{ flexShrink: 0 }} />
+    This CE course expires on December 31. You have {expiresWarning} day{expiresWarning !== 1 ? "s" : ""} left to complete it.
+  </div>
+)}
 
-      {reviewMode && (
-        <div style={S.reviewBanner}>
-          <Eye size={15} style={{ flexShrink: 0 }} />
-          <span>You are in <strong>Review Mode</strong> — this course is already completed.</span>
-          <button style={S.reviewExitBtn} onClick={() => navigate("/my-courses")} type="button">
-            Back to My Courses
-          </button>
-        </div>
-      )}
+{reviewMode && (
+  <div style={S.reviewBanner}>
+    <Eye size={15} style={{ flexShrink: 0 }} />
+    <span>You are in <strong>Review Mode</strong> — this course is already completed.</span>
+    <button style={S.reviewExitBtn} onClick={() => navigate("/my-courses")} type="button">
+      Back to My Courses
+    </button>
+  </div>
+)}
 
       {error && <div style={S.errorBanner}><AlertCircle size={14} /> {error}</div>}
 
