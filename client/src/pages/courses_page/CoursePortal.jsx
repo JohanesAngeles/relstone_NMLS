@@ -11,6 +11,7 @@ import RocsModal from "../../components/RocsModal";
 import useSeatTimer from "../../hooks/useSeatTimer";
 import BioSigModal from "../../components/BioSigModal";
 import TestimonialGateModal from "../../components/TempModal";
+import BioSigInstructionsModal from '../../components/BioSigInstructionsModal';
 
 /* ─── Build content array from DB course ────────────────────────── */
 const buildPdfUrl = (baseUrl, startPage) => {
@@ -115,6 +116,7 @@ const CoursePortal = () => {
   const [bioSigVerified, setBioSigVerified] = useState(false);
   const [showBioSig,     setShowBioSig]     = useState(false);
   const [bioSigAction,   setBioSigAction]   = useState('Begin');
+const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
 
   // FIX: bioSigDoneRef.Begin starts as FALSE.
   // It is only set to true inside handleBioSigVerified after the user
@@ -379,6 +381,7 @@ const handleRocsAgreed = () => {
   setRocsAgreed(true);
   setShowRocs(false);
   setShowBioSig(true); // ← trigger BioSig after ROCS
+  setShowBioSigInstructions(true); 
 };
 
   const handleRocsCancel = () => { navigate(`/courses/${id}`); };
@@ -462,6 +465,7 @@ const handleRocsAgreed = () => {
            via showBioSig being set on load and cleared after verify.
       ── */}
       {/* ROCS — shows first, before BioSig */}
+{/* ROCS — shows first, before BioSig */}
 {!reviewMode && showRocs && rocsChecked && !rocsAgreed && (
   <RocsModal
     courseId={id}
@@ -471,7 +475,15 @@ const handleRocsAgreed = () => {
   />
 )}
 
-{/* BioSig — shows after ROCS agreed */}
+{/* BioSig Instructions — shows after ROCS, before BioSig */}
+{!reviewMode && showBioSigInstructions && (
+  <BioSigInstructionsModal
+    onContinue={handleBioSigInstructionsContinue}
+    onCancel={() => navigate(`/courses/${id}`)}
+  />
+)}
+
+{/* BioSig — shows after instructions */}
 {!reviewMode && showBioSig && !bioSigVerified && (
   <BioSigModal
     courseId={id}
