@@ -383,7 +383,10 @@ const handleRocsAgreed = () => {
   setShowBioSig(true); // ← trigger BioSig after ROCS
   setShowBioSigInstructions(true); 
 };
-
+const handleBioSigInstructionsContinue = () => {
+  setShowBioSigInstructions(false);
+  setShowBioSig(true);
+};
   const handleRocsCancel = () => { navigate(`/courses/${id}`); };
 
   // ── BioSig verified handler ───────────────────────────────────────
