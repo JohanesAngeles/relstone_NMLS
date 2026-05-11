@@ -167,7 +167,8 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
               <div style={S.introTitle}>{label.title}</div>
               <div style={S.introText}>{label.sub}</div>
 
-              {(bsiAction === 'Begin' || bsiAction === 'Enrolling') && (
+              {bsiAction === 'Begin' && (
+
                 <div style={S.enrollBox}>
                   <div style={S.enrollTitle}>First time? Here's what to expect:</div>
                   <div style={S.enrollStep}><span style={S.enrollNum}>1</span>Click the button below to open BioSig-ID.</div>

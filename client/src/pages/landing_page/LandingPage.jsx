@@ -411,10 +411,11 @@ const LandingPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [modal,    setModal]    = useState(null);
-  const [openFaq,  setOpenFaq]  = useState(0);
-  const [scrolled, setScrolled] = useState(false);
-  const [ctaForm,  setCtaForm]  = useState({ firstName:'', lastName:'', email:'', phone:'', state:'' });
+  const [modal,         setModal]         = useState(null);
+  const [openFaq,       setOpenFaq]       = useState(0);
+  const [scrolled,      setScrolled]      = useState(false);
+  const [ctaForm,       setCtaForm]       = useState({ firstName:'', lastName:'', email:'', phone:'', state:'' });
+  const [selectedState, setSelectedState] = useState('');
 
   // ── Live courses from API ──────────────────────────────────────────────────
   const [lpCourses,        setLpCourses]        = useState([]);
@@ -426,6 +427,33 @@ const LandingPage = () => {
       .catch(() => {})
       .finally(() => setLpCoursesLoading(false));
   }, []);
+
+  // State name → abbreviation map for flexible matching
+  const STATE_ABBR = {
+    'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA',
+    'Colorado':'CO','Connecticut':'CT','Delaware':'DE','Florida':'FL','Georgia':'GA',
+    'Hawaii':'HI','Idaho':'ID','Illinois':'IL','Indiana':'IN','Iowa':'IA','Kansas':'KS',
+    'Kentucky':'KY','Louisiana':'LA','Maine':'ME','Maryland':'MD','Massachusetts':'MA',
+    'Michigan':'MI','Minnesota':'MN','Mississippi':'MS','Missouri':'MO','Montana':'MT',
+    'Nebraska':'NE','Nevada':'NV','New Hampshire':'NH','New Jersey':'NJ','New Mexico':'NM',
+    'New York':'NY','North Carolina':'NC','North Dakota':'ND','Ohio':'OH','Oklahoma':'OK',
+    'Oregon':'OR','Pennsylvania':'PA','Rhode Island':'RI','South Carolina':'SC',
+    'South Dakota':'SD','Tennessee':'TN','Texas':'TX','Utah':'UT','Vermont':'VT',
+    'Virginia':'VA','Washington':'WA','West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY',
+  };
+
+  // Courses with no states_approved restriction are treated as nationally available
+  const filteredCourses = selectedState
+    ? lpCourses.filter(c => {
+        if (!Array.isArray(c.states_approved) || c.states_approved.length === 0) return true;
+        const abbr = (STATE_ABBR[selectedState] || '').toLowerCase();
+        const name = selectedState.toLowerCase();
+        return c.states_approved.some(s => {
+          const sv = (s || '').trim().toLowerCase();
+          return sv === name || sv === abbr;
+        });
+      })
+    : [];
 
   // ── Live testimonials from API ─────────────────────────────────────────────
   const [testimonials,        setTestimonials]        = useState([]);
@@ -598,7 +626,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* ════════ COURSES — Live API Carousel ════════ */}
+      {/* ════════ COURSES — State-First + Live API Carousel ════════ */}
       <section className="lp-courses" id="courses">
         <div className="lp-container">
           <div className="lp-section-center">
@@ -607,19 +635,169 @@ const LandingPage = () => {
             <p className="lp-sub">All courses are NMLS-approved, fully online, and report directly to your NMLS record upon completion.</p>
           </div>
 
-          {lpCoursesLoading ? (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }} className="lp-course-carousel-grid">
+          {/* ── State Selector ── */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 36,
+          }}>
+            <p style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontSize: 13,
+              fontWeight: 700,
+              color: '#091925',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              margin: 0,
+            }}>
+              Select Your State to See Available Courses
+            </p>
+            <div style={{ position: 'relative', width: '100%', maxWidth: 340 }}>
+              <select
+                value={selectedState}
+                onChange={e => setSelectedState(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 40px 12px 16px',
+                  borderRadius: 8,
+                  border: selectedState ? '1.5px solid #2EABFE' : '1.5px solid #7FA8C4',
+                  background: '#fff',
+                  color: selectedState ? '#091925' : 'rgba(91,115,132,0.65)',
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: 14,
+                  fontWeight: selectedState ? 600 : 400,
+                  outline: 'none',
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  cursor: 'pointer',
+                  boxShadow: selectedState ? '0 0 0 3px rgba(46,171,254,0.15)' : 'none',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <option value="">— Select Your State —</option>
+                {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              {/* Custom chevron */}
+              <svg
+                style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+                width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke={selectedState ? '#2EABFE' : '#7FA8C4'} strokeWidth="2.5" strokeLinecap="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+
+            {/* Active state badge */}
+            {selectedState && (
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '4px 12px', borderRadius: 100,
+                background: 'rgba(46,171,254,0.1)', border: '0.5px solid #2EABFE',
+              }}>
+                <svg width="10" height="8" viewBox="0 0 24 20" fill="none" stroke="#2EABFE" strokeWidth="3" strokeLinecap="round">
+                  <polyline points="2 10 9 17 22 3" />
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#2EABFE', fontFamily: "'Poppins', sans-serif" }}>
+                  Showing courses available in {selectedState}
+                </span>
+                <button
+                  onClick={() => setSelectedState('')}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, marginLeft: 4, display: 'flex', alignItems: 'center' }}
+                  title="Clear state filter"
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="3" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Course Content Area ── */}
+          {!selectedState ? (
+            /* Locked / prompt state — no state selected yet */
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16,
+              padding: '60px 24px',
+              border: '1.5px dashed rgba(46,171,254,0.35)',
+              borderRadius: 10,
+              background: 'rgba(46,171,254,0.03)',
+            }}>
+              <div style={{
+                width: 60, height: 60, borderRadius: '50%',
+                background: 'rgba(46,171,254,0.1)', border: '0.5px solid rgba(46,171,254,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2EABFE" strokeWidth="1.8" strokeLinecap="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#091925', fontFamily: "'Poppins', sans-serif", marginBottom: 8 }}>
+                  Select Your State Above to View Courses
+                </div>
+                <div style={{ fontSize: 13, color: '#7FA8C4', fontFamily: "'Poppins', sans-serif", maxWidth: 400, lineHeight: 1.6 }}>
+                  NMLS course availability and requirements vary by state. Choose your state to see the courses approved for your license.
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 20, marginTop: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {['NMLS Approved', 'Self-Paced', 'Instant Certificate', 'All 50 States'].map(tag => (
+                  <span key={tag} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    fontSize: 11, fontWeight: 700, color: 'rgba(46,171,254,0.7)',
+                    fontFamily: "'Poppins', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em',
+                  }}>
+                    <svg width="8" height="7" viewBox="0 0 24 20" fill="none" stroke="rgba(46,171,254,0.7)" strokeWidth="3" strokeLinecap="round">
+                      <polyline points="2 10 9 17 22 3" />
+                    </svg>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : lpCoursesLoading ? (
+            /* Loading skeleton */
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }} className="lp-course-carousel-grid">
               {[1,2,3].map(i => (
-                <div key={i} style={{ height:380, borderRadius:5, background:'linear-gradient(90deg,rgba(46,171,254,0.08) 25%,rgba(46,171,254,0.15) 50%,rgba(46,171,254,0.08) 75%)', backgroundSize:'200% 100%', animation:'shimmer 1.4s infinite' }} />
+                <div key={i} style={{ height: 380, borderRadius: 5, background: 'linear-gradient(90deg,rgba(46,171,254,0.08) 25%,rgba(46,171,254,0.15) 50%,rgba(46,171,254,0.08) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite' }} />
               ))}
             </div>
-          ) : lpCourses.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'40px 0', color:'#7FA8C4', fontFamily:"'Poppins',sans-serif" }}>
-              No courses available yet.
+          ) : filteredCourses.length === 0 && lpCourses.length > 0 ? (
+            /* No matches for selected state */
+            <div style={{
+              textAlign: 'center', padding: '52px 24px',
+              border: '0.5px solid rgba(46,171,254,0.2)', borderRadius: 10, background: '#fff',
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🗺️</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#091925', fontFamily: "'Poppins', sans-serif", marginBottom: 8 }}>
+                No courses found for {selectedState}
+              </div>
+              <div style={{ fontSize: 13, color: '#7FA8C4', fontFamily: "'Poppins', sans-serif", marginBottom: 16 }}>
+                We may not have state-specific courses for this state yet, or courses may be listed under a different state code.
+              </div>
+              <button
+                onClick={() => setSelectedState('')}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '9px 20px', borderRadius: 8,
+                  border: '1.5px solid #2EABFE', background: 'transparent',
+                  color: '#2EABFE', fontFamily: "'Poppins', sans-serif",
+                  fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                }}
+              >
+                ← Change State
+              </button>
             </div>
           ) : (
+            /* Courses carousel */
             <CourseCarousel
-              courses={lpCourses}
+              courses={filteredCourses}
               user={user}
               navigate={navigate}
               onEnroll={() => setModal('register')}
