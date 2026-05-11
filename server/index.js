@@ -34,7 +34,7 @@ try { supportRoutes     = require('./routes/support');        } catch (e) { cons
 try { biosigRoutes      = require('./routes/biosig');         } catch (e) { console.error('❌ biosig route failed:', e.message); }
 
 // ── Middleware ─────────────────────────────────────────────────────────────────
-const authMiddleware = require('./middleware/auth');
+const authMiddleware    = require('./middleware/auth');
 const examRequestRoutes = require('./routes/exam-requests');
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ app.use(cors({
     'http://10.0.2.2:8000',
     'http://192.168.100.3:8000',
     'https://relstone-nmls-62fc9b1f5f80.herokuapp.com',
-    'https://www.relstonenmls.com',      // ← ADD THIS
+    'https://www.relstonenmls.com',
     'https://sandbox.verifyexpress.com',
   ],
   credentials: true,
@@ -72,6 +72,30 @@ app.use(cors({
 // express.text() must be registered for that path BEFORE express.json(),
 // otherwise express.json() consumes (and discards) the body first.
 app.use('/api/biosig/callback', express.text({ type: '*/*' }));
+
+// ── Keepalive fetch parser ─────────────────────────────────────────────────────
+// When a user closes the tab or exits the course, CoursePortal.jsx fires a
+// keepalive fetch({ keepalive: true }) to save progress. Some browsers send
+// the body as text/plain instead of application/json on unload — this
+// middleware catches those requests and parses the JSON body manually so
+// the dashboard/progress route can handle them normally.
+app.use((req, res, next) => {
+  if (
+    req.method === 'PUT' &&
+    req.path.startsWith('/api/dashboard/progress') &&
+    req.headers['content-type']?.includes('text/plain')
+  ) {
+    let data = '';
+    req.on('data', chunk => { data += chunk; });
+    req.on('end', () => {
+      try { req.body = JSON.parse(data); } catch { req.body = {}; }
+      next();
+    });
+  } else {
+    next();
+  }
+});
+
 app.use(express.json());
 
 // ── BioSig redirect pages ──────────────────────────────────────────────────────
@@ -83,7 +107,6 @@ app.get('/biosig/finished', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
   } else {
     res.redirect('http://localhost:3000/biosig/finished');
-
   }
 });
 
@@ -91,7 +114,7 @@ app.get('/biosig/failure', (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
   } else {
-res.redirect('http://localhost:3000/biosig/failure');
+    res.redirect('http://localhost:3000/biosig/failure');
   }
 });
 

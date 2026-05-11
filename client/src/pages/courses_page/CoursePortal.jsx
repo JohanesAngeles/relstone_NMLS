@@ -146,7 +146,24 @@ const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
   }, []);
 
   const saveProgressRef = useRef({ t: null });
-
+// Add inside CoursePortal, after saveProgressRef is defined
+useEffect(() => {
+  const handleUnload = () => {
+  if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
+  fetch(`/api/dashboard/progress/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      completed_idxs: [...completed].sort((a, b) => a - b),
+      current_idx: currentIdx,
+      total_steps: content.length,
+    }),
+    keepalive: true, // ← this is the key — survives tab close
+  });
+};
+  window.addEventListener('beforeunload', handleUnload);
+  return () => window.removeEventListener('beforeunload', handleUnload);
+}, [id, completed, currentIdx, content.length]);
   const saveProgress = useCallback(({ nextCompletedSet, nextIdx, totalSteps }) => {
     const completed_idxs = [...nextCompletedSet].sort((a, b) => a - b);
     if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
@@ -525,7 +542,16 @@ const handleBioSigInstructionsContinue = () => {
       {/* ── Top bar ── */}
       <header style={S.topbar} className="cp-topbar">
         <div style={S.topbarLeft}>
-          <button style={S.exitBtn} onClick={() => navigate(`/courses/${id}`)} type="button">
+          <button style={S.exitBtn} onClick={() => {
+  flushSeatTime();
+  if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
+  API.put(`/dashboard/progress/${id}`, {
+    completed_idxs: [...completed].sort((a, b) => a - b),
+    current_idx: currentIdx,
+    total_steps: content.length,
+  }).catch(() => {});
+  navigate(`/courses/${id}`);
+}}type="button">
             <ArrowLeft size={15} /> <span className="cp-exit-label">Exit</span>
           </button>
           <div style={S.courseNameWrap}>
