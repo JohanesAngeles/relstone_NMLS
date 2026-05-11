@@ -9,6 +9,15 @@ import {
 import API from "../../api/axios";
 import Layout from "../../components/Layout";
 import AnnouncementModal from '../../components/AnnouncementModal';
+
+const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+  'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
+];
+
 const Courses = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -35,7 +44,6 @@ const Courses = () => {
 
         const ids = new Set();
 
-        // From paid/completed orders
         (ordersRes.data || []).forEach(order => {
           if (['paid', 'completed'].includes(order.status)) {
             (order.items || []).forEach(item => {
@@ -45,7 +53,6 @@ const Courses = () => {
           }
         });
 
-        // From enrollments
         (enrollRes.data || []).forEach(e => {
           const id = e.course_id?._id || e.course_id;
           if (id) ids.add(String(id));
@@ -210,15 +217,24 @@ const Courses = () => {
             </div>
 
             {/* State */}
-            {user?.state && (
-              <button
-                type="button"
-                style={{ ...S.pill, ...(filters.state === user.state ? S.pillStateActive : {}) }}
-                onClick={() => setFilters(f => ({ ...f, state: f.state === user.state ? "" : user.state }))}
+            <div style={S.selectWrap}>
+              <MapPin size={12} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none', color: filters.state ? '#2EABFE' : 'rgba(11,18,32,0.45)', zIndex:1 }} />
+              <select
+                style={{
+                  ...S.filterSelect,
+                  paddingLeft: 26,
+                  ...(filters.state ? S.filterSelectActive : {}),
+                }}
+                value={filters.state}
+                onChange={e => setFilters(f => ({ ...f, state: e.target.value }))}
               >
-                <MapPin size={12} /> {user.state}
-              </button>
-            )}
+                <option value="">All States</option>
+                {US_STATES.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <ChevronDown size={12} style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', pointerEvents:'none', color:'rgba(11,18,32,0.45)' }} />
+            </div>
 
             {(filters.type || filters.hours || filters.state) && (
               <button
@@ -316,7 +332,6 @@ const Courses = () => {
                           <Layers size={10} /> {course.modules.length} modules
                         </span>
                       )}
-                      {/* Enrolled badge */}
                       {isPurchased && (
                         <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'4px 10px', borderRadius:999, border:'1px solid rgba(16,185,129,0.30)', background:'rgba(16,185,129,0.08)', fontSize:11, fontWeight:700, color:'#10b981' }}>
                           <CheckCircle2 size={10} /> Enrolled
@@ -497,7 +512,6 @@ const css = `
 const S = {
   shell:       { maxWidth:1180, margin:'0 auto', padding:'20px 20px 60px' },
 
-  /* Top bar */
   topBar:      { display:'flex', alignItems:'center', gap:12, marginBottom:24 },
   backBtn:     { display:'inline-flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:10, border:'1px solid rgba(2,8,23,0.10)', background:'#fff', cursor:'pointer', fontWeight:700, fontSize:13, color:'rgba(11,18,32,0.70)', flexShrink:0, whiteSpace:'nowrap' },
   topBarCenter:{ flex:1 },
@@ -508,7 +522,6 @@ const S = {
   cartBadge:   { display:'inline-flex', alignItems:'center', justifyContent:'center', minWidth:20, height:20, borderRadius:999, background:'#2EABFE', color:'#fff', fontSize:11, fontWeight:900, padding:'0 5px' },
   cartTotal:   { fontWeight:800, color:'rgba(11,18,32,0.80)' },
 
-  /* Hero */
   hero:        { marginBottom:24, padding:'28px 28px 24px', borderRadius:18, background:'linear-gradient(135deg, #091925 0%, #0d2a45 100%)', color:'#fff', position:'relative', overflow:'hidden' },
   heroLeft:    { position:'relative', zIndex:1 },
   heroEyebrow: { fontSize:11, fontWeight:800, color:'rgba(46,171,254,0.80)', letterSpacing:'0.10em', textTransform:'uppercase', marginBottom:10 },
@@ -520,7 +533,6 @@ const S = {
   heroStatLabel:{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.50)', textTransform:'uppercase', letterSpacing:'0.05em' },
   heroStatDivider:{ width:1, height:32, background:'rgba(255,255,255,0.15)' },
 
-  /* Filter bar */
   filterBar:   { display:'flex', alignItems:'center', gap:10, marginBottom:20, flexWrap:'wrap', padding:'10px 14px', borderRadius:12, background:'#fff', border:'1px solid rgba(2,8,23,0.08)', boxShadow:'0 1px 4px rgba(2,8,23,0.04)' },
   filterGroup: { display:'flex', alignItems:'center', gap:6 },
   filterLabel: { fontSize:12, fontWeight:700, color:'rgba(11,18,32,0.45)', textTransform:'uppercase', letterSpacing:'0.05em' },
@@ -531,28 +543,22 @@ const S = {
   pillStateActive:{ background:'rgba(46,171,254,0.12)', color:'#2EABFE', border:'1px solid rgba(46,171,254,0.30)' },
   selectWrap:  { position:'relative', display:'inline-flex', alignItems:'center' },
   filterSelect:{ appearance:'none', padding:'6px 28px 6px 12px', borderRadius:999, border:'1px solid rgba(2,8,23,0.10)', background:'transparent', fontSize:12, fontWeight:600, color:'rgba(11,18,32,0.65)', cursor:'pointer', outline:'none' },
+  filterSelectActive: { background:'rgba(46,171,254,0.12)', color:'#2EABFE', border:'1px solid rgba(46,171,254,0.30)', fontWeight:700 },
   clearBtn:    { display:'inline-flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:999, border:'1px solid rgba(239,68,68,0.25)', background:'rgba(239,68,68,0.06)', fontSize:12, fontWeight:600, color:'#ef4444', cursor:'pointer' },
   resultCount: { marginLeft:'auto', fontSize:12, fontWeight:700, color:'rgba(11,18,32,0.45)', whiteSpace:'nowrap' },
 
-  /* Toast */
   toast:       { display:'flex', alignItems:'center', gap:10, padding:'12px 16px', borderRadius:12, background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.22)', color:'rgba(11,18,32,0.80)', fontSize:13, fontWeight:600, marginBottom:16 },
   toastClose:  { marginLeft:'auto', width:26, height:26, borderRadius:7, border:'1px solid rgba(2,8,23,0.10)', background:'transparent', cursor:'pointer', display:'grid', placeItems:'center', color:'rgba(11,18,32,0.50)' },
 
-  /* Loading */
   loadingGrid: { display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:14 },
   skeleton:    { height:380, borderRadius:18, background:'linear-gradient(90deg, rgba(2,8,23,0.04) 25%, rgba(2,8,23,0.07) 50%, rgba(2,8,23,0.04) 75%)', backgroundSize:'200% 100%', animation:'shimmer 1.4s infinite' },
 
-  /* Error/Empty */
   errorState:  { padding:'48px 20px', textAlign:'center', color:'#ef4444', fontWeight:700 },
   emptyState:  { padding:'60px 20px', textAlign:'center', gridColumn:'1/-1', display:'flex', flexDirection:'column', alignItems:'center' },
 
-  /* Grid */
   grid:        { display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:14 },
-
-  /* Card */
   card:        { borderRadius:18, background:'#fff', border:'1px solid rgba(2,8,23,0.08)', boxShadow:'0 4px 16px rgba(2,8,23,0.06)', position:'relative', overflow:'hidden' },
 
-  /* Cart drawer */
   overlay:     { position:'fixed', inset:0, background:'rgba(2,8,23,0.45)', zIndex:50 },
   drawer:      { position:'fixed', top:0, right:0, height:'100vh', width:360, maxWidth:'92vw', background:'#fff', borderLeft:'1px solid rgba(2,8,23,0.10)', zIndex:60, display:'flex', flexDirection:'column', boxShadow:'-20px 0 60px rgba(2,8,23,0.15)' },
   drawerHead:  { padding:'18px 18px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid rgba(2,8,23,0.07)' },

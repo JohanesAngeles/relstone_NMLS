@@ -13,6 +13,32 @@ import BioSigModal from "../../components/BioSigModal";
 import TestimonialGateModal from "../../components/TempModal";
 import BioSigInstructionsModal from '../../components/BioSigInstructionsModal';
 
+// ── Persistent quiz answers hook ─────────────────────────────────
+const usePersistentAnswers = (courseId, quizId) => {
+  const key = `quiz_answers_${courseId}_${quizId}`;
+
+  const [answers, setAnswersState] = useState(() => {
+    try {
+      const saved = localStorage.getItem(key);
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  const setAnswers = useCallback((updater) => {
+    setAnswersState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [key]);
+
+  const clearAnswers = useCallback(() => {
+    try { localStorage.removeItem(key); } catch {}
+    setAnswersState({});
+  }, [key]);
+
+  return [answers, setAnswers, clearAnswers];
+};
 /* ─── Build content array from DB course ────────────────────────── */
 const buildPdfUrl = (baseUrl, startPage) => {
   if (!baseUrl) return null;
@@ -999,7 +1025,7 @@ const ReviewAnswersPanel = ({ item, attemptInfo }) => {
 
 /* ─── Checkpoint View ────────────────────────────────────────────── */
 const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAttemptLogged, reviewMode }) => {
-  const [answers, setAnswers]     = useState({});
+  const [answers, setAnswers, clearAnswers] = usePersistentAnswers(courseId, item.id);
   const [submitted, setSubmitted] = useState(false);
   const [allCorrect, setAllCorrect] = useState(false);
   const startedAt = useRef(Date.now());
@@ -1030,17 +1056,15 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
     loadRequest();
   }, [item.id, courseId, isLocked, reviewMode]);
 
-  useEffect(() => {
-    if (!reviewMode) {
-      setAnswers({});
-      setSubmitted(false);
-      setAllCorrect(false);
-      startedAt.current = Date.now();
-      setShowRequestForm(false);
-      setRequestError('');
-    }
-  }, [item.id, reviewMode]);
-
+useEffect(() => {
+  if (!reviewMode) {
+    setSubmitted(false);
+    setAllCorrect(false);
+    startedAt.current = Date.now();
+    setShowRequestForm(false);
+    setRequestError('');
+  }
+}, [item.id, reviewMode]);
   const handleSubmitRequest = async () => {
     setRequestSubmitting(true);
     setRequestError('');
@@ -1127,16 +1151,31 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
   const correctCount = item.questions.filter((q) => answers[q.id] === q.correct).length;
 
   const handleSubmit = async () => {
-    const ok  = item.questions.every((q) => answers[q.id] === q.correct);
-    const pct = Math.round((correctCount / item.questions.length) * 100);
-    setAllCorrect(ok); setSubmitted(true);
-    try {
-      await API.post('/quiz-attempts', { courseId, quizId: item.id, quizTitle: item.title, quizType: 'checkpoint', moduleOrder: item.moduleOrder, scorePct: pct, correct: correctCount, total: item.questions.length, passed: ok, passingScore: 100, timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000), answers });
-      await onAttemptLogged();
-    } catch (err) { console.error('[CheckpointView]', err); }
-  };
+  const ok  = item.questions.every((q) => answers[q.id] === q.correct);
+  const pct = Math.round((correctCount / item.questions.length) * 100);
+  setAllCorrect(ok);
+  setSubmitted(true);
+  try {
+    await API.post('/quiz-attempts', {
+      courseId, quizId: item.id, quizTitle: item.title,
+      quizType: 'checkpoint', moduleOrder: item.moduleOrder,
+      scorePct: pct, correct: correctCount,
+      total: item.questions.length, passed: ok,
+      passingScore: 100,
+      timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
+      answers,
+    });
+    if (ok) clearAnswers(); // ← clear on pass, no need to keep them
+    await onAttemptLogged();
+  } catch (err) { console.error('[CheckpointView]', err); }
+};
 
-  const handleRetry = () => { setAnswers({}); setSubmitted(false); setAllCorrect(false); startedAt.current = Date.now(); };
+const handleRetry = () => {
+  clearAnswers();
+  setSubmitted(false);
+  setAllCorrect(false);
+  startedAt.current = Date.now();
+};
 
   return (
     <div style={S.checkWrap}>
@@ -1198,11 +1237,12 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
 
 /* ─── Quiz View ──────────────────────────────────────────────────── */
 const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogged, reviewMode }) => {
-  const [answers, setAnswers]     = useState({});
+  const [answers, setAnswers, clearAnswers] = usePersistentAnswers(courseId, item.id);
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore]         = useState(0);
   const [passed, setPassed]       = useState(false);
   const startedAt = useRef(Date.now());
+  
 
   const [accessRequest,     setAccessRequest]     = useState(null);
   const [requestLoading,    setRequestLoading]    = useState(false);
@@ -1261,17 +1301,26 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
     </div>
   );
 
-  const doSubmit = async () => {
-    const correct = item.questions.filter((q) => answers[q.id] === q.correct).length;
-    const pct     = Math.round((correct / item.questions.length) * 100);
-    const ok      = pct >= (item.passingScore || 70);
-    setScore(pct); setPassed(ok); setSubmitted(true);
-    const quizType = item.id === 'final-exam' ? 'final_exam' : 'quiz_fundamentals';
-    try {
-      await API.post('/quiz-attempts', { courseId, quizId: item.id, quizTitle: item.title, quizType, moduleOrder: item.moduleOrder, scorePct: pct, correct, total: item.questions.length, passed: ok, passingScore: item.passingScore || 70, timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000), answers });
-      await onAttemptLogged();
-    } catch (err) { console.error('[QuizView]', err); }
-  };
+  
+const doSubmit = async () => {
+  const correct = item.questions.filter((q) => answers[q.id] === q.correct).length;
+  const pct     = Math.round((correct / item.questions.length) * 100);
+  const ok      = pct >= (item.passingScore || 70);
+  setScore(pct); setPassed(ok); setSubmitted(true);
+  const quizType = item.id === 'final-exam' ? 'final_exam' : 'quiz_fundamentals';
+  try {
+    await API.post('/quiz-attempts', {
+      courseId, quizId: item.id, quizTitle: item.title,
+      quizType, moduleOrder: item.moduleOrder,
+      scorePct: pct, correct, total: item.questions.length,
+      passed: ok, passingScore: item.passingScore || 70,
+      timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
+      answers,
+    });
+    if (ok) clearAnswers(); // ← clear on pass
+    await onAttemptLogged();
+  } catch (err) { console.error('[QuizView]', err); }
+};
 
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
   const handleRetry  = () => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); startedAt.current = Date.now(); };
