@@ -104,6 +104,7 @@ const CoursePortal = () => {
   const [reviewMode, setReviewMode]   = useState(false);
   const [error, setError]             = useState(null);
   const [transcriptEntry, setTranscriptEntry] = useState(null);
+  const latestStateRef = useRef({});
 
   const [completed, setCompleted]   = useState(() => new Set());
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -136,7 +137,9 @@ const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
   const [quizAttempts, setQuizAttempts] = useState({});
   const [isExpired,      setIsExpired]      = useState(false);
   const [expiresWarning, setExpiresWarning] = useState(null);
-
+  useEffect(() => {
+  latestStateRef.current = { completed, currentIdx, contentLength: content.length };
+});
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
     setSidebarOpen(mq.matches);
@@ -149,21 +152,30 @@ const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
 // Add inside CoursePortal, after saveProgressRef is defined
 useEffect(() => {
   const handleUnload = () => {
-  if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
-  fetch(`/api/dashboard/progress/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      completed_idxs: [...completed].sort((a, b) => a - b),
-      current_idx: currentIdx,
-      total_steps: content.length,
-    }),
-    keepalive: true, // ← this is the key — survives tab close
-  });
-};
+    if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const { completed, currentIdx, contentLength } = latestStateRef.current;
+
+    fetch(`/api/dashboard/progress/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        completed_idxs: [...completed].sort((a, b) => a - b),
+        current_idx: currentIdx,
+        total_steps: contentLength,
+      }),
+      keepalive: true,
+    });
+  };
+
   window.addEventListener('beforeunload', handleUnload);
   return () => window.removeEventListener('beforeunload', handleUnload);
-}, [id, completed, currentIdx, content.length]);
+}, [id]);
   const saveProgress = useCallback(({ nextCompletedSet, nextIdx, totalSteps }) => {
     const completed_idxs = [...nextCompletedSet].sort((a, b) => a - b);
     if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
