@@ -212,18 +212,20 @@ useEffect(() => {
 
   // ── Inactivity logout → trigger Resuming BioSig ──────────────────
   const handleInactivityLogout = useCallback(() => {
-    setInactivityWarning(true);
-    setBioSigVerified(false);
-    setBioSigAction('Resuming');
-    setShowBioSig(true);
-    setCompleted((prev) => {
-      const next = new Set(prev);
-      next.delete(currentIdx);
-      return next;
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    setTimeout(() => setInactivityWarning(false), 8000);
-  }, [currentIdx]);
+  setInactivityWarning(true);
+  setBioSigVerified(false);
+  setBioSigAction('Resuming');
+  setShowBioSig(true);
+  setCompleted((prev) => {
+    const next = new Set(prev);
+    next.delete(currentIdx);
+    // ADD THIS: save progress after removing current step
+    saveProgress({ nextCompletedSet: next, nextIdx: currentIdx, totalSteps: content.length });
+    return next;
+  });
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  setTimeout(() => setInactivityWarning(false), 8000);
+}, [currentIdx, content.length, saveProgress]); // ADD missing deps
 
   useEffect(() => {
     if (!rocsAgreed || finished || reviewMode || !bioSigVerified) return;
@@ -243,7 +245,7 @@ useEffect(() => {
       events.forEach(e => window.removeEventListener(e, resetTimer));
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     };
-  }, [rocsAgreed, finished, reviewMode, bioSigVerified, handleInactivityLogout]);
+  }, [rocsAgreed, finished, reviewMode, bioSigVerified, handleInactivityLogout, content.length  ]);
 
   const currentModuleOrder = content[currentIdx]?.moduleOrder ?? 0;
   const { flush: flushSeatTime, getSeatSeconds } = useSeatTimer({
