@@ -157,8 +157,7 @@ const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
 
   // Inactivity timer ref — 2 hours per NMLS Resuming requirement
   const inactivityTimerRef = useRef(null);
-  const INACTIVITY_MS = 2 * 60 * 60 * 1000;
-
+  const INACTIVITY_MS = 2 * 60 * 1000; // 2 minutes for testing (change back to 2 * 60 * 60 * 1000 for production)
   const [inactivityWarning, setInactivityWarning] = useState(false);
   const [quizAttempts, setQuizAttempts] = useState({});
   const [isExpired,      setIsExpired]      = useState(false);
