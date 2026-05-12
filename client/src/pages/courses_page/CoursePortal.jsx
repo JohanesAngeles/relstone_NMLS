@@ -39,6 +39,7 @@ const usePersistentAnswers = (courseId, quizId) => {
 
   return [answers, setAnswers, clearAnswers];
 };
+
 /* ─── Build content array from DB course ────────────────────────── */
 const buildPdfUrl = (baseUrl, startPage) => {
   if (!baseUrl) return null;
@@ -143,11 +144,12 @@ const CoursePortal = () => {
   const [bioSigVerified, setBioSigVerified] = useState(false);
   const [showBioSig,     setShowBioSig]     = useState(false);
   const [bioSigAction,   setBioSigAction]   = useState('Begin');
-const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
+  const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
 
-  // FIX: bioSigDoneRef.Begin starts as FALSE.
-  // It is only set to true inside handleBioSigVerified after the user
-  // actually completes the Begin verification — not before.
+  // bioSigDoneRef tracks which milestone checkpoints have been shown.
+  // Begin is only marked true after the user actually completes verification,
+  // not on load. FinalExam is marked true the moment we trigger it (to prevent
+  // double-firing on re-render), then the modal itself handles the actual verify.
   const bioSigDoneRef = useRef({
     Begin:     false,
     Middle1:   false,
@@ -162,9 +164,11 @@ const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
   const [quizAttempts, setQuizAttempts] = useState({});
   const [isExpired,      setIsExpired]      = useState(false);
   const [expiresWarning, setExpiresWarning] = useState(null);
+
   useEffect(() => {
-  latestStateRef.current = { completed, currentIdx, contentLength: content.length };
-});
+    latestStateRef.current = { completed, currentIdx, contentLength: content.length };
+  });
+
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
     setSidebarOpen(mq.matches);
@@ -174,33 +178,34 @@ const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
   }, []);
 
   const saveProgressRef = useRef({ t: null });
-// Add inside CoursePortal, after saveProgressRef is defined
-useEffect(() => {
-  const handleUnload = () => {
-    if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
-    const token = localStorage.getItem('token');
-    if (!token) return;
 
-    const { completed, currentIdx, contentLength } = latestStateRef.current;
+  useEffect(() => {
+    const handleUnload = () => {
+      if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
+      const token = localStorage.getItem('token');
+      if (!token) return;
 
-    fetch(`/api/dashboard/progress/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        completed_idxs: [...completed].sort((a, b) => a - b),
-        current_idx: currentIdx,
-        total_steps: contentLength,
-      }),
-      keepalive: true,
-    });
-  };
+      const { completed, currentIdx, contentLength } = latestStateRef.current;
 
-  window.addEventListener('beforeunload', handleUnload);
-  return () => window.removeEventListener('beforeunload', handleUnload);
-}, [id]);
+      fetch(`/api/dashboard/progress/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          completed_idxs: [...completed].sort((a, b) => a - b),
+          current_idx: currentIdx,
+          total_steps: contentLength,
+        }),
+        keepalive: true,
+      });
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, [id]);
+
   const saveProgress = useCallback(({ nextCompletedSet, nextIdx, totalSteps }) => {
     const completed_idxs = [...nextCompletedSet].sort((a, b) => a - b);
     if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
@@ -212,20 +217,19 @@ useEffect(() => {
 
   // ── Inactivity logout → trigger Resuming BioSig ──────────────────
   const handleInactivityLogout = useCallback(() => {
-  setInactivityWarning(true);
-  setBioSigVerified(false);
-  setBioSigAction('Resuming');
-  setShowBioSig(true);
-  setCompleted((prev) => {
-    const next = new Set(prev);
-    next.delete(currentIdx);
-    // ADD THIS: save progress after removing current step
-    saveProgress({ nextCompletedSet: next, nextIdx: currentIdx, totalSteps: content.length });
-    return next;
-  });
-  window.scrollTo({ top: 0, behavior: "smooth" });
-  setTimeout(() => setInactivityWarning(false), 8000);
-}, [currentIdx, content.length, saveProgress]); // ADD missing deps
+    setInactivityWarning(true);
+    setBioSigVerified(false);
+    setBioSigAction('Resuming');
+    setShowBioSig(true);
+    setCompleted((prev) => {
+      const next = new Set(prev);
+      next.delete(currentIdx);
+      saveProgress({ nextCompletedSet: next, nextIdx: currentIdx, totalSteps: content.length });
+      return next;
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTimeout(() => setInactivityWarning(false), 8000);
+  }, [currentIdx, content.length, saveProgress]);
 
   useEffect(() => {
     if (!rocsAgreed || finished || reviewMode || !bioSigVerified) return;
@@ -245,7 +249,7 @@ useEffect(() => {
       events.forEach(e => window.removeEventListener(e, resetTimer));
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     };
-  }, [rocsAgreed, finished, reviewMode, bioSigVerified, handleInactivityLogout, content.length  ]);
+  }, [rocsAgreed, finished, reviewMode, bioSigVerified, handleInactivityLogout, content.length]);
 
   const currentModuleOrder = content[currentIdx]?.moduleOrder ?? 0;
   const { flush: flushSeatTime, getSeatSeconds } = useSeatTimer({
@@ -291,23 +295,23 @@ useEffect(() => {
         const agreed = rocsRes.data?.agreed || false;
         setRocsAgreed(agreed);
         setRocsChecked(true);
-        // FIX: Do NOT show ROCS here. Show it only after BioSig Begin verifies.
-        // (handleBioSigVerified will call setShowRocs(true) when appropriate)
 
-        // FIX: Reset all milestone flags to false on fresh load.
-        // Begin is NOT pre-marked as done — the student must actually verify.
+        // Reset all milestone flags to false on every fresh load.
+        // Begin is NOT pre-marked — the student must actually verify.
+        // FinalExam is NOT pre-marked — it fires when navigating to that step.
         bioSigDoneRef.current = {
           Begin:     false,
           Middle1:   false,
           Middle2:   false,
           FinalExam: false,
         };
+
         if (!agreed) {
-  setShowRocs(true);      // ← ROCS first
-  setShowBioSig(false);   // ← BioSig after ROCS
-} else {
-  setShowBioSig(true);    // ← already agreed, go straight to BioSig
-}
+          setShowRocs(true);
+          setShowBioSig(false);
+        } else {
+          setShowBioSig(true);
+        }
 
         const transcript = transcriptRes.data?.transcript || [];
         const entry = transcript.find(
@@ -348,34 +352,39 @@ useEffect(() => {
     load();
   }, [id, saveProgress, refreshAttempts]);
 
-  // ── Trigger Middle#1, Middle#2, FinalExam BioSig at right thresholds ──
-  // Only fires when currently verified. Begin is excluded here because it's
-  // handled on initial load above.
+  // ── Milestone BioSig triggers ─────────────────────────────────────
+  // KEY FIX: FinalExam check is placed ABOVE the `bioSigVerified` guard.
+  // This ensures it fires even when the user is currently verified (e.g.
+  // they completed Begin/Middle and navigated straight to the final exam).
+  // Middle checks remain below the guard — they only fire during active sessions.
   useEffect(() => {
     if (reviewMode || !content.length) return;
 
     const item = content[currentIdx];
     if (!item) return;
 
-    // Only trigger new milestones when currently verified
-    if (!bioSigVerified) return;
-
     const totalSteps = content.length;
     const pct        = currentIdx / totalSteps;
 
-    // FinalExam — triggers when student navigates to the final exam step
+    // ── FinalExam: runs BEFORE the bioSigVerified guard ──────────────
+    // We mark FinalExam=true immediately to prevent double-trigger on
+    // re-render, then show the modal. handleBioSigVerified will confirm
+    // the user actually passed the check.
     if (item.type === 'quiz' && item.id === 'final-exam' && !bioSigDoneRef.current.FinalExam) {
-      // Do NOT mark FinalExam done yet — mark it only after successful verify
+      bioSigDoneRef.current.FinalExam = true;
       setBioSigVerified(false);
       setBioSigAction('FinalExam');
       setShowBioSig(true);
       return;
     }
 
+    // Middle checks only run when the user is currently in a verified session
+    if (!bioSigVerified) return;
+
     // Middle#2 — ~66% through content
     if (pct >= 0.66 && !bioSigDoneRef.current.Middle2) {
       bioSigDoneRef.current.Middle2 = true;
-      bioSigDoneRef.current.Middle1 = true; // skip Middle#1 if we're past it
+      bioSigDoneRef.current.Middle1 = true; // skip Middle#1 if we're already past it
       setBioSigVerified(false);
       setBioSigAction('Middle#2');
       setShowBioSig(true);
@@ -433,40 +442,39 @@ useEffect(() => {
     setCompleted(allIdxs);
   };
 
-const handleRocsAgreed = () => {
-  setRocsAgreed(true);
-  setShowRocs(false);
-  setShowBioSigInstructions(true); // ← show instructions first
-  // REMOVE setShowBioSig(true) from here
-};
-const handleBioSigInstructionsContinue = () => {
-  setShowBioSigInstructions(false);
-  setShowBioSig(true);
-};
+  const handleRocsAgreed = () => {
+    setRocsAgreed(true);
+    setShowRocs(false);
+    setShowBioSigInstructions(true);
+  };
+
+  const handleBioSigInstructionsContinue = () => {
+    setShowBioSigInstructions(false);
+    setShowBioSig(true);
+  };
+
   const handleRocsCancel = () => { navigate(`/courses/${id}`); };
 
   // ── BioSig verified handler ───────────────────────────────────────
-  // FIX: Mark the correct milestone as done based on which action just verified.
-  //      Begin is now marked done here (after actual verification), not on load.
   const handleBioSigVerified = () => {
-  setBioSigVerified(true);
-  setShowBioSig(false);
+    setBioSigVerified(true);
+    setShowBioSig(false);
 
-  if (bioSigAction === 'Begin' || bioSigAction === 'Resuming') {
-    bioSigDoneRef.current.Begin = true;
-  }
-  if (bioSigAction === 'FinalExam') {
-    bioSigDoneRef.current.FinalExam = true;
-  }
-  if (bioSigAction === 'Middle#1') {
-    bioSigDoneRef.current.Middle1 = true;
-  }
-  if (bioSigAction === 'Middle#2') {
-    bioSigDoneRef.current.Middle1 = true;
-    bioSigDoneRef.current.Middle2 = true;
-  }
-  // ← REMOVE the setShowRocs(true) block here
-};
+    if (bioSigAction === 'Begin' || bioSigAction === 'Resuming') {
+      bioSigDoneRef.current.Begin = true;
+    }
+    if (bioSigAction === 'FinalExam') {
+      // Already marked true when we triggered it, but keep for clarity
+      bioSigDoneRef.current.FinalExam = true;
+    }
+    if (bioSigAction === 'Middle#1') {
+      bioSigDoneRef.current.Middle1 = true;
+    }
+    if (bioSigAction === 'Middle#2') {
+      bioSigDoneRef.current.Middle1 = true;
+      bioSigDoneRef.current.Middle2 = true;
+    }
+  };
 
   const handleBioSigCancel = () => { navigate(`/courses/${id}`); };
 
@@ -516,65 +524,57 @@ const handleBioSigInstructionsContinue = () => {
     <div style={S.page}>
       <style>{css}</style>
 
-      {/* ── BioSig Modal ─────────────────────────────────────────────
-           Shows for: Begin (first open), Middle#1, Middle#2 (longer
-           courses), FinalExam (before exam unlocks), Resuming (after
-           2hrs inactivity or return from logout). Never in reviewMode.
-           FIX: condition uses !bioSigDoneRef.current.Begin implicitly
-           via showBioSig being set on load and cleared after verify.
-      ── */}
       {/* ROCS — shows first, before BioSig */}
-{/* ROCS — shows first, before BioSig */}
-{!reviewMode && showRocs && rocsChecked && !rocsAgreed && (
-  <RocsModal
-    courseId={id}
-    courseName={course?.title || ""}
-    onAgreed={handleRocsAgreed}
-    onCancel={handleRocsCancel}
-  />
-)}
+      {!reviewMode && showRocs && rocsChecked && !rocsAgreed && (
+        <RocsModal
+          courseId={id}
+          courseName={course?.title || ""}
+          onAgreed={handleRocsAgreed}
+          onCancel={handleRocsCancel}
+        />
+      )}
 
-{/* BioSig Instructions — shows after ROCS, before BioSig */}
-{!reviewMode && showBioSigInstructions && (
-  <BioSigInstructionsModal
-    onContinue={handleBioSigInstructionsContinue}
-    onCancel={() => navigate(`/courses/${id}`)}
-  />
-)}
+      {/* BioSig Instructions — shows after ROCS, before BioSig */}
+      {!reviewMode && showBioSigInstructions && (
+        <BioSigInstructionsModal
+          onContinue={handleBioSigInstructionsContinue}
+          onCancel={() => navigate(`/courses/${id}`)}
+        />
+      )}
 
-{/* BioSig — shows after instructions */}
-{!reviewMode && showBioSig && !bioSigVerified && (
-  <BioSigModal
-    courseId={id}
-    courseName={course?.title || ""}
-    action={bioSigAction}
-    onVerified={handleBioSigVerified}
-    onCancel={handleBioSigCancel}
-  />
-)}
+      {/* BioSig — shows after instructions, and again at FinalExam / Middle / Resuming */}
+      {!reviewMode && showBioSig && !bioSigVerified && (
+        <BioSigModal
+          courseId={id}
+          courseName={course?.title || ""}
+          action={bioSigAction}
+          onVerified={handleBioSigVerified}
+          onCancel={handleBioSigCancel}
+        />
+      )}
 
-{inactivityWarning && !reviewMode && (
-  <div style={S.inactivityBanner}>
-    <AlertCircle size={15} style={{ flexShrink: 0 }} />
-    You were logged out due to inactivity. Your progress was saved, but time for this unit was not counted. Please re-verify your identity to continue.
-  </div>
-)}
-{expiresWarning !== null && !reviewMode && (
-  <div style={S.inactivityBanner}>
-    <AlertCircle size={15} style={{ flexShrink: 0 }} />
-    This CE course expires on December 31. You have {expiresWarning} day{expiresWarning !== 1 ? "s" : ""} left to complete it.
-  </div>
-)}
+      {inactivityWarning && !reviewMode && (
+        <div style={S.inactivityBanner}>
+          <AlertCircle size={15} style={{ flexShrink: 0 }} />
+          You were logged out due to inactivity. Your progress was saved, but time for this unit was not counted. Please re-verify your identity to continue.
+        </div>
+      )}
+      {expiresWarning !== null && !reviewMode && (
+        <div style={S.inactivityBanner}>
+          <AlertCircle size={15} style={{ flexShrink: 0 }} />
+          This CE course expires on December 31. You have {expiresWarning} day{expiresWarning !== 1 ? "s" : ""} left to complete it.
+        </div>
+      )}
 
-{reviewMode && (
-  <div style={S.reviewBanner}>
-    <Eye size={15} style={{ flexShrink: 0 }} />
-    <span>You are in <strong>Review Mode</strong> — this course is already completed.</span>
-    <button style={S.reviewExitBtn} onClick={() => navigate("/my-courses")} type="button">
-      Back to My Courses
-    </button>
-  </div>
-)}
+      {reviewMode && (
+        <div style={S.reviewBanner}>
+          <Eye size={15} style={{ flexShrink: 0 }} />
+          <span>You are in <strong>Review Mode</strong> — this course is already completed.</span>
+          <button style={S.reviewExitBtn} onClick={() => navigate("/my-courses")} type="button">
+            Back to My Courses
+          </button>
+        </div>
+      )}
 
       {error && <div style={S.errorBanner}><AlertCircle size={14} /> {error}</div>}
 
@@ -582,15 +582,15 @@ const handleBioSigInstructionsContinue = () => {
       <header style={S.topbar} className="cp-topbar">
         <div style={S.topbarLeft}>
           <button style={S.exitBtn} onClick={() => {
-  flushSeatTime();
-  if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
-  API.put(`/dashboard/progress/${id}`, {
-    completed_idxs: [...completed].sort((a, b) => a - b),
-    current_idx: currentIdx,
-    total_steps: content.length,
-  }).catch(() => {});
-  navigate(`/courses/${id}`);
-}}type="button">
+            flushSeatTime();
+            if (saveProgressRef.current.t) clearTimeout(saveProgressRef.current.t);
+            API.put(`/dashboard/progress/${id}`, {
+              completed_idxs: [...completed].sort((a, b) => a - b),
+              current_idx: currentIdx,
+              total_steps: content.length,
+            }).catch(() => {});
+            navigate(`/courses/${id}`);
+          }} type="button">
             <ArrowLeft size={15} /> <span className="cp-exit-label">Exit</span>
           </button>
           <div style={S.courseNameWrap}>
@@ -1057,15 +1057,16 @@ const CheckpointView = ({ item, onComplete, onPrev, courseId, attemptInfo, onAtt
     loadRequest();
   }, [item.id, courseId, isLocked, reviewMode]);
 
-useEffect(() => {
-  if (!reviewMode) {
-    setSubmitted(false);
-    setAllCorrect(false);
-    startedAt.current = Date.now();
-    setShowRequestForm(false);
-    setRequestError('');
-  }
-}, [item.id, reviewMode]);
+  useEffect(() => {
+    if (!reviewMode) {
+      setSubmitted(false);
+      setAllCorrect(false);
+      startedAt.current = Date.now();
+      setShowRequestForm(false);
+      setRequestError('');
+    }
+  }, [item.id, reviewMode]);
+
   const handleSubmitRequest = async () => {
     setRequestSubmitting(true);
     setRequestError('');
@@ -1152,31 +1153,31 @@ useEffect(() => {
   const correctCount = item.questions.filter((q) => answers[q.id] === q.correct).length;
 
   const handleSubmit = async () => {
-  const ok  = item.questions.every((q) => answers[q.id] === q.correct);
-  const pct = Math.round((correctCount / item.questions.length) * 100);
-  setAllCorrect(ok);
-  setSubmitted(true);
-  try {
-    await API.post('/quiz-attempts', {
-      courseId, quizId: item.id, quizTitle: item.title,
-      quizType: 'checkpoint', moduleOrder: item.moduleOrder,
-      scorePct: pct, correct: correctCount,
-      total: item.questions.length, passed: ok,
-      passingScore: 100,
-      timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
-      answers,
-    });
-    if (ok) clearAnswers(); // ← clear on pass, no need to keep them
-    await onAttemptLogged();
-  } catch (err) { console.error('[CheckpointView]', err); }
-};
+    const ok  = item.questions.every((q) => answers[q.id] === q.correct);
+    const pct = Math.round((correctCount / item.questions.length) * 100);
+    setAllCorrect(ok);
+    setSubmitted(true);
+    try {
+      await API.post('/quiz-attempts', {
+        courseId, quizId: item.id, quizTitle: item.title,
+        quizType: 'checkpoint', moduleOrder: item.moduleOrder,
+        scorePct: pct, correct: correctCount,
+        total: item.questions.length, passed: ok,
+        passingScore: 100,
+        timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
+        answers,
+      });
+      if (ok) clearAnswers();
+      await onAttemptLogged();
+    } catch (err) { console.error('[CheckpointView]', err); }
+  };
 
-const handleRetry = () => {
-  clearAnswers();
-  setSubmitted(false);
-  setAllCorrect(false);
-  startedAt.current = Date.now();
-};
+  const handleRetry = () => {
+    clearAnswers();
+    setSubmitted(false);
+    setAllCorrect(false);
+    startedAt.current = Date.now();
+  };
 
   return (
     <div style={S.checkWrap}>
@@ -1243,7 +1244,6 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   const [score, setScore]         = useState(0);
   const [passed, setPassed]       = useState(false);
   const startedAt = useRef(Date.now());
-  
 
   const [accessRequest,     setAccessRequest]     = useState(null);
   const [requestLoading,    setRequestLoading]    = useState(false);
@@ -1271,7 +1271,15 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
   }, [item.id, courseId, attemptCount, isFinalExam, reviewMode]);
 
   useEffect(() => {
-    if (!reviewMode) { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); startedAt.current = Date.now(); setShowRequestForm(false); setRequestError(''); }
+    if (!reviewMode) {
+      setAnswers({});
+      setSubmitted(false);
+      setScore(0);
+      setPassed(false);
+      startedAt.current = Date.now();
+      setShowRequestForm(false);
+      setRequestError('');
+    }
   }, [item.id, reviewMode]);
 
   const handleSubmitRequest = async () => {
@@ -1302,26 +1310,25 @@ const QuizView = ({ item, onFinish, onPrev, courseId, attemptInfo, onAttemptLogg
     </div>
   );
 
-  
-const doSubmit = async () => {
-  const correct = item.questions.filter((q) => answers[q.id] === q.correct).length;
-  const pct     = Math.round((correct / item.questions.length) * 100);
-  const ok      = pct >= (item.passingScore || 70);
-  setScore(pct); setPassed(ok); setSubmitted(true);
-  const quizType = item.id === 'final-exam' ? 'final_exam' : 'quiz_fundamentals';
-  try {
-    await API.post('/quiz-attempts', {
-      courseId, quizId: item.id, quizTitle: item.title,
-      quizType, moduleOrder: item.moduleOrder,
-      scorePct: pct, correct, total: item.questions.length,
-      passed: ok, passingScore: item.passingScore || 70,
-      timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
-      answers,
-    });
-    if (ok) clearAnswers(); // ← clear on pass
-    await onAttemptLogged();
-  } catch (err) { console.error('[QuizView]', err); }
-};
+  const doSubmit = async () => {
+    const correct = item.questions.filter((q) => answers[q.id] === q.correct).length;
+    const pct     = Math.round((correct / item.questions.length) * 100);
+    const ok      = pct >= (item.passingScore || 70);
+    setScore(pct); setPassed(ok); setSubmitted(true);
+    const quizType = item.id === 'final-exam' ? 'final_exam' : 'quiz_fundamentals';
+    try {
+      await API.post('/quiz-attempts', {
+        courseId, quizId: item.id, quizTitle: item.title,
+        quizType, moduleOrder: item.moduleOrder,
+        scorePct: pct, correct, total: item.questions.length,
+        passed: ok, passingScore: item.passingScore || 70,
+        timeSpentSeconds: Math.round((Date.now() - startedAt.current) / 1000),
+        answers,
+      });
+      if (ok) clearAnswers();
+      await onAttemptLogged();
+    } catch (err) { console.error('[QuizView]', err); }
+  };
 
   const handleSelect = (qid, idx) => { if (!submitted) setAnswers((p) => ({ ...p, [qid]: idx })); };
   const handleRetry  = () => { setAnswers({}); setSubmitted(false); setScore(0); setPassed(false); startedAt.current = Date.now(); };
