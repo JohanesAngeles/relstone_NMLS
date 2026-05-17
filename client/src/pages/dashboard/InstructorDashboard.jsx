@@ -667,6 +667,7 @@ const InstructorDashboard = () => {
   const [error,               setError]               = useState("");
   const [q,                   setQ]                   = useState("");
   const [courseSearch,        setCourseSearch]        = useState("");
+  const [courseSort,          setCourseSort]          = useState("latest");
   const [showLogout,          setShowLogout]          = useState(false);
   const [expandedStudent,     setExpandedStudent]     = useState(null);
   const [testimonials,        setTestimonials]        = useState([]);
@@ -679,6 +680,8 @@ const InstructorDashboard = () => {
   const [toggleLoading,       setToggleLoading]       = useState(false);
   const [statusFilter,        setStatusFilter]        = useState("all");
   const [editingCourse,       setEditingCourse]       = useState(null);
+  const [hasDraft,            setHasDraft]            = useState(false);
+  const [draftCount,          setDraftCount]          = useState(0);
 
   // ── Orders state ──────────────────────────────────────────────────
   const [orders,              setOrders]              = useState([]);
@@ -709,6 +712,21 @@ const [orderFilter, setOrderFilter] = useState("all");
     };
     fetchAll();
   }, []);
+
+  useEffect(() => {
+    const legacyDraft = localStorage.getItem("instructor_add_course_draft");
+    const drafts = JSON.parse(localStorage.getItem("instructor_course_drafts") || "[]");
+    let count = drafts.length;
+    if (legacyDraft) count += 1;
+    
+    if (count > 0) {
+      setHasDraft(true);
+      setDraftCount(count);
+    } else {
+      setHasDraft(false);
+      setDraftCount(0);
+    }
+  }, [activeTab]);
 
   /* ── Refresh support tickets every 30s ───────────────────────── */
   useEffect(() => {
@@ -987,14 +1005,35 @@ const [orderFilter, setOrderFilter] = useState("all");
   }, [displayStudents, q, statusFilter]);
 
   const filteredCourses = useMemo(() => {
-    if (!courseSearch.trim()) return displayCourses;
-    const needle = courseSearch.toLowerCase();
-    return displayCourses.filter(c =>
-      String(c.title          || "").toLowerCase().includes(needle) ||
-      String(c.type           || "").toLowerCase().includes(needle) ||
-      String(c.nmls_course_id || "").toLowerCase().includes(needle)
-    );
-  }, [displayCourses, courseSearch]);
+    let list = [...displayCourses];
+
+    if (courseSearch.trim()) {
+      const needle = courseSearch.toLowerCase();
+      list = list.filter(c =>
+        String(c.title          || "").toLowerCase().includes(needle) ||
+        String(c.type           || "").toLowerCase().includes(needle) ||
+        String(c.nmls_course_id || "").toLowerCase().includes(needle)
+      );
+    }
+
+    list.sort((a, b) => {
+      if (courseSort === "latest") {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      }
+      if (courseSort === "oldest") {
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      }
+      if (courseSort === "enrolled") {
+        return (b.enrollment_count ?? b.enrolled ?? 0) - (a.enrollment_count ?? a.enrolled ?? 0);
+      }
+      if (courseSort === "completed") {
+        return (b.completion_count ?? b.completed ?? 0) - (a.completion_count ?? a.completed ?? 0);
+      }
+      return 0;
+    });
+
+    return list;
+  }, [displayCourses, courseSearch, courseSort]);
 
   const filteredTestimonials = testimonialFilter === "all"
     ? testimonials
@@ -1192,9 +1231,21 @@ const [orderFilter, setOrderFilter] = useState("all");
               </div>
             )}
             {activeTab === "courses" && (
-              <div style={S.searchWrap}>
-                <Search size={15} style={{ color: "rgba(9,25,37,0.45)" }} />
-                <input style={S.searchInput} value={courseSearch} onChange={e => setCourseSearch(e.target.value)} placeholder="Search courses…" />
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <div style={S.searchWrap}>
+                  <Search size={15} style={{ color: "rgba(9,25,37,0.45)" }} />
+                  <input style={S.searchInput} value={courseSearch} onChange={e => setCourseSearch(e.target.value)} placeholder="Search courses…" />
+                </div>
+                <select
+                  style={{ padding: "8px 14px", borderRadius: 999, border: "1px solid rgba(2,8,23,0.10)", background: "#fff", cursor: "pointer", fontWeight: 800, fontSize: 12, color: "rgba(11,18,32,0.65)", outline: "none" }}
+                  value={courseSort}
+                  onChange={e => setCourseSort(e.target.value)}
+                >
+                  <option value="latest">Latest Added</option>
+                  <option value="oldest">Oldest Added</option>
+                  <option value="enrolled">Most Enrolled</option>
+                  <option value="completed">Most Completions</option>
+                </select>
               </div>
             )}
             {activeTab === "reviews" && (
@@ -1265,6 +1316,7 @@ const [orderFilter, setOrderFilter] = useState("all");
                 <div style={S.panel}>
                   <div style={S.panelHead}><div style={S.panelTitle}>Quick Actions</div></div>
                   <div style={S.quickActions}>
+                    {hasDraft && <ActionCard icon={<Pencil size={17} />} title="Continue Course Draft" sub={`Resume ${draftCount} unsaved draft${draftCount !== 1 ? "s" : ""}`} onClick={() => navigate("/instructor/courses/add")} highlight={true} />}
                     <ActionCard icon={<BookOpen size={17} />}     title="All Courses"       sub={`${displayCourses.length} courses available`}  onClick={() => setActiveTab("courses")} />
                     <ActionCard icon={<Users size={17} />}         title="All Students"      sub={`${displayStudents.length} students enrolled`}  onClick={() => setActiveTab("students")} />
                     <ActionCard icon={<UserX size={17} />}         title="Inactive Students" sub={`${inactiveCount} student${inactiveCount !== 1 ? "s" : ""} deactivated`} onClick={() => { setActiveTab("students"); setStatusFilter("inactive"); }} />
