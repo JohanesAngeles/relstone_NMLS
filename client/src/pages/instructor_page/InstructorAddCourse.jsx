@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../api/axios";
 import {
@@ -53,6 +53,9 @@ export default function InstructorAddCourse() {
   const [step, setStep] = useState(1); // 1=Meta, 2=Modules, 3=FinalExam, 4=Review
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [showDraftModal, setShowDraftModal] = useState(false);
+  const [drafts, setDrafts] = useState([]);
+  const [currentDraftId, setCurrentDraftId] = useState(null);
 
   /* ── Course Meta ── */
   const [meta, setMeta] = useState({
@@ -68,6 +71,8 @@ export default function InstructorAddCourse() {
     is_active: true,
     pdf_url: "",
     video_url: "",
+    start_date: "",
+    end_date: "",
   });
 
   /* ── Modules ── */
@@ -83,10 +88,70 @@ export default function InstructorAddCourse() {
     message: "",
   });
 
+  useEffect(() => {
+    let loadedDrafts = [];
+    const savedDrafts = localStorage.getItem("instructor_course_drafts");
+    if (savedDrafts) {
+      try { loadedDrafts = JSON.parse(savedDrafts); } catch (e) {}
+    }
+    // Migrate legacy single draft to the new array structure if it exists
+    const legacyDraft = localStorage.getItem("instructor_add_course_draft");
+    if (legacyDraft) {
+      try {
+        const parsed = JSON.parse(legacyDraft);
+        const migrated = { id: uid(), updatedAt: new Date().toISOString(), title: parsed.meta?.title || "Untitled Course", ...parsed };
+        loadedDrafts.push(migrated);
+        localStorage.removeItem("instructor_add_course_draft");
+        localStorage.setItem("instructor_course_drafts", JSON.stringify(loadedDrafts));
+      } catch (e) {}
+    }
+    if (loadedDrafts.length > 0) {
+      setDrafts(loadedDrafts);
+      setShowDraftModal(true);
+    }
+  }, []);
+
   /* ── Toast helper ── */
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
+  };
+
+  /* ── Draft Handlers ── */
+  const loadDraft = (id) => {
+    const draft = drafts.find(d => d.id === id);
+    if (draft) {
+      setMeta(draft.meta || meta);
+      setModules(draft.modules || modules);
+      setFinalExam(draft.finalExam || finalExam);
+      setStep(draft.step || 1);
+      if (draft.announcementOpts) setAnnouncementOpts(draft.announcementOpts);
+      setCurrentDraftId(draft.id);
+      showToast("Draft loaded successfully!", "success");
+    }
+    setShowDraftModal(false);
+  };
+
+  const deleteDraft = (id) => {
+    const newDrafts = drafts.filter(d => d.id !== id);
+    setDrafts(newDrafts);
+    localStorage.setItem("instructor_course_drafts", JSON.stringify(newDrafts));
+    if (newDrafts.length === 0) setShowDraftModal(false);
+  };
+
+  const saveDraft = () => {
+    const id = currentDraftId || uid();
+    const draft = {
+      id,
+      updatedAt: new Date().toISOString(),
+      title: meta.title || "Untitled Course",
+      meta, modules, finalExam, step, announcementOpts
+    };
+    const newDrafts = [...drafts.filter(d => d.id !== id), draft];
+    setDrafts(newDrafts);
+    localStorage.setItem("instructor_course_drafts", JSON.stringify(newDrafts));
+    setCurrentDraftId(id);
+    showToast("Draft saved successfully!", "success");
   };
 
   /* ════ META HANDLERS ════ */
@@ -194,6 +259,8 @@ export default function InstructorAddCourse() {
 
       const payload = {
         ...meta,
+        start_date: meta.start_date ? new Date(meta.start_date).toISOString() : null,
+        end_date: meta.end_date ? new Date(meta.end_date).toISOString() : null,
         credit_hours: Number(meta.credit_hours),
         price: Number(meta.price),
         textbook_price: Number(meta.textbook_price) || 0,
@@ -241,6 +308,11 @@ export default function InstructorAddCourse() {
         });
       }
 
+      if (currentDraftId) {
+        const remaining = drafts.filter(d => d.id !== currentDraftId);
+        localStorage.setItem("instructor_course_drafts", JSON.stringify(remaining));
+      }
+
       showToast(
         announcementOpts.create
           ? "Course created & announcement posted!"
@@ -266,6 +338,48 @@ export default function InstructorAddCourse() {
   return (
     <div style={S.page}>
       <style>{css}</style>
+
+      {/* Draft Modal */}
+      {showDraftModal && (
+        <>
+          <div style={{ position: "fixed", inset: 0, background: "rgba(9,25,37,0.6)", zIndex: 9999, backdropFilter: "blur(4px)" }} onClick={() => setShowDraftModal(false)} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#fff", padding: "28px 24px", borderRadius: 20, zIndex: 10000, maxWidth: 480, width: "100%", boxShadow: "0 24px 60px rgba(0,0,0,0.15)" }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(0,180,180,0.1)", border: "1px solid rgba(0,180,180,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#00B4B4", marginBottom: 16 }}>
+              <Save size={24} />
+            </div>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: 18, fontWeight: 900, color: "rgba(11,18,32,0.9)" }}>Unsaved Drafts Found</h3>
+            <p style={{ margin: "0 0 20px 0", fontSize: 13, fontWeight: 600, color: "rgba(11,18,32,0.6)", lineHeight: 1.6 }}>
+              You have {drafts.length} unsaved draft{drafts.length !== 1 ? "s" : ""}. Select one to continue, or start fresh.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 260, overflowY: "auto", marginBottom: 20 }}>
+              {drafts.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).map(d => (
+                <div 
+                  key={d.id} 
+                  style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.1)", background: "rgba(2,8,23,0.02)", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", transition: "border-color .15s" }} 
+                  onClick={() => loadDraft(d.id)}
+                  onMouseEnter={(e) => e.currentTarget.style.borderColor = "#00B4B4"}
+                  onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(2,8,23,0.1)"}
+                >
+                  <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: "rgba(11,18,32,0.85)", marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {d.title || "Untitled Course"}
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "rgba(11,18,32,0.45)" }}>
+                      Saved: {new Date(d.updatedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </div>
+                  </div>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); deleteDraft(d.id); }} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.08)", color: "#ef4444", display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0 }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setShowDraftModal(false)} style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1px solid rgba(2,8,23,0.15)", background: "#fff", cursor: "pointer", fontWeight: 800, color: "rgba(11,18,32,0.65)" }}>
+              Start Fresh
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Toast */}
       {toast && (
@@ -315,6 +429,12 @@ export default function InstructorAddCourse() {
                   <option value="PE">PE — Pre-Licensing Education</option>
                 </select>
               </Field>
+            <Field label="Start Date & Time">
+              <input style={S.input} type="datetime-local" value={meta.start_date} onChange={e => setMetaField("start_date", e.target.value)} />
+            </Field>
+            <Field label="End Date & Time">
+              <input style={S.input} type="datetime-local" value={meta.end_date} onChange={e => setMetaField("end_date", e.target.value)} />
+            </Field>
               <Field label="Total Credit Hours *">
                 <input style={S.input} type="number" min="0" placeholder="e.g. 11" value={meta.credit_hours} onChange={e => setMetaField("credit_hours", e.target.value)} />
               </Field>
@@ -505,6 +625,9 @@ export default function InstructorAddCourse() {
               <ArrowLeft size={14} /> Previous
             </button>
           )}
+          <button style={{ ...S.prevBtn, marginLeft: step === 1 ? 0 : 12 }} type="button" onClick={saveDraft}>
+            <Save size={14} style={{ color: "rgba(11,18,32,0.45)" }} /> Save Draft
+          </button>
           <div style={{ flex: 1 }} />
           {step < 4 ? (
             <button
@@ -771,6 +894,8 @@ function ReviewPanel({ meta, modules, finalExam, announcementOpts }) {
           <Pill label="States" value={meta.states_approved || "—"} />
           <Pill label="Active" value={meta.is_active ? "Yes" : "No"} />
           <Pill label="Has Textbook" value={meta.has_textbook ? "Yes" : "No"} />
+          <Pill label="Start Date" value={meta.start_date ? new Date(meta.start_date).toLocaleString() : "—"} />
+          <Pill label="End Date" value={meta.end_date ? new Date(meta.end_date).toLocaleString() : "—"} />
         </div>
       </div>
 
