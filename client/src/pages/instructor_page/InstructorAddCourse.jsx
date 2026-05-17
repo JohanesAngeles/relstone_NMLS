@@ -28,6 +28,8 @@ const emptyModule = (order) => ({
   title: "",
   credit_hours: 0,
   pdf_url: "",
+  pdf_start_page: "",
+  pdf_end_page: "",
   video_url: "",
   show_pdf_before_quiz: false,
   sections: [""],
@@ -200,6 +202,8 @@ export default function InstructorAddCourse() {
           : [],
         modules: modules.map(({ _key, _open, ...m }) => ({
           ...m,
+          pdf_start_page: m.pdf_start_page ? Number(m.pdf_start_page) : undefined,
+          pdf_end_page: m.pdf_end_page ? Number(m.pdf_end_page) : undefined,
           sections: m.sections.filter(Boolean),
           quiz: m.quiz.map(cleanQ),
         })),
@@ -528,6 +532,12 @@ export default function InstructorAddCourse() {
 function ModuleCard({ mod, mIdx, total, onToggle, onRemove, onUpdate, onAddSection, onUpdateSection, onRemoveSection, onAddQuestion, onUpdateQuestion, onUpdateOption, onRemoveQuestion }) {
   const isFinalReview = mod.quiz.length === 0 && mod.order === total;
 
+  const pageRangeLabel = mod.pdf_start_page && mod.pdf_end_page
+    ? `pp. ${mod.pdf_start_page}–${mod.pdf_end_page}`
+    : mod.pdf_start_page
+    ? `from p. ${mod.pdf_start_page}`
+    : null;
+
   return (
     <div style={S.moduleCard}>
       {/* Header */}
@@ -537,8 +547,11 @@ function ModuleCard({ mod, mIdx, total, onToggle, onRemove, onUpdate, onAddSecti
             <span style={{ fontSize: 10, fontWeight: 900, color: "#00B4B4" }}>M{mod.order}</span>
           </div>
           <div>
-            <div style={{ fontWeight: 900, fontSize: 14, color: "rgba(11,18,32,0.88)" }}>
+            <div style={{ fontWeight: 900, fontSize: 14, color: "rgba(11,18,32,0.88)", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {mod.title || <span style={{ opacity: 0.4 }}>Untitled Module</span>}
+              {pageRangeLabel && (
+                <span style={S.pageRangePill}>{pageRangeLabel}</span>
+              )}
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(11,18,32,0.40)", marginTop: 2 }}>
               {mod.credit_hours}h · {mod.quiz.length} quiz Qs · {mod.sections.filter(Boolean).length} sections
@@ -564,15 +577,67 @@ function ModuleCard({ mod, mIdx, total, onToggle, onRemove, onUpdate, onAddSecti
             <Field label="Credit Hours">
               <input style={S.input} type="number" min="0" value={mod.credit_hours} onChange={e => onUpdate("credit_hours", Number(e.target.value))} />
             </Field>
-            <Field label="PDF URL (overrides course-level)">
+            <Field label="PDF URL (overrides course-level)" span={2}>
               <input style={S.input} placeholder="Leave blank to inherit course PDF" value={mod.pdf_url} onChange={e => onUpdate("pdf_url", e.target.value)} />
             </Field>
-            <Field label="Video URL (overrides course-level)">
+          </div>
+
+          {/* ── PDF Page Range ── */}
+          <div style={S.pageRangeBox}>
+            <div style={S.pageRangeBoxHeader}>
+              <FileText size={13} style={{ color: "#00B4B4" }} />
+              <span style={{ fontWeight: 800, fontSize: 12, color: "rgba(11,18,32,0.70)" }}>PDF Page Range for This Module</span>
+              <span style={S.pageRangeOptional}>optional</span>
+            </div>
+            <div style={S.pageRangeHint}>
+              Restrict the PDF viewer to only show pages relevant to this module. Students will jump directly to the start page and see a page range badge.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 14px", marginTop: 10 }}>
+              <Field label="Start Page">
+                <div style={{ position: "relative" }}>
+                  <input
+                    style={S.input}
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 1"
+                    value={mod.pdf_start_page}
+                    onChange={e => onUpdate("pdf_start_page", e.target.value)}
+                  />
+                </div>
+              </Field>
+              <Field label="End Page">
+                <div style={{ position: "relative" }}>
+                  <input
+                    style={S.input}
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 34"
+                    value={mod.pdf_end_page}
+                    onChange={e => onUpdate("pdf_end_page", e.target.value)}
+                  />
+                </div>
+              </Field>
+            </div>
+            {mod.pdf_start_page && mod.pdf_end_page && Number(mod.pdf_end_page) < Number(mod.pdf_start_page) && (
+              <div style={S.pageRangeError}>
+                <AlertCircle size={12} /> End page must be greater than or equal to start page.
+              </div>
+            )}
+            {mod.pdf_start_page && mod.pdf_end_page && Number(mod.pdf_end_page) >= Number(mod.pdf_start_page) && (
+              <div style={S.pageRangeSuccess}>
+                <CheckCircle size={12} />
+                This module will show {Number(mod.pdf_end_page) - Number(mod.pdf_start_page) + 1} page{Number(mod.pdf_end_page) - Number(mod.pdf_start_page) + 1 !== 1 ? "s" : ""} (pp. {mod.pdf_start_page}–{mod.pdf_end_page})
+              </div>
+            )}
+          </div>
+
+          <div style={S.grid2}>
+            <Field label="Video URL (overrides course-level)" span={2}>
               <input style={S.input} placeholder="Leave blank to inherit course video" value={mod.video_url} onChange={e => onUpdate("video_url", e.target.value)} />
             </Field>
           </div>
 
-          <label style={{ ...S.toggle, marginTop: 8 }}>
+          <label style={{ ...S.toggle, marginTop: 4 }}>
             <input type="checkbox" checked={mod.show_pdf_before_quiz} onChange={e => onUpdate("show_pdf_before_quiz", e.target.checked)} style={{ accentColor: "#00B4B4" }} />
             <span style={S.toggleLabel}>Gate quiz behind PDF review</span>
           </label>
@@ -716,13 +781,21 @@ function ReviewPanel({ meta, modules, finalExam, announcementOpts }) {
           {modules.map((m, i) => {
             const lessonStep = (i * 2) + 1;
             const hasQuiz = m.quiz.length > 0;
+            const pageRange = m.pdf_start_page && m.pdf_end_page
+              ? `pp. ${m.pdf_start_page}–${m.pdf_end_page}`
+              : m.pdf_start_page
+              ? `from p. ${m.pdf_start_page}`
+              : null;
             return (
               <div key={m._key}>
                 <div style={S.reviewStep}>
                   <span style={S.reviewStepNum}>Step {lessonStep}</span>
                   <span style={S.reviewStepIcon}>📄</span>
                   <span style={{ fontWeight: 700, fontSize: 13 }}>Lesson — {m.title || "Untitled"}</span>
-                  <span style={S.reviewStepMeta}>{m.credit_hours}h · {m.sections.filter(Boolean).length} sections</span>
+                  <span style={S.reviewStepMeta}>
+                    {m.credit_hours}h · {m.sections.filter(Boolean).length} sections
+                    {pageRange && <span style={{ marginLeft: 6, color: "#00B4B4", fontWeight: 800 }}>· {pageRange}</span>}
+                  </span>
                 </div>
                 <div style={S.reviewStep}>
                   <span style={S.reviewStepNum}>Step {lessonStep + 1}</span>
@@ -842,6 +915,8 @@ const css = `
 body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--rs-bg); }
 input, textarea, select { font-family: inherit; }
 input::placeholder, textarea::placeholder { color: rgba(11,18,32,0.30); }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
 .spin { animation: spin 1s linear infinite; }
 .mt-16 { margin-top: 16px; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -906,6 +981,17 @@ const S = {
   moduleCardBody: { padding: "16px 18px 18px", borderTop: "1px solid rgba(2,8,23,0.07)", display: "flex", flexDirection: "column", gap: 12 },
   subLabel: { display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 900, color: "rgba(11,18,32,0.55)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.4px" },
   emptyHint: { fontSize: 12, fontWeight: 700, color: "rgba(11,18,32,0.38)", fontStyle: "italic", padding: "8px 0" },
+
+  /* Page range pill in module header */
+  pageRangePill: { fontSize: 10, fontWeight: 900, padding: "2px 8px", borderRadius: 999, background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.28)", color: "#00B4B4", letterSpacing: "0.2px" },
+
+  /* PDF page range box */
+  pageRangeBox: { borderRadius: 12, border: "1.5px solid rgba(0,180,180,0.20)", background: "rgba(0,180,180,0.03)", padding: "14px 16px" },
+  pageRangeBoxHeader: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6 },
+  pageRangeOptional: { fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: "rgba(2,8,23,0.06)", border: "1px solid rgba(2,8,23,0.10)", color: "rgba(11,18,32,0.40)", marginLeft: "auto" },
+  pageRangeHint: { fontSize: 11, fontWeight: 600, color: "rgba(11,18,32,0.50)", lineHeight: 1.5 },
+  pageRangeError: { display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, fontWeight: 800, color: "rgba(185,28,28,1)", padding: "7px 10px", borderRadius: 8, background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.22)" },
+  pageRangeSuccess: { display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, fontWeight: 800, color: "rgba(21,128,61,1)", padding: "7px 10px", borderRadius: 8, background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.22)" },
 
   /* Question card */
   questionCard: { background: "rgba(2,8,23,0.018)", borderRadius: 12, border: "1px solid rgba(2,8,23,0.08)", overflow: "hidden" },
