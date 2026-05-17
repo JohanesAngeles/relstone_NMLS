@@ -14,6 +14,7 @@ import TestimonialGateModal from "../../components/TempModal";
 import BioSigInstructionsModal from '../../components/BioSigInstructionsModal';
 
 // ── Persistent quiz answers hook ─────────────────────────────────
+
 const usePersistentAnswers = (courseId, quizId) => {
   const key = `quiz_answers_${courseId}_${quizId}`;
 
@@ -58,19 +59,26 @@ const buildContent = (course) => {
     .sort((a, b) => a.order - b.order)
     .forEach((mod) => {
       const modPdf = buildPdfUrl(mod.pdf_url || coursePdf, mod.pdf_start_page);
-      content.push({
-        id: `lesson-mod-${mod.order}`, type: "lesson",
-        title: mod.title, credit_hours: mod.credit_hours,
-        moduleOrder: mod.order,
-        pdf_url: modPdf, video_url: mod.video_url || null, sections: mod.sections || [],
-      });
+      // In buildContent, update the lesson push:
+content.push({
+  id: `lesson-mod-${mod.order}`, type: "lesson",
+  title: mod.title, credit_hours: mod.credit_hours,
+  moduleOrder: mod.order,
+  pdf_url: mod.pdf_url || coursePdf || null,
+  pdf_start_page: mod.pdf_start_page || null,   // ← add this
+  pdf_end_page: mod.pdf_end_page || null,        // ← add this
+  video_url: mod.video_url || null, sections: mod.sections || [],
+});
       if (mod.show_pdf_before_quiz && modPdf) {
-        content.push({
-          id: `pdf-gate-mod-${mod.order}`, type: "pdf_gate",
-          title: `Study Material: ${mod.title}`,
-          pdf_url: modPdf, moduleOrder: mod.order,
-        });
-      }
+  content.push({
+    id: `pdf-gate-mod-${mod.order}`, type: "pdf_gate",
+    title: `Study Material: ${mod.title}`,
+    pdf_url: mod.pdf_url || coursePdf || null,  // raw url, no fragment
+    pdf_start_page: mod.pdf_start_page || null,
+    pdf_end_page: mod.pdf_end_page || null,
+    moduleOrder: mod.order,
+  });
+}
       if (mod.quiz?.length) {
         const isFundamentals = mod.show_pdf_before_quiz && mod.quiz.length > 10;
         content.push({
@@ -723,8 +731,9 @@ const CoursePortal = () => {
 };
 
 /* ─── PDF Viewer ─────────────────────────────────────────────────── */
-const PDFViewer = ({ url }) => {
+const PDFViewer = ({ url, startPage, endPage }) => {
   const [pdfError, setPdfError] = useState(false);
+
   if (!url) return (
     <div style={S.pdfPlaceholder}>
       <FileText size={40} style={{ color: "rgba(46,171,254,0.5)", marginBottom: 12 }} />
@@ -732,23 +741,62 @@ const PDFViewer = ({ url }) => {
       <div style={{ fontSize: 13, color: "rgba(10,22,40,0.40)", fontWeight: 500 }}>PDF will appear here once uploaded</div>
     </div>
   );
+
+  const buildSrc = () => {
+    // Google Drive file — use /preview embed (most reliable)
+    const gdriveMatch = url.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
+    if (gdriveMatch) {
+      return `https://drive.google.com/file/d/${gdriveMatch[1]}/preview`;
+    }
+    // Everything else — direct iframe (works for same-origin or permissive CORS hosts)
+    const noFrag = url.split("#")[0];
+    return startPage ? `${noFrag}#page=${startPage}` : noFrag;
+  };
+
+  const src = buildSrc();
+
+  const pageRangeLabel = startPage && endPage
+    ? `Pages ${startPage}–${endPage}`
+    : startPage
+    ? `Starting page ${startPage}`
+    : null;
+
   return (
     <div style={S.pdfWrap}>
       <div style={S.pdfToolbar}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <FileText size={15} style={{ color: "var(--cp-blue)" }} />
           <span style={{ fontWeight: 700, fontSize: 13, color: "rgba(10,22,40,0.75)" }}>Course Material</span>
+          {pageRangeLabel && (
+            <span style={{
+              fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 999,
+              background: "rgba(46,171,254,0.10)", border: "1px solid rgba(46,171,254,0.25)",
+              color: "var(--cp-blue)"
+            }}>
+              {pageRangeLabel}
+            </span>
+          )}
         </div>
-        <a href={url} target="_blank" rel="noopener noreferrer" style={S.pdfOpenBtn}><ExternalLink size={13} /> Open PDF</a>
+        <a href={url} target="_blank" rel="noopener noreferrer" style={S.pdfOpenBtn}>
+          <ExternalLink size={13} /> Open PDF
+        </a>
       </div>
       {pdfError ? (
         <div style={S.pdfErrorBox}>
           <AlertCircle size={24} style={{ color: "rgba(239,68,68,0.7)", marginBottom: 10 }} />
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, color: "rgba(10,22,40,0.7)" }}>PDF cannot be displayed inline</div>
-          <a href={url} target="_blank" rel="noopener noreferrer" style={S.pdfFallbackBtn}><ExternalLink size={14} /> Open PDF in New Tab</a>
+          <a href={url} target="_blank" rel="noopener noreferrer" style={S.pdfFallbackBtn}>
+            <ExternalLink size={14} /> Open PDF in New Tab
+          </a>
         </div>
       ) : (
-        <iframe src={url} style={S.pdfIframe} title="Course Material" onError={() => setPdfError(true)} />
+        <iframe
+          key={src}
+          src={src}
+          style={S.pdfIframe}
+          title="Course Material"
+          onError={() => setPdfError(true)}
+        />
       )}
     </div>
   );
@@ -768,7 +816,11 @@ const PDFGateView = ({ item, onComplete, onPrev, reviewMode }) => {
           <span>Review this study material carefully before proceeding to the Fundamentals Exam.</span>
         </div>
       )}
-      <PDFViewer url={item.pdf_url} />
+      <PDFViewer
+  url={item.pdf_url}
+  startPage={item.pdf_start_page}
+  endPage={item.pdf_end_page}
+/>
       {!reviewMode && (
         <div style={S.pdfGateConfirmRow}>
           <input type="checkbox" id="pdf-confirm" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}
@@ -828,7 +880,13 @@ const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds, review
           <button style={{ ...S.toggleBtn, ...(!pdfView ? S.toggleBtnActive : {}) }} onClick={() => setPdfView(false)} type="button"><BookOpen size={13} /> Outline</button>
         </div>
       )}
-      {pdfView && <PDFViewer url={item.pdf_url} />}
+      {pdfView && (
+  <PDFViewer
+    url={item.pdf_url}
+    startPage={item.pdf_start_page}
+    endPage={item.pdf_end_page}
+  />
+)}
       {!pdfView && (
         <>
           {item.video_url ? (
