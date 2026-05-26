@@ -61,7 +61,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const orders = await Order.find({
   user_id: req.user.id,
   status:  { $in: ['pending', 'paid', 'completed'] },  // ← show all except cancelled
-}).populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url');
+}).populate('items.course_id', 'title type credit_hours nmls_course_id states_approved pdf_url is_under_maintenance');
 
     // Set of completed course IDs for quick lookup
     const completedCourseIds = new Set(
@@ -107,6 +107,7 @@ router.get('/', authMiddleware, async (req, res) => {
           current_idx:       p?.current_idx || 0,
           last_activity_at:  p?.last_activity_at || null,
           reset_at:          p?.reset_at || null,
+          is_under_maintenance: course.is_under_maintenance || false,
         });
       });
     });

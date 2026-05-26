@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../../models/User');
 const Course = require('../../models/Course');
 const InstructorLog = require('../../models/InstructorLog');
+const logAction = require('../../utils/logger');
 
 // GET /api/admin/instructors — Get all instructors
 router.get('/', async (req, res) => {
@@ -176,6 +177,8 @@ router.post('/', async (req, res) => {
       timestamp:       new Date(),
     });
 
+    await logAction(req.user._id || req.user.id, 'CREATE_INSTRUCTOR', `Created new instructor: ${instructor.email}`, 'User', instructor._id, req.ip);
+
     res.status(201).json({
       message: 'Instructor created successfully',
       instructor: {
@@ -229,6 +232,8 @@ router.put('/:id', async (req, res) => {
       timestamp:       new Date(),
     });
 
+    await logAction(req.user._id || req.user.id, 'EDIT_INSTRUCTOR', `Updated instructor profile: ${updated.email}`, 'User', updated._id, req.ip);
+
     res.json({ message: 'Instructor updated successfully', instructor: updated });
 
   } catch (err) {
@@ -259,6 +264,8 @@ router.patch('/:id/toggle-status', async (req, res) => {
       details:         `Instructor account ${instructor.is_active ? 'activated' : 'deactivated'} by admin`,
       timestamp:       new Date(),
     });
+
+    await logAction(req.user._id || req.user.id, 'TOGGLE_INSTRUCTOR_STATUS', `Instructor ${instructor.is_active ? 'activated' : 'deactivated'}: ${instructor.email}`, 'User', instructor._id, req.ip);
 
     res.json({
       message:   `Instructor ${instructor.is_active ? 'activated' : 'deactivated'} successfully`,
@@ -299,6 +306,8 @@ router.patch('/:id/reset-password', async (req, res) => {
       details:         `Password reset by admin`,
       timestamp:       new Date(),
     });
+
+    await logAction(req.user._id || req.user.id, 'RESET_INSTRUCTOR_PASSWORD', `Reset password for instructor: ${instructor.email}`, 'User', instructor._id, req.ip);
 
     res.json({ message: 'Password reset successfully.' });
 

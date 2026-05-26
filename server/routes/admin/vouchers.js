@@ -2,6 +2,7 @@ const express      = require('express');
 const router       = express.Router();
 const Voucher      = require('../../models/Voucher');
 const Announcement = require('../../models/Announcement');
+const logAction    = require('../../utils/logger');
 
 const STAFF = ['admin', 'super_admin', 'instructor'];
 
@@ -150,6 +151,8 @@ router.post('/', async (req, res) => {
     }
     // ──────────────────────────────────────────────────────────────
 
+    await logAction(req.user.id, 'CREATE_VOUCHER', `Created new voucher code: ${voucher.code}`, 'Other', voucher._id, req.ip);
+
     res.status(201).json({ voucher, message: 'Voucher created successfully.' });
   } catch (err) {
     console.error('[vouchers POST /]', err);
@@ -201,6 +204,9 @@ router.put('/:id', async (req, res) => {
       { new: true }
     );
     if (!voucher) return res.status(404).json({ message: 'Voucher not found' });
+
+    await logAction(req.user.id, 'EDIT_VOUCHER', `Updated voucher code: ${voucher.code}`, 'Other', voucher._id, req.ip);
+
     res.json({ voucher, message: 'Voucher updated.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -214,6 +220,9 @@ router.patch('/:id/toggle', async (req, res) => {
     if (!voucher) return res.status(404).json({ message: 'Voucher not found' });
     voucher.is_active = !voucher.is_active;
     await voucher.save();
+
+    await logAction(req.user.id, 'TOGGLE_VOUCHER_STATUS', `Voucher ${voucher.is_active ? 'activated' : 'deactivated'}: ${voucher.code}`, 'Other', voucher._id, req.ip);
+
     res.json({ voucher, message: `Voucher ${voucher.is_active ? 'activated' : 'deactivated'}` });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -225,6 +234,12 @@ router.delete('/:id', async (req, res) => {
   try {
     if (!STAFF.includes(req.user?.role))
       return res.status(403).json({ message: 'Access denied' });
+
+    const voucher = await Voucher.findById(req.params.id);
+    if (voucher) {
+      await logAction(req.user.id, 'DELETE_VOUCHER', `Deleted voucher: ${voucher.code}`, 'Other', voucher._id, req.ip);
+    }
+
     await Voucher.findByIdAndDelete(req.params.id);
     res.json({ message: 'Voucher deleted.' });
   } catch (err) {

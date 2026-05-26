@@ -50,6 +50,7 @@ const adminOrderRoutes      = require('./routes/admin/orders');
 const adminManageRoutes     = require('./routes/admin/admins');
 const adminVoucherRoutes    = require('./routes/admin/vouchers');
 const announcementRoutes    = require('./routes/announcements');
+const auditLogRoutes = require('./routes/admin/auditLogs');
 
 const app = express();
 
@@ -154,6 +155,8 @@ app.use('/api/admin/admins',        authMiddleware, adminManageRoutes);
 app.use('/api/admin/vouchers',      authMiddleware, adminVoucherRoutes);
 app.use('/api/admin/announcements', authMiddleware, announcementRoutes);
 app.use('/api/exam-requests',       authMiddleware, examRequestRoutes);
+app.use('/api/admin/logs', authMiddleware, auditLogRoutes);
+
 app.use('/api/pdf',          require('./routes/pdf'));
 // ── Serve React build in production ───────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {

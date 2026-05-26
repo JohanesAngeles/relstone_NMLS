@@ -4,7 +4,7 @@ import API from "../../api/axios.js";
 import Layout from "../../components/Layout.jsx";
 import {
   BookOpen, Clock, CheckCircle, PlayCircle, Award,
-  ChevronRight, Heart, Filter, Search, Eye, MessageSquare, Lock,
+  ChevronRight, Heart, Filter, Search, Eye, MessageSquare, Lock, AlertTriangle,
 } from "lucide-react";
 
 /* ─── MyCourses ──────────────────────────────────────────────────── */
@@ -103,6 +103,7 @@ const MyCourses = () => {
           status:         "inprogress",
           is_paid:        isPaid,
           order_status:   orderStatus, // keep for debugging if needed
+          is_under_maintenance: c.is_under_maintenance,
         };
       });
 
@@ -130,6 +131,7 @@ const MyCourses = () => {
           status:         'inprogress',
           is_paid:        isPaid,
           order_status:   orderStatus,
+          is_under_maintenance: courseObj.is_under_maintenance || false,
         });
       });
     });
@@ -274,6 +276,7 @@ const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasRev
   const isWishlist  = course.status === "wishlist";
   const isPaid      = course.is_paid === true;
   const progress    = course.progress || 0;
+  const isMaintenance = course.is_under_maintenance === true;
 
   const completedAt = course.completed_at
     ? new Date(course.completed_at).toLocaleDateString("en-US", { month:"short",day:"numeric",year:"numeric" })
@@ -365,6 +368,10 @@ const CourseCard = ({ course, onResume, onViewCertificate, onLeaveReview, hasRev
             <button style={S.resumeBtn} onClick={onResume} type="button">
               <BookOpen size={14} /> Enroll Now
             </button>
+          ) : isMaintenance ? (
+            <div style={S.maintenanceBadge}>
+              <AlertTriangle size={14} /> Under Maintenance
+            </div>
           ) : !isPaid ? (
             // 🔒 Payment not confirmed yet
             <div style={S.pendingBadge}>
@@ -499,6 +506,9 @@ const S = {
 
   // 🔒 Payment pending lock banner
   pendingBadge: { width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,padding:"10px",borderRadius:11,background:"#FFF7ED",border:"1px solid rgba(245,158,11,0.40)",color:"rgba(146,84,0,1)",fontSize:13,fontWeight:800 },
+
+  // 🚧 Maintenance Banner
+  maintenanceBadge: { width:"100%",display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,padding:"10px",borderRadius:11,background:"#FEF3C7",border:"1px solid rgba(245,158,11,0.40)",color:"rgba(180,83,9,1)",fontSize:13,fontWeight:800 },
 
   empty:      { textAlign:"center",padding:"60px 20px",borderRadius:20,border:"1px dashed rgba(2,8,23,0.14)",background:"rgba(2,8,23,0.02)",marginTop:8 },
   emptyIcon:  { fontSize:40,marginBottom:14 },

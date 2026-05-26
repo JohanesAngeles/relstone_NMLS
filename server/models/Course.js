@@ -86,6 +86,7 @@ const courseSchema = new mongoose.Schema({
   has_textbook:   { type: Boolean, default: false },
   textbook_price: { type: Number,  default: 0 },
   is_active:      { type: Boolean, default: true },
+  is_under_maintenance: { type: Boolean, default: false },
 
   // ── CE expiry (NMLS: CE courses must be completed by Dec 31) ──────
   // Auto-set to Dec 31 of current year for CE courses.

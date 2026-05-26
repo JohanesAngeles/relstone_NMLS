@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const Order   = require('../../models/Order');
 const User    = require('../../models/User');
+const logAction = require('../../utils/logger');
 
 // GET /api/admin/orders/stats — Revenue stats
 router.get('/stats', async (req, res) => {
@@ -110,6 +111,8 @@ router.patch('/:id/refund', async (req, res) => {
 
     order.status = 'cancelled';
     await order.save();
+
+    await logAction(req.user._id, 'CANCEL_ORDER', `Cancelled/Refunded order ID: ${order._id}`, 'Other', order._id, req.ip);
 
     res.json({ message: 'Order cancelled/refunded successfully', order });
 

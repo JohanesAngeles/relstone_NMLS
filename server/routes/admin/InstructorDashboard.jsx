@@ -1929,6 +1929,13 @@ const StudentRow = ({ student, expanded, onToggle, onToggleActive }) => {
             onClick={() => navigate(`/instructor/students/${student._id}`)} title="View student details">
             <div style={{ ...S.studentAvatar, ...(isActive ? {} : { background: "rgba(2,8,23,0.08)", border: "1px solid rgba(2,8,23,0.12)", color: "rgba(11,18,32,0.45)" }) }}>
               {(student?.name || "S")[0].toUpperCase()}
+              {student?.is_online && (
+                <div style={{
+                  position: 'absolute', bottom: -2, right: -2, width: 10, height: 10,
+                  background: '#22c55e', border: '2px solid #fff', borderRadius: '50%',
+                  boxShadow: '0 0 0 1px rgba(34,197,94,0.2)'
+                }} title="Online" />
+              )}
             </div>
             <div>
               <div style={{ fontWeight: 800, color: "rgba(11,18,32,0.88)", fontSize: 13, textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 3 }}>
@@ -2254,7 +2261,7 @@ const S = {
   thRight:         { textAlign: "right", fontSize: 11, fontWeight: 950, color: "rgba(11,18,32,0.55)", padding: "12px 14px", borderBottom: "1px solid rgba(2,8,23,0.08)", background: "rgba(2,8,23,0.02)" },
   td:              { padding: "13px 14px", borderBottom: "1px solid rgba(2,8,23,0.055)", fontSize: 13 },
   tdRight:         { padding: "13px 14px", borderBottom: "1px solid rgba(2,8,23,0.055)", fontSize: 13, textAlign: "right" },
-  studentAvatar:   { width: 32, height: 32, borderRadius: "50%", background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.28)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rs-teal)", fontWeight: 900, fontSize: 13, flexShrink: 0 },
+  studentAvatar:   { position: "relative", width: 32, height: 32, borderRadius: "50%", background: "rgba(0,180,180,0.12)", border: "1px solid rgba(0,180,180,0.28)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rs-teal)", fontWeight: 900, fontSize: 13, flexShrink: 0 },
   progressWrap:    { display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 },
   progressBar:     { width: 80, height: 6, borderRadius: 99, background: "rgba(2,8,23,0.08)", overflow: "hidden" },
   progressFill:    { height: "100%", borderRadius: 99, background: "var(--rs-teal)", transition: "width .3s ease" },

@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const bcrypt  = require('bcryptjs');
 const User    = require('../../models/User');
+const logAction = require('../../utils/logger');
 
 // GET /api/instructor/admins — Get all admins (paginated, searchable)
 router.get('/', async (req, res) => {
@@ -89,6 +90,8 @@ router.post('/', async (req, res) => {
       address:     address || null,
     });
 
+    await logAction(req.user._id || req.user.id, 'CREATE_ADMIN', `Created new admin: ${admin.email}`, 'User', admin._id, req.ip);
+
     res.status(201).json({
       message: 'Admin created successfully',
       admin: {
@@ -134,6 +137,8 @@ router.put('/:id', async (req, res) => {
       { new: true }
     ).select('-password -otp -otpExpires');
 
+    await logAction(req.user._id || req.user.id, 'EDIT_ADMIN', `Updated admin profile: ${updated.email}`, 'User', updated._id, req.ip);
+
     res.json({ message: 'Admin updated successfully', admin: updated });
 
   } catch (err) {
@@ -153,6 +158,8 @@ router.patch('/:id/toggle-status', async (req, res) => {
     admin.is_active      = !admin.is_active;
     admin.deactivated_at = admin.is_active ? null : new Date();
     await admin.save();
+
+    await logAction(req.user._id || req.user.id, 'TOGGLE_ADMIN_STATUS', `Admin ${admin.is_active ? 'activated' : 'deactivated'}: ${admin.email}`, 'User', admin._id, req.ip);
 
     res.json({
       message:   `Admin ${admin.is_active ? 'activated' : 'deactivated'} successfully`,
@@ -182,6 +189,8 @@ router.patch('/:id/reset-password', async (req, res) => {
     const salt       = await bcrypt.genSalt(10);
     admin.password   = await bcrypt.hash(newPassword, salt);
     await admin.save();
+
+    await logAction(req.user._id || req.user.id, 'RESET_ADMIN_PASSWORD', `Reset password for admin: ${admin.email}`, 'User', admin._id, req.ip);
 
     res.json({ message: 'Password reset successfully.' });
 

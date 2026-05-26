@@ -2,6 +2,7 @@ const express    = require('express');
 const router     = express.Router();
 const User       = require('../../models/User');
 const Enrollment = require('../../models/Enrollment');
+const logAction  = require('../../utils/logger');
 
 // GET /api/admin/students
 router.get('/', async (req, res) => {
@@ -25,18 +26,34 @@ router.get('/', async (req, res) => {
 
     if (status === 'active')   query.is_active = true;
     if (status === 'inactive') query.is_active = false;
+    if (status === 'online')   query.is_online = true;
 
     const total    = await User.countDocuments(query);
     const students = await User.find(query)
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit))
-      .select('name email nmls_id state is_active createdAt last_login_at');
+      .select('name email nmls_id state is_active createdAt last_login_at is_online');
 
     res.json({ students, total, page: Number(page), totalPages: Math.ceil(total / limit) });
 
   } catch (err) {
     console.error('Get students error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// POST /api/admin/students/force-offline
+router.post('/force-offline', async (req, res) => {
+  try {
+    await User.updateMany(
+      { role: 'student', is_online: true },
+      { $set: { is_online: false } }
+    );
+    await logAction(req.user._id, 'FORCE_OFFLINE', 'Cleared stuck online statuses for all students', 'System', null, req.ip);
+    res.json({ message: 'All students set to offline.' });
+  } catch (err) {
+    console.error('Force offline error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -75,6 +92,8 @@ router.patch('/:id/toggle-status', async (req, res) => {
     student.is_active      = !student.is_active;
     student.deactivated_at = student.is_active ? null : new Date();
     await student.save();
+
+    await logAction(req.user._id, 'TOGGLE_STUDENT_STATUS', `Student ${student.is_active ? 'activated' : 'deactivated'}: ${student.email}`, 'User', student._id, req.ip);
 
     res.json({
       message:   `Student ${student.is_active ? 'activated' : 'deactivated'} successfully`,
@@ -131,6 +150,8 @@ router.put('/:id', async (req, res) => {
       { new: true }
     ).select('-password -otp -otpExpires');
 
+    await logAction(req.user._id, 'EDIT_STUDENT', `Updated student profile: ${updated.email}`, 'User', updated._id, req.ip);
+
     res.json({ message: 'Student updated successfully', student: updated });
 
   } catch (err) {
@@ -157,6 +178,8 @@ router.delete('/:studentId/enrollments/:enrollmentId', async (req, res) => {
     enrollment.removal_reason = reason || 'Removed by admin';
     await enrollment.save();
 
+    await logAction(req.user._id, 'REMOVE_ENROLLMENT', `Removed enrollment for student ID: ${req.params.studentId}`, 'Other', enrollment._id, req.ip);
+
     res.json({ message: 'Course removed successfully.' });
 
   } catch (err) {
@@ -178,6 +201,8 @@ router.patch('/:studentId/enrollments/:enrollmentId/reenroll', async (req, res) 
     enrollment.removed_at     = null;
     enrollment.removal_reason = null;
     await enrollment.save();
+
+    await logAction(req.user._id, 'REENROLL_STUDENT', `Re-enrolled student ID: ${req.params.studentId}`, 'Other', enrollment._id, req.ip);
 
     res.json({ message: 'Student re-enrolled successfully.' });
 
@@ -231,6 +256,8 @@ router.post('/', async (req, res) => {
       target_date:  target_date  || null,
       experience:   experience   || null,
     });
+
+    await logAction(req.user._id, 'CREATE_STUDENT', `Created new student: ${student.email}`, 'User', student._id, req.ip);
 
     const { password: _, otp, otpExpires, ...safe } = student.toObject();
     res.status(201).json({ message: 'Student created successfully.', student: safe });

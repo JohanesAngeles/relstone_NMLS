@@ -4,6 +4,7 @@ const User       = require('../../models/User');
 const Course     = require('../../models/Course');
 const Enrollment = require('../../models/Enrollment');
 const Order      = require('../../models/Order');
+const logAction  = require('../../utils/logger');
 
 // GET /api/admin/reports/stats
 router.get('/stats', async (req, res) => {
@@ -257,6 +258,8 @@ router.get('/weekly', async (req, res) => {
         },
       },
     ]);
+
+    await logAction(req.user._id || req.user.id, 'GENERATE_REPORT', `Generated weekly report (${rangeStart.toISOString().split('T')[0]} to ${rangeEnd.toISOString().split('T')[0]})`, 'System', null, req.ip);
 
     res.json({
       weekStart:  rangeStart,                                              // ← renamed

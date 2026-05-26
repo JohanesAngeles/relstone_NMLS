@@ -82,6 +82,16 @@ const AdminStudents = () => {
     fetchStudents('', '', 1);
   };
 
+  const handleForceOffline = async () => {
+    if (!window.confirm("This will clear the 'Online' status for all students. Continue?")) return;
+    try {
+      await API.post('/admin/students/force-offline');
+      fetchStudents(); // Refresh the list
+    } catch (err) {
+      console.error('Failed to force offline:', err);
+    }
+  };
+
   const handleToggleStatus = async (id) => {
     try {
       const res = await API.patch(`/admin/students/${id}/toggle-status`);
@@ -169,11 +179,12 @@ const AdminStudents = () => {
           <div style={{ fontSize:11, fontWeight:800, color:'#5B7384', textTransform:'uppercase', letterSpacing:'0.06em', width:124, flexShrink:0 }}>
             BY STATUS
           </div>
-          <div style={{ display:'flex', gap:6 }}>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
             {[
               { val:'',         label:'All Students'  },
               { val:'active',   label:'Active Only'   },
               { val:'inactive', label:'Inactive Only' },
+              { val:'online',   label:'Online Only'   },
             ].map(opt => (
               <button
                 key={opt.val}
@@ -184,13 +195,23 @@ const AdminStudents = () => {
               </button>
             ))}
           </div>
-          <div style={{ marginLeft:'auto', fontSize:13, color:'#7FA8C4', fontWeight:500 }}>
-            {total} student{total !== 1 ? 's' : ''} found
-            {hasActiveFilter && (
-              <span style={{ marginLeft:8, fontSize:11, color:'#2EABFE', fontWeight:700 }}>
-                · Filtered by {activeFilter.field}: "{activeFilter.value}"
-              </span>
+          <div style={{ marginLeft:'auto', display: 'flex', alignItems: 'center', gap: 16 }}>
+            {statusFilter === 'online' && (
+              <button
+                onClick={handleForceOffline}
+                style={{ padding:'5px 12px', borderRadius:8, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:"'Poppins',sans-serif", border: '1px solid rgba(239,68,68,0.2)' }}
+              >
+                Clear Stuck Online
+              </button>
             )}
+            <div style={{ fontSize:13, color:'#7FA8C4', fontWeight:500 }}>
+              {total} student{total !== 1 ? 's' : ''} found
+              {hasActiveFilter && (
+                <span style={{ marginLeft:8, fontSize:11, color:'#2EABFE', fontWeight:700 }}>
+                  · Filtered by {activeFilter.field}: "{activeFilter.value}"
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -254,8 +275,15 @@ const AdminStudents = () => {
               >
                 <td style={td}>
                   <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={{ width:32, height:32, borderRadius:'50%', background:'rgba(46,171,254,0.12)', border:'1px solid rgba(46,171,254,0.25)', display:'grid', placeItems:'center', fontSize:11, fontWeight:800, color:'#2EABFE', flexShrink:0 }}>
+                    <div style={{ position: 'relative', width:32, height:32, borderRadius:'50%', background:'rgba(46,171,254,0.12)', border:'1px solid rgba(46,171,254,0.25)', display:'grid', placeItems:'center', fontSize:11, fontWeight:800, color:'#2EABFE', flexShrink:0 }}>
                       {s.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) || '?'}
+                      {s.is_online && (
+                        <div style={{
+                          position: 'absolute', bottom: -2, right: -2, width: 10, height: 10,
+                          background: '#22c55e', border: '2px solid #fff', borderRadius: '50%',
+                          boxShadow: '0 0 0 1px rgba(34,197,94,0.2)'
+                        }} title="Online" />
+                      )}
                     </div>
                     <span style={{ fontWeight:600 }}>{s.name}</span>
                   </div>

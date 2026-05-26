@@ -53,6 +53,7 @@ import AdminExamRequests from './pages/admin/exam-requests/index';
 import AdminAddStudent from './pages/admin/students/AdminAddStudent';
 import AdminVouchers from './pages/admin/vouchers/index';
 import AdminAnnouncements from './pages/admin/AdminAnnouncements';
+import AuditLogsPage from './pages/admin/admins/AuditLogsPage';
 
 /* ─── Role helpers ───────────────────────────────────────────────── */
 const isInstructor = (user) =>
@@ -273,6 +274,7 @@ function App() {
             <Route path="students/add" element={<AdminAddStudent />} />
             <Route path="vouchers"     element={<AdminVouchers />} />
             <Route path="/admin/announcements" element={<AdminAnnouncements />} />
+            <Route path="logs"         element={<AuditLogsPage />} />
             <Route path="manage-admins" element={
               <SuperAdminRoute><AdminManage /></SuperAdminRoute>
             } />

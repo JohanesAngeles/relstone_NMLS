@@ -205,6 +205,7 @@ router.post('/google', async (req, res) => {
 
     // User is verified and active - proceed to login
     user.last_login_at = new Date();
+    user.is_online     = true;
     await user.save();
 
     const jwtToken = jwt.sign(
@@ -397,6 +398,7 @@ router.post('/login', async (req, res) => {
 
     // ── Update last login ──
     user.last_login_at = new Date();
+    user.is_online     = true;
     await user.save();
 
     const token = jwt.sign(
@@ -420,6 +422,20 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── POST /api/auth/logout ─────────────────────────────────────────
+router.post('/logout', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (user) {
+      user.is_online = false;
+      await user.save();
+    }
+    res.json({ message: 'Logged out successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

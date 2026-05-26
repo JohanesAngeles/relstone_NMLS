@@ -2,6 +2,7 @@ const express    = require('express');
 const router     = express.Router();
 const Course     = require('../../models/Course');
 const Enrollment = require('../../models/Enrollment');
+const logAction  = require('../../utils/logger');
 
 // GET /api/admin/courses — Get all courses with search & filter
 router.get('/', async (req, res) => {
@@ -26,7 +27,7 @@ router.get('/', async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit))
-      .select('title nmls_course_id type credit_hours price is_active states_approved createdAt');
+      .select('title nmls_course_id type credit_hours price is_active is_under_maintenance states_approved createdAt');
 
     res.json({ courses, total, page: Number(page), totalPages: Math.ceil(total / limit) });
 
@@ -121,6 +122,8 @@ router.put('/:id', async (req, res) => {
       { new: true, runValidators: true }
     );
 
+    await logAction(req.user._id, 'EDIT_COURSE', `Updated course: ${updated.title}`, 'Course', updated._id, req.ip);
+
     res.json({ message: 'Course updated successfully', course: updated });
 
   } catch (err) {
@@ -138,6 +141,8 @@ router.patch('/:id/toggle-status', async (req, res) => {
     course.is_active = !course.is_active;
     await course.save();
 
+    await logAction(req.user._id, 'TOGGLE_COURSE_STATUS', `Course ${course.is_active ? 'activated' : 'deactivated'}: ${course.title}`, 'Course', course._id, req.ip);
+
     res.json({
       message:   `Course ${course.is_active ? 'activated' : 'deactivated'} successfully`,
       is_active: course.is_active,
@@ -145,6 +150,28 @@ router.patch('/:id/toggle-status', async (req, res) => {
 
   } catch (err) {
     console.error('Toggle course status error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PATCH /api/admin/courses/:id/toggle-maintenance — Under Maintenance
+router.patch('/:id/toggle-maintenance', async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.id);
+    if (!course) return res.status(404).json({ message: 'Course not found' });
+
+    course.is_under_maintenance = !course.is_under_maintenance;
+    await course.save();
+
+    await logAction(req.user._id, 'TOGGLE_COURSE_MAINTENANCE', `Course maintenance ${course.is_under_maintenance ? 'enabled' : 'disabled'}: ${course.title}`, 'Course', course._id, req.ip);
+
+    res.json({
+      message:   `Course maintenance ${course.is_under_maintenance ? 'enabled' : 'disabled'} successfully`,
+      is_under_maintenance: course.is_under_maintenance,
+    });
+
+  } catch (err) {
+    console.error('Toggle course maintenance error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });

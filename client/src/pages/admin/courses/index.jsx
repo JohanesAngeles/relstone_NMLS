@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Eye, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Search, Filter, Eye, ToggleLeft, ToggleRight, AlertTriangle } from 'lucide-react';
 import API from '../../../api/axios';
 
 const AdminCourses = () => {
@@ -41,6 +41,20 @@ const AdminCourses = () => {
       ));
     } catch (err) {
       console.error('Toggle status error:', err);
+    }
+  };
+
+  const handleToggleMaintenance = async (id, e) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to toggle maintenance mode for this course? Students will not be able to access it.')) return;
+    
+    try {
+      const res = await API.patch(`/admin/courses/${id}/toggle-maintenance`);
+      setCourses(prev => prev.map(c =>
+        c._id === id ? { ...c, is_under_maintenance: res.data.is_under_maintenance } : c
+      ));
+    } catch (err) {
+      console.error('Toggle maintenance error:', err);
     }
   };
 
@@ -174,9 +188,16 @@ const AdminCourses = () => {
                     fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99,
                     background: c.is_active ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
                     color: c.is_active ? '#10b981' : '#ef4444',
+                    marginRight: c.is_under_maintenance ? 6 : 0,
+                    display: 'inline-block'
                   }}>
                     {c.is_active ? 'Active' : 'Inactive'}
                   </span>
+                  {c.is_under_maintenance && (
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 99, background: 'rgba(245,158,11,0.1)', color: '#d97706', display: 'inline-block' }}>
+                      Maintenance
+                    </span>
+                  )}
                 </td>
                 <td style={td}>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -193,6 +214,13 @@ const AdminCourses = () => {
                       style={actionBtn(c.is_active ? '#ef4444' : '#10b981')}
                     >
                       {c.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                    </button>
+                    <button
+                      onClick={(e) => handleToggleMaintenance(c._id, e)}
+                      title={c.is_under_maintenance ? 'Disable Maintenance' : 'Enable Maintenance'}
+                      style={actionBtn(c.is_under_maintenance ? '#d97706' : '#94a3b8')}
+                    >
+                      <AlertTriangle size={14} />
                     </button>
                   </div>
                 </td>
