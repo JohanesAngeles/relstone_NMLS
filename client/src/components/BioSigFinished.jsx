@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 const BioSigFinished = () => {
   const [showManual, setShowManual] = useState(false);
+  const isFailure = window.location.pathname.includes('failure');
 
   useEffect(() => {
+    document.title = isFailure ? 'BioSig-ID Failed' : 'BioSig-ID Verification';
+
+    // Notify parent window (BioSigModal) if inside an iframe
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'BIOSIG_RESULT', success: !isFailure }, '*');
+    }
+
     const closeTimer = setTimeout(() => {
       window.close();
       // If still open 800ms later, browser blocked it — show manual button
