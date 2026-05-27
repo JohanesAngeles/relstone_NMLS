@@ -225,7 +225,7 @@ const CoursePortal = () => {
 
   // ── Inactivity logout → trigger Resuming BioSig ──────────────────
   const handleInactivityLogout = useCallback(() => {
-    if (course && course.credit_hours === 0) return;
+    if (course && Number(course.credit_hours || 0) <= 0) return;
     setInactivityWarning(true);
     setBioSigVerified(false);
     setBioSigAction('Resuming');
@@ -242,7 +242,7 @@ const CoursePortal = () => {
 
   useEffect(() => {
     if (!rocsAgreed || finished || reviewMode || !bioSigVerified) return;
-    if (course && course.credit_hours === 0) return;
+    if (course && Number(course.credit_hours || 0) <= 0) return;
 
     const resetTimer = () => {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -264,7 +264,7 @@ const CoursePortal = () => {
   const currentModuleOrder = content[currentIdx]?.moduleOrder ?? 0;
   const { flush: flushSeatTime, getSeatSeconds } = useSeatTimer({
     courseId: id, moduleOrder: currentModuleOrder,
-    enabled: rocsAgreed && !finished && !reviewMode && (course?.credit_hours > 0),
+    enabled: rocsAgreed && !finished && !reviewMode && (Number(course?.credit_hours || 0) > 0),
     onInactivityLogout: handleInactivityLogout,
   });
 
@@ -307,7 +307,7 @@ const CoursePortal = () => {
         const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
         const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
 
-        const needsNmlsAuth = data.credit_hours > 0;
+        const needsNmlsAuth = Number(data.credit_hours || 0) > 0;
 
         if (!needsNmlsAuth) {
           setRocsAgreed(true);
@@ -385,6 +385,7 @@ const CoursePortal = () => {
   // Middle checks remain below the guard — they only fire during active sessions.
   useEffect(() => {
     if (reviewMode || !content.length) return;
+    if (course && Number(course.credit_hours || 0) <= 0) return;
 
     const item = content[currentIdx];
     if (!item) return;
