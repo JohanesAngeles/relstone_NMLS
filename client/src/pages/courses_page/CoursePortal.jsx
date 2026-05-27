@@ -225,6 +225,7 @@ const CoursePortal = () => {
 
   // ── Inactivity logout → trigger Resuming BioSig ──────────────────
   const handleInactivityLogout = useCallback(() => {
+    if (course && course.credit_hours === 0) return;
     setInactivityWarning(true);
     setBioSigVerified(false);
     setBioSigAction('Resuming');
@@ -237,10 +238,11 @@ const CoursePortal = () => {
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
     setTimeout(() => setInactivityWarning(false), 8000);
-  }, [currentIdx, content.length, saveProgress]);
+  }, [currentIdx, content.length, saveProgress, course]);
 
   useEffect(() => {
     if (!rocsAgreed || finished || reviewMode || !bioSigVerified) return;
+    if (course && course.credit_hours === 0) return;
 
     const resetTimer = () => {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -257,12 +259,12 @@ const CoursePortal = () => {
       events.forEach(e => window.removeEventListener(e, resetTimer));
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     };
-  }, [rocsAgreed, finished, reviewMode, bioSigVerified, handleInactivityLogout, content.length]);
+  }, [rocsAgreed, finished, reviewMode, bioSigVerified, handleInactivityLogout, content.length, course]);
 
   const currentModuleOrder = content[currentIdx]?.moduleOrder ?? 0;
   const { flush: flushSeatTime, getSeatSeconds } = useSeatTimer({
     courseId: id, moduleOrder: currentModuleOrder,
-    enabled: rocsAgreed && !finished && !reviewMode,
+    enabled: rocsAgreed && !finished && !reviewMode && (course?.credit_hours > 0),
     onInactivityLogout: handleInactivityLogout,
   });
 
@@ -301,33 +303,44 @@ const CoursePortal = () => {
           else if (daysLeft <= 30) setExpiresWarning(daysLeft);
         }
 
-        const agreed = rocsRes.data?.agreed || false;
-        setRocsAgreed(agreed);
-        setRocsChecked(true);
-
-        // Reset all milestone flags to false on every fresh load.
-        // Begin is NOT pre-marked — the student must actually verify.
-        // FinalExam is NOT pre-marked — it fires when navigating to that step.
-        bioSigDoneRef.current = {
-          Begin:     false,
-          Middle1:   false,
-          Middle2:   false,
-          FinalExam: false,
-        };
-
         const prog = progRes.data || {};
         const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
         const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
 
-        if (completed_idxs.length > 0 || idx > 0) {
-          setBioSigAction('Resuming');
-        }
+        const needsNmlsAuth = data.credit_hours > 0;
 
-        if (!agreed) {
-          setShowRocs(true);
+        if (!needsNmlsAuth) {
+          setRocsAgreed(true);
+          setRocsChecked(true);
+          setBioSigVerified(true);
+          setShowRocs(false);
           setShowBioSig(false);
+          setShowBioSigInstructions(false);
         } else {
-          setShowBioSig(true);
+          const agreed = rocsRes.data?.agreed || false;
+          setRocsAgreed(agreed);
+          setRocsChecked(true);
+
+          // Reset all milestone flags to false on every fresh load.
+          // Begin is NOT pre-marked — the student must actually verify.
+          // FinalExam is NOT pre-marked — it fires when navigating to that step.
+          bioSigDoneRef.current = {
+            Begin:     false,
+            Middle1:   false,
+            Middle2:   false,
+            FinalExam: false,
+          };
+
+          if (completed_idxs.length > 0 || idx > 0) {
+            setBioSigAction('Resuming');
+          }
+
+          if (!agreed) {
+            setShowRocs(true);
+            setShowBioSig(false);
+          } else {
+            setShowBioSig(true);
+          }
         }
 
         const transcript = transcriptRes.data?.transcript || [];
@@ -412,7 +425,7 @@ const CoursePortal = () => {
       setShowBioSig(true);
       return;
     }
-  }, [currentIdx, content, reviewMode, bioSigVerified]);
+  }, [currentIdx, content, reviewMode, bioSigVerified, course]);
 
   const current  = content[currentIdx] || null;
   const progress = reviewMode ? 100 : (content.length ? Math.round((completed.size / content.length) * 100) : 0);
@@ -846,7 +859,7 @@ const PDFGateView = ({ item, onComplete, onPrev, reviewMode }) => {
 };
 
 /* ─── Lesson View ────────────────────────────────────────────────── */
-const calcMinSeatSeconds = (creditHours) => 10;
+const calcMinSeatSeconds = (creditHours) => (!creditHours || creditHours <= 0) ? 0 : 10;
 
 const LessonView = ({ item, onComplete, onPrev, showPrev, getSeatSeconds, reviewMode }) => {
   const minSeatSeconds = reviewMode ? 0 : calcMinSeatSeconds(item.credit_hours);
