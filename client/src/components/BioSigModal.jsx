@@ -3,7 +3,7 @@ import { Shield, AlertCircle, CheckCircle2, X, Fingerprint, RefreshCw } from 'lu
 import API from '../api/axios';
 
 const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCancel }) => {
-  const [step,       setStep]       = useState('checking');
+  const [step,       setStep]       = useState('intro');
   const [error,      setError]      = useState(null);
   const [bsiAction,  setBsiAction]  = useState(action);
   const [failReason, setFailReason] = useState(null);
@@ -26,29 +26,14 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
 
   const label = ACTION_LABELS[bsiAction] || ACTION_LABELS['Begin'];
 
-  // ── On mount — check if already verified ─────────────────────────────────
+  // ── On mount ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    const checkStatus = async () => {
-      // Force verification on milestones and resuming
-      if (action !== 'Begin') {
-        setStep('intro');
-        return;
-      }
-
-      try {
-        const res = await API.get(`/biosig/status/${courseId}`);
-        if (res.data?.verified) {
-          setStep('already_verified');
-          setTimeout(() => onVerified(), 1200);
-        } else {
-          setStep('intro');
-        }
-      } catch {
-        setStep('intro');
-      }
-    };
-    checkStatus();
-  }, [courseId, action]);
+    // On mount, we default to the 'intro' screen. The parent component (`CoursePortal`)
+    // is responsible for managing the verification state for the current app session.
+    // It will not render this modal if the user is already verified. This strict
+    // approach ensures that any new session (e.g., after a page reload or login)
+    // requires a fresh verification, which aligns with NMLS compliance.
+  }, []);
 
   // ── Cleanup on unmount ────────────────────────────────────────────────────
   useEffect(() => {
@@ -149,24 +134,6 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
 
         {/* ── Body ── */}
         <div style={step === 'waiting' ? S.bodyFull : S.body}>
-
-          {/* Checking */}
-          {step === 'checking' && (
-            <div style={S.centerState}>
-              <div style={S.spinner} />
-              <div style={S.stateTitle}>Checking verification status…</div>
-              <div style={S.stateSub}>Just a moment.</div>
-            </div>
-          )}
-
-          {/* Already verified */}
-          {step === 'already_verified' && (
-            <div style={S.centerState}>
-              <CheckCircle2 size={56} style={{ color: 'rgba(34,197,94,1)', marginBottom: 16 }} />
-              <div style={S.stateTitle}>Already Verified</div>
-              <div style={S.stateSub}>Your identity was recently verified. Proceeding…</div>
-            </div>
-          )}
 
           {/* Intro */}
           {step === 'intro' && (
