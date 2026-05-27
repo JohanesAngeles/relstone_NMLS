@@ -1,6 +1,6 @@
 import { ExternalLink, PlayCircle, CheckCircle2 } from 'lucide-react';
 
-const BioSigInstructionsModal = ({ onContinue, onCancel }) => {
+const BioSigInstructionsModal = ({ onContinue, onCancel, reviewMode }) => {
   return (
     <div style={S.overlay}>
       <div style={S.modal}>
@@ -110,9 +110,9 @@ const BioSigInstructionsModal = ({ onContinue, onCancel }) => {
         </div>
 
         <div style={S.footer}>
-          <button style={S.cancelBtn} onClick={onCancel} type="button">Cancel</button>
+          <button style={S.cancelBtn} onClick={onCancel} type="button">{reviewMode ? 'Back' : 'Cancel'}</button>
           <button style={S.continueBtn} onClick={onContinue} type="button">
-            I Understand - Continue to Verification
+            {reviewMode ? 'Next' : 'I Understand - Continue'}
           </button>
         </div>
 
@@ -123,17 +123,16 @@ const BioSigInstructionsModal = ({ onContinue, onCancel }) => {
 
 const S = {
   overlay: {
-    position: 'fixed', inset: 0, zIndex: 9999,
-    background: 'rgba(9,25,37,0.75)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    padding: 20,
+    width: '100%', maxWidth: 860, margin: '0 auto',
   },
   modal: {
     background: '#fff', borderRadius: 20,
     width: '100%', maxWidth: 560,
+    margin: '0 auto',
     display: 'flex', flexDirection: 'column',
-    maxHeight: '90vh', overflow: 'hidden',
-    boxShadow: '0 32px 80px rgba(0,0,0,0.30)',
+    overflow: 'hidden',
+    border: '1px solid rgba(2,8,23,0.08)',
+    boxShadow: '0 4px 14px rgba(2,8,23,0.04)',
   },
   header: {
     display: 'flex', alignItems: 'center', gap: 14,
@@ -143,7 +142,7 @@ const S = {
   headerTitle: { fontSize: 15, fontWeight: 800, color: '#0a1628' },
   headerSub:   { fontSize: 12, fontWeight: 600, color: 'rgba(10,22,40,0.45)', marginTop: 2 },
   body: {
-    flex: 1, overflowY: 'auto', padding: '20px',
+    padding: '24px',
     display: 'flex', flexDirection: 'column', gap: 14,
   },
   infoBox: {

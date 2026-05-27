@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, FileText, X } from 'lucide-react';
 import API from '../api/axios';
 
@@ -14,11 +14,18 @@ import API from '../api/axios';
  * @param {function} onAgreed   - called after backend confirms agreement saved
  * @param {function} onCancel   - called when student closes without agreeing
  */
-const RocsModal = ({ courseId, courseName, onAgreed, onCancel }) => {
-  const [agreed,   setAgreed]   = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+const RocsModal = ({ courseId, courseName, onAgreed, onCancel, reviewMode }) => {
+  const [agreed,   setAgreed]   = useState(reviewMode || false);
+  const [scrolled, setScrolled] = useState(reviewMode || false);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState(null);
+
+  useEffect(() => {
+    if (reviewMode) {
+      setAgreed(true);
+      setScrolled(true);
+    }
+  }, [reviewMode]);
 
   const handleScroll = (e) => {
     const el = e.target;
@@ -28,6 +35,10 @@ const RocsModal = ({ courseId, courseName, onAgreed, onCancel }) => {
 
   const handleAgree = async () => {
     if (!agreed || !scrolled || loading) return;
+    if (reviewMode) {
+      onAgreed();
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -54,9 +65,6 @@ const RocsModal = ({ courseId, courseName, onAgreed, onCancel }) => {
               <div style={S.headerSub}>ROCS V4 · Required before course access</div>
             </div>
           </div>
-          <button style={S.closeBtn} onClick={onCancel} type="button">
-            <X size={18} />
-          </button>
         </div>
 
         {/* Course label */}
@@ -164,7 +172,7 @@ const RocsModal = ({ courseId, courseName, onAgreed, onCancel }) => {
         {/* Actions */}
         <div style={S.footer}>
           <button style={S.cancelBtn} onClick={onCancel} type="button" disabled={loading}>
-            Cancel
+            {reviewMode ? 'Back' : 'Cancel'}
           </button>
           <button
             style={{ ...S.agreeBtn, ...(!canAgree ? S.agreeBtnDim : {}) }}
@@ -172,7 +180,7 @@ const RocsModal = ({ courseId, courseName, onAgreed, onCancel }) => {
             type="button"
             disabled={!canAgree}
           >
-            {loading ? 'Saving…' : <><CheckCircle2 size={16} /> I Agree — Start Course</>}
+            {loading ? 'Saving…' : <><CheckCircle2 size={16} /> {reviewMode ? 'Next' : 'I Agree — Continue'}</>}
           </button>
         </div>
 
@@ -184,17 +192,16 @@ const RocsModal = ({ courseId, courseName, onAgreed, onCancel }) => {
 /* ─── Styles ─────────────────────────────────────────────────────────── */
 const S = {
   overlay: {
-    position: 'fixed', inset: 0, zIndex: 9999,
-    background: 'rgba(9,25,37,0.75)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    padding: 20,
+    width: '100%', maxWidth: 860, margin: '0 auto',
   },
   modal: {
     background: '#fff', borderRadius: 20,
     width: '100%', maxWidth: 620,
+    margin: '0 auto',
     display: 'flex', flexDirection: 'column',
-    maxHeight: '90vh', overflow: 'hidden',
-    boxShadow: '0 32px 80px rgba(0,0,0,0.30)',
+    overflow: 'hidden',
+    border: '1px solid rgba(2,8,23,0.08)',
+    boxShadow: '0 4px 14px rgba(2,8,23,0.04)',
   },
 
   header: {
@@ -219,8 +226,9 @@ const S = {
   },
 
   rocsBody: {
-    flex: 1, overflowY: 'auto', padding: '20px 24px',
+    padding: '20px 24px',
     fontSize: 14, lineHeight: 1.75, color: 'rgba(10,22,40,0.82)',
+    maxHeight: 500, overflowY: 'auto'
   },
   rocsH3: { fontSize: 15, fontWeight: 900, color: '#0a1628', marginBottom: 12 },
   rocsH4: { fontSize: 13, fontWeight: 800, color: '#0a1628', marginTop: 20, marginBottom: 6 },

@@ -132,7 +132,7 @@ async function getBioSigRedirectUrl({ nmlsId, action, user }) {
 
   if (code !== '100' || !redirectUrl) {
     let finalMessage = `BioSig error ${code}: ${message}`;
-    if (message && message.includes('D5')) {
+    if (message && message.toLowerCase().includes('d5')) {
       finalMessage = 'Course Misconfiguration: BioSig-ID requires a valid course length (D5 error). Please contact the course provider.';
     }
     throw new Error(finalMessage);
@@ -270,6 +270,7 @@ if (!userId) {
 router.get('/debug', async (req, res) => {
   const nmlsId = req.query.nmlsId || 'test123';
   const action = req.query.action || 'Begin';
+  const duration = req.query.duration || '1';
 
   const mockUser = {
     email:          'test@test.com',
@@ -277,7 +278,7 @@ router.get('/debug', async (req, res) => {
     lastName:       'User',
     courseId:       '1234',
     courseTitle:    'Test SAFE Course',
-    courseDuration: '1',
+    courseDuration: duration,
   };
 
   try {

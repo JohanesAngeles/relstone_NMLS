@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle2, PlayCircle,
   BookOpen, ClipboardList, Trophy, Lock, ChevronRight,
   AlertCircle, Star, X, FileText, ExternalLink, Award, Clock,
-  Eye, Menu, Send
+  Eye, Menu, Send, Shield
 } from "lucide-react";
 import API from "../../api/axios";
 import RocsModal from "../../components/RocsModal";
@@ -52,6 +52,17 @@ const buildPdfUrl = (baseUrl, startPage) => {
 
 const buildContent = (course) => {
   const content = [];
+  const isNmls = Number(course?.credit_hours || 0) > 0;
+
+  if (isNmls) {
+    content.push({
+      id: "rocs", type: "rocs", title: "Rules of Conduct", moduleOrder: 0
+    });
+    content.push({
+      id: "biosig_instructions", type: "biosig_instructions", title: "BioSig-ID Setup", moduleOrder: 0
+    });
+  }
+
   if (!course?.modules?.length) return content;
   const coursePdf = course.pdf_url || null;
 
@@ -144,15 +155,10 @@ const CoursePortal = () => {
   const [completed, setCompleted]   = useState(() => new Set());
   const [currentIdx, setCurrentIdx] = useState(0);
 
-  const [rocsChecked, setRocsChecked] = useState(false);
-  const [rocsAgreed, setRocsAgreed]   = useState(false);
-  const [showRocs, setShowRocs]       = useState(false);
-
   // ── BioSig state ──────────────────────────────────────────────────
   const [bioSigVerified, setBioSigVerified] = useState(false);
   const [showBioSig,     setShowBioSig]     = useState(false);
   const [bioSigAction,   setBioSigAction]   = useState('Begin');
-  const [showBioSigInstructions, setShowBioSigInstructions] = useState(false);
 
   // bioSigDoneRef tracks which milestone checkpoints have been shown.
   // Begin is only marked true after the user actually completes verification,
@@ -225,6 +231,7 @@ const CoursePortal = () => {
 
   // ── Inactivity logout → trigger Resuming BioSig ──────────────────
   const handleInactivityLogout = useCallback(() => {
+    if (course && Number(course.credit_hours || 0) <= 0) return;
     setInactivityWarning(true);
     setBioSigVerified(false);
     setBioSigAction('Resuming');
@@ -240,7 +247,11 @@ const CoursePortal = () => {
   }, [currentIdx, content.length, saveProgress, course]);
 
   useEffect(() => {
-    if (!rocsAgreed || finished || reviewMode || !bioSigVerified) return;
+    if (finished || reviewMode || !bioSigVerified) return;
+    if (course && Number(course.credit_hours || 0) <= 0) return;
+
+    const item = content[currentIdx];
+    if (item && (item.type === 'rocs' || item.type === 'biosig_instructions' || item.type === 'review_summary')) return;
 
     const resetTimer = () => {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -257,12 +268,12 @@ const CoursePortal = () => {
       events.forEach(e => window.removeEventListener(e, resetTimer));
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     };
-  }, [rocsAgreed, finished, reviewMode, bioSigVerified, handleInactivityLogout, content.length, course]);
+  }, [finished, reviewMode, bioSigVerified, handleInactivityLogout, content, currentIdx, course]);
 
   const currentModuleOrder = content[currentIdx]?.moduleOrder ?? 0;
   const { flush: flushSeatTime, getSeatSeconds } = useSeatTimer({
     courseId: id, moduleOrder: currentModuleOrder,
-    enabled: rocsAgreed && !finished && !reviewMode,
+    enabled: !finished && !reviewMode && currentModuleOrder > 0 && (Number(course?.credit_hours || 0) > 0),
     onInactivityLogout: handleInactivityLogout,
   });
 
@@ -278,10 +289,9 @@ const CoursePortal = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [courseRes, transcriptRes, rocsRes, progRes] = await Promise.all([
+        const [courseRes, transcriptRes, progRes] = await Promise.all([
           API.get(`/courses/${id}`),
           API.get("/dashboard/transcript").catch(() => ({ data: { transcript: [] } })),
-          API.get(`/rocs/check/${id}`).catch(() => ({ data: { agreed: false } })),
           API.get(`/dashboard/progress/${id}`).catch(() => ({ data: null })),
         ]);
 
@@ -302,32 +312,33 @@ const CoursePortal = () => {
         }
 
         const prog = progRes.data || {};
-        const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
-        const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
+        let completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
+        let idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
 
-        const agreed = rocsRes.data?.agreed || false;
-        setRocsAgreed(agreed);
-        setRocsChecked(true);
+        const needsNmlsAuth = Number(data.credit_hours || 0) > 0;
 
-        // Reset all milestone flags to false on every fresh load.
-        // Begin is NOT pre-marked — the student must actually verify.
-        // FinalExam is NOT pre-marked — it fires when navigating to that step.
-        bioSigDoneRef.current = {
-          Begin:     false,
-          Middle1:   false,
-          Middle2:   false,
-          FinalExam: false,
-        };
-
-        if (completed_idxs.length > 0 || idx > 0) {
-          setBioSigAction('Resuming');
+        if (needsNmlsAuth && prog.total_steps === built.length - 2) {
+          completed_idxs = completed_idxs.map(n => n + 2);
+          completed_idxs.push(0, 1);
+          idx = idx + 2;
         }
 
-        if (!agreed) {
-          setShowRocs(true);
-          setShowBioSig(false);
+        if (!needsNmlsAuth) {
+          setBioSigVerified(true);
         } else {
-          setShowBioSig(true);
+          bioSigDoneRef.current = {
+            Begin:     false,
+            Middle1:   false,
+            Middle2:   false,
+            FinalExam: false,
+          };
+
+          const hasCompletedLessons = completed_idxs.some(i => i >= 2);
+          if (hasCompletedLessons || idx >= 2) {
+            setBioSigAction('Resuming');
+          } else {
+            setBioSigAction('Begin');
+          }
         }
 
         const transcript = transcriptRes.data?.transcript || [];
@@ -372,6 +383,7 @@ const CoursePortal = () => {
   // Middle checks remain below the guard — they only fire during active sessions.
   useEffect(() => {
     if (reviewMode || !content.length) return;
+    if (course && Number(course.credit_hours || 0) <= 0) return;
 
     const item = content[currentIdx];
     if (!item) return;
@@ -387,6 +399,12 @@ const CoursePortal = () => {
       bioSigDoneRef.current.FinalExam = true;
       setBioSigVerified(false);
       setBioSigAction('FinalExam');
+      setShowBioSig(true);
+      return;
+    }
+
+    // Begin / Resuming triggers when hitting the first actual lesson or quiz
+    if (item.type !== 'rocs' && item.type !== 'biosig_instructions' && item.type !== 'review_summary' && !bioSigVerified) {
       setShowBioSig(true);
       return;
     }
@@ -454,19 +472,6 @@ const CoursePortal = () => {
     const allIdxs = new Set(content.map((_, i) => i));
     setCompleted(allIdxs);
   };
-
-  const handleRocsAgreed = () => {
-    setRocsAgreed(true);
-    setShowRocs(false);
-    setShowBioSigInstructions(true);
-  };
-
-  const handleBioSigInstructionsContinue = () => {
-    setShowBioSigInstructions(false);
-    setShowBioSig(true);
-  };
-
-  const handleRocsCancel = () => { navigate(`/courses/${id}`); };
 
   // ── BioSig verified handler ───────────────────────────────────────
   const handleBioSigVerified = () => {
@@ -536,24 +541,6 @@ const CoursePortal = () => {
   return (
     <div style={S.page}>
       <style>{css}</style>
-
-      {/* ROCS — shows first, before BioSig */}
-      {!reviewMode && showRocs && rocsChecked && !rocsAgreed && (
-        <RocsModal
-          courseId={id}
-          courseName={course?.title || ""}
-          onAgreed={handleRocsAgreed}
-          onCancel={handleRocsCancel}
-        />
-      )}
-
-      {/* BioSig Instructions — shows after ROCS, before BioSig */}
-      {!reviewMode && showBioSigInstructions && (
-        <BioSigInstructionsModal
-          onContinue={handleBioSigInstructionsContinue}
-          onCancel={() => navigate(`/courses/${id}`)}
-        />
-      )}
 
       {/* BioSig — shows after instructions, and again at FinalExam / Middle / Resuming */}
       {!reviewMode && showBioSig && !bioSigVerified && (
@@ -652,6 +639,8 @@ const CoursePortal = () => {
                   item.type === "pdf_gate"          ? <FileText size={14} /> :
                   item.type === "checkpoint"        ? <ClipboardList size={14} /> :
                   item.type === "quiz_fundamentals" ? <ClipboardList size={14} /> :
+                  item.type === "rocs"              ? <FileText size={14} /> :
+                  item.type === "biosig_instructions"? <Shield size={14} /> :
                   <Trophy size={14} />;
                 const iconColor =
                   item.type === "checkpoint"        ? "rgba(245,158,11,1)" :
@@ -665,6 +654,8 @@ const CoursePortal = () => {
                   item.type === "checkpoint"        ? "Checkpoint" :
                   item.type === "quiz_fundamentals" ? "Fundamentals Exam" :
                   item.type === "review_summary"    ? "Summary" :
+                  item.type === "rocs"              ? "Requirement" :
+                  item.type === "biosig_instructions"? "Instructions" :
                   "Final Exam";
                 return (
                   <button key={item.id}
@@ -727,6 +718,22 @@ const CoursePortal = () => {
               <QuizView item={current} onFinish={reviewMode ? goNext : handleFinish} onPrev={goPrev}
                 courseId={id} attemptInfo={quizAttempts[current.id]} onAttemptLogged={refreshAttempts}
                 reviewMode={reviewMode} />
+            )}
+            {current?.type === "rocs" && (
+              <RocsModal
+                courseId={id}
+                courseName={course?.title || ""}
+                onAgreed={goNext}
+                onCancel={() => navigate(`/courses/${id}`)}
+                reviewMode={reviewMode}
+              />
+            )}
+            {current?.type === "biosig_instructions" && (
+              <BioSigInstructionsModal
+                onContinue={goNext}
+                onCancel={() => navigate(`/courses/${id}`)}
+                reviewMode={reviewMode}
+              />
             )}
           </div>
         </main>
