@@ -381,6 +381,7 @@ router.get('/sso-url', async (req, res) => {
     res.json({
       url:    redirectUrl,
       action: resolvedAction,
+      serverTime: Date.now(),
     });
 
   } catch (err) {
@@ -397,6 +398,7 @@ router.get('/status/:courseId', async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
+    const since = req.query.since ? parseInt(req.query.since, 10) : null;
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
     const actionFilter = req.query.action || null;
 
@@ -413,7 +415,9 @@ router.get('/status/:courseId', async (req, res) => {
     const recentVerification = (user.biosig_verifications || []).find(v => {
       const courseMatch  = String(v.course_id) === String(req.params.courseId)
                         || String(v.course_id) === String(nmls_course_id); // ← also match by nmls_course_id
-      const recentEnough = v.verified_at > twoHoursAgo;
+      const recentEnough = since 
+        ? new Date(v.verified_at).getTime() >= since 
+        : new Date(v.verified_at) > twoHoursAgo;
       const isVerified   = v.verified === true;
       const actionMatch  = actionFilter ? v.action === actionFilter : true;
       return courseMatch && recentEnough && isVerified && actionMatch;

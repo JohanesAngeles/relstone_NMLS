@@ -10,6 +10,7 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
   const [bsiUrl,     setBsiUrl]     = useState(null);
   const pollRef = useRef(null);
   const tabRef  = useRef(null);
+  const verifyStartRef = useRef(null);
 
   useEffect(() => {
     setBsiAction(action);
@@ -44,11 +45,16 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
   }, []);
 
   // ── Poll every 2s until verified ──────────────────────────────────────────
-  const startPolling = () => {
+  const startPolling = (currentAction) => {
     pollRef.current = setInterval(async () => {
       try {
         const tabClosed = tabRef.current?.closed;
-        const res = await API.get(`/biosig/status/${courseId}`);
+        const res = await API.get(`/biosig/status/${courseId}`, {
+          params: {
+            action: currentAction,
+            since: verifyStartRef.current
+          }
+        });
         if (res.data?.verified) {
           clearInterval(pollRef.current);
           if (tabRef.current && !tabRef.current.closed) tabRef.current.close();
@@ -72,14 +78,19 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
     setFailReason(null);
     try {
       const res = await API.get('/biosig/sso-url', { params: { courseId, action } });
-      const { url, action: resolvedAction } = res.data;
+      const { url, action: resolvedAction, serverTime } = res.data;
 
       if (!url) throw new Error('No SSO URL returned from server.');
 
-      setBsiAction(resolvedAction || action);
+      const finalAction = resolvedAction || action;
+      setBsiAction(finalAction);
       setBsiUrl(url);
+      
+      // Store server time to prevent matching previous verifications from earlier sessions
+      verifyStartRef.current = serverTime ? serverTime - 2000 : Date.now() - 5000;
+      
       setStep('waiting');
-      startPolling();
+      startPolling(finalAction);
     } catch (err) {
       setFailReason('server');
       setError(err.response?.data?.message || err.message || 'Failed to start verification. Please try again.');
