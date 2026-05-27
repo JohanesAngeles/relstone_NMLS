@@ -131,7 +131,11 @@ async function getBioSigRedirectUrl({ nmlsId, action, user }) {
   const redirectUrl = xmlText.match(/<REDIRECT>(.*?)<\/REDIRECT>/i)?.[1]?.trim() || null;
 
   if (code !== '100' || !redirectUrl) {
-    throw new Error(`BioSig error ${code}: ${message}`);
+    let finalMessage = `BioSig error ${code}: ${message}`;
+    if (message && message.includes('D5')) {
+      finalMessage = 'Course Misconfiguration: BioSig-ID requires a valid course length (D5 error). Please contact the course provider.';
+    }
+    throw new Error(finalMessage);
   }
 
   return redirectUrl;
@@ -354,11 +358,17 @@ router.get('/sso-url', async (req, res) => {
       const course = await Course.findById(courseId);
       if (course) {
         courseTitle    = course.title         || courseTitle;
-        courseDuration = course.duration      || courseDuration;
+        courseDuration = course.credit_hours !== undefined ? String(course.credit_hours) : (course.duration || courseDuration);
         nmls_course_id = course.nmls_course_id || course.courseId || courseId; // ← define it HERE inside the try block
       }
     } catch (e) {
       console.warn('[BioSig] Could not load course:', e.message);
+    }
+
+    if (isNaN(Number(courseDuration)) || Number(courseDuration) <= 0) {
+      return res.status(400).json({
+        message: 'Course Misconfiguration: BioSig-ID cannot be initialized. Course length must be greater than 0 hours. Please contact the course provider.'
+      });
     }
 
     const userPayload = {

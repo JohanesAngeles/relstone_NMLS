@@ -225,7 +225,6 @@ const CoursePortal = () => {
 
   // ── Inactivity logout → trigger Resuming BioSig ──────────────────
   const handleInactivityLogout = useCallback(() => {
-    if (course && Number(course.credit_hours || 0) <= 0) return;
     setInactivityWarning(true);
     setBioSigVerified(false);
     setBioSigAction('Resuming');
@@ -242,7 +241,6 @@ const CoursePortal = () => {
 
   useEffect(() => {
     if (!rocsAgreed || finished || reviewMode || !bioSigVerified) return;
-    if (course && Number(course.credit_hours || 0) <= 0) return;
 
     const resetTimer = () => {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
@@ -264,7 +262,7 @@ const CoursePortal = () => {
   const currentModuleOrder = content[currentIdx]?.moduleOrder ?? 0;
   const { flush: flushSeatTime, getSeatSeconds } = useSeatTimer({
     courseId: id, moduleOrder: currentModuleOrder,
-    enabled: rocsAgreed && !finished && !reviewMode && (Number(course?.credit_hours || 0) > 0),
+    enabled: rocsAgreed && !finished && !reviewMode,
     onInactivityLogout: handleInactivityLogout,
   });
 
@@ -307,40 +305,29 @@ const CoursePortal = () => {
         const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
         const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
 
-        const needsNmlsAuth = Number(data.credit_hours || 0) > 0;
+        const agreed = rocsRes.data?.agreed || false;
+        setRocsAgreed(agreed);
+        setRocsChecked(true);
 
-        if (!needsNmlsAuth) {
-          setRocsAgreed(true);
-          setRocsChecked(true);
-          setBioSigVerified(true);
-          setShowRocs(false);
+        // Reset all milestone flags to false on every fresh load.
+        // Begin is NOT pre-marked — the student must actually verify.
+        // FinalExam is NOT pre-marked — it fires when navigating to that step.
+        bioSigDoneRef.current = {
+          Begin:     false,
+          Middle1:   false,
+          Middle2:   false,
+          FinalExam: false,
+        };
+
+        if (completed_idxs.length > 0 || idx > 0) {
+          setBioSigAction('Resuming');
+        }
+
+        if (!agreed) {
+          setShowRocs(true);
           setShowBioSig(false);
-          setShowBioSigInstructions(false);
         } else {
-          const agreed = rocsRes.data?.agreed || false;
-          setRocsAgreed(agreed);
-          setRocsChecked(true);
-
-          // Reset all milestone flags to false on every fresh load.
-          // Begin is NOT pre-marked — the student must actually verify.
-          // FinalExam is NOT pre-marked — it fires when navigating to that step.
-          bioSigDoneRef.current = {
-            Begin:     false,
-            Middle1:   false,
-            Middle2:   false,
-            FinalExam: false,
-          };
-
-          if (completed_idxs.length > 0 || idx > 0) {
-            setBioSigAction('Resuming');
-          }
-
-          if (!agreed) {
-            setShowRocs(true);
-            setShowBioSig(false);
-          } else {
-            setShowBioSig(true);
-          }
+          setShowBioSig(true);
         }
 
         const transcript = transcriptRes.data?.transcript || [];
@@ -385,7 +372,6 @@ const CoursePortal = () => {
   // Middle checks remain below the guard — they only fire during active sessions.
   useEffect(() => {
     if (reviewMode || !content.length) return;
-    if (course && Number(course.credit_hours || 0) <= 0) return;
 
     const item = content[currentIdx];
     if (!item) return;
