@@ -167,7 +167,7 @@ const CoursePortal = () => {
 
   // Inactivity timer ref — 2 hours per NMLS Resuming requirement
   const inactivityTimerRef = useRef(null);
-  const INACTIVITY_MS = 2 * 60 * 1000; // 2 minutes for testing (change back to 2 * 60 * 60 * 1000 for production)
+  const INACTIVITY_MS = 6 * 60 * 1000; // 6 minutes for NMLS inactivity requirement
   const [inactivityWarning, setInactivityWarning] = useState(false);
   const [quizAttempts, setQuizAttempts] = useState({});
   const [isExpired,      setIsExpired]      = useState(false);
@@ -278,10 +278,11 @@ const CoursePortal = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [courseRes, transcriptRes, rocsRes] = await Promise.all([
+        const [courseRes, transcriptRes, rocsRes, progRes] = await Promise.all([
           API.get(`/courses/${id}`),
           API.get("/dashboard/transcript").catch(() => ({ data: { transcript: [] } })),
           API.get(`/rocs/check/${id}`).catch(() => ({ data: { agreed: false } })),
+          API.get(`/dashboard/progress/${id}`).catch(() => ({ data: null })),
         ]);
 
         const data = courseRes.data?.data || courseRes.data;
@@ -314,6 +315,14 @@ const CoursePortal = () => {
           FinalExam: false,
         };
 
+        const prog = progRes.data || {};
+        const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
+        const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
+
+        if (completed_idxs.length > 0 || idx > 0) {
+          setBioSigAction('Resuming');
+        }
+
         if (!agreed) {
           setShowRocs(true);
           setShowBioSig(false);
@@ -337,10 +346,6 @@ const CoursePortal = () => {
           return;
         }
 
-        const progRes = await API.get(`/dashboard/progress/${id}`).catch(() => ({ data: null }));
-        const prog = progRes.data || {};
-        const completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
-        const idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
         const safeIdx = Math.max(0, Math.min(idx, built.length > 0 ? built.length - 1 : 0));
         const nextCompleted = new Set(
           completed_idxs.filter((n) => Number.isFinite(n) && n >= 0 && n < built.length)

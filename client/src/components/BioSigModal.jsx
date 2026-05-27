@@ -11,6 +11,10 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
   const pollRef = useRef(null);
   const tabRef  = useRef(null);
 
+  useEffect(() => {
+    setBsiAction(action);
+  }, [action]);
+
   const ACTION_LABELS = {
     'Begin':     { title: 'Identity Verification Required',   sub: 'Required before accessing course content.' },
     'Resuming':  { title: 'Re-Verification Required',         sub: 'Please verify your identity to resume the course.' },
@@ -25,6 +29,12 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
   // ── On mount — check if already verified ─────────────────────────────────
   useEffect(() => {
     const checkStatus = async () => {
+      // Force verification on milestones and resuming
+      if (action !== 'Begin') {
+        setStep('intro');
+        return;
+      }
+
       try {
         const res = await API.get(`/biosig/status/${courseId}`);
         if (res.data?.verified) {
@@ -214,7 +224,7 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
             </div>
           )}
 
-          {/* Waiting — BioSig iframe */}
+          {/* Waiting — BioSig-ID iframe */}
           {step === 'waiting' && (
             <div style={S.iframeWrap}>
               {bsiUrl && (

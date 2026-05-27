@@ -5,6 +5,8 @@ const BioSigFinished = () => {
   const [showManual, setShowManual] = useState(false);
 
   useEffect(() => {
+    document.title = 'BioSig-ID Verification';
+
     const closeTimer = setTimeout(() => {
       window.close();
       // If still open 800ms later, browser blocked it — show manual button
