@@ -12,15 +12,19 @@ const BioSigFinished = () => {
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: 'BIOSIG_RESULT', success: !isFailure }, '*');
     }
+    // Notify opener window if opened in a new tab
+    if (window.opener) {
+      window.opener.postMessage({ type: 'BIOSIG_RESULT', success: !isFailure }, '*');
+    }
 
     const closeTimer = setTimeout(() => {
       window.close();
       // If still open 800ms later, browser blocked it — show manual button
       setTimeout(() => setShowManual(true), 800);
-    }, 1500);
+    }, isFailure ? 3000 : 1500); // Give them 3s to read failure message before auto-closing
 
     return () => clearTimeout(closeTimer);
-  }, []);
+  }, [isFailure]);
 
   return (
     <div style={{
@@ -65,9 +69,11 @@ const BioSigFinished = () => {
             onClick={() => {
               if (window.parent && window.parent !== window) {
                 window.parent.postMessage({ type: 'BIOSIG_RESULT', success: !isFailure }, '*');
-              } else {
-                window.close();
               }
+              if (window.opener) {
+                window.opener.postMessage({ type: 'BIOSIG_RESULT', success: !isFailure }, '*');
+              }
+              window.close();
             }}
             type="button"
             style={{

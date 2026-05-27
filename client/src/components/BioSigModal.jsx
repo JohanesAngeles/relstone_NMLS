@@ -44,14 +44,18 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
     };
   }, []);
 
-  // ── Listen for iframe postMessage ─────────────────────────────────────────
+  // ── Listen for iframe / new tab postMessage ───────────────────────────────
   useEffect(() => {
     const handleMessage = (event) => {
       if (event.data?.type === 'BIOSIG_RESULT') {
         if (!event.data.success) {
           if (pollRef.current) clearInterval(pollRef.current);
+          if (tabRef.current && !tabRef.current.closed) tabRef.current.close();
           setFailReason('failed');
           setStep('failed');
+        } else {
+          // If success, we optionally help close the tab faster
+          if (tabRef.current && !tabRef.current.closed) tabRef.current.close();
         }
       }
     };
