@@ -44,6 +44,21 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
     };
   }, []);
 
+  // ── Listen for iframe postMessage ─────────────────────────────────────────
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data?.type === 'BIOSIG_RESULT') {
+        if (!event.data.success) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setFailReason('failed');
+          setStep('failed');
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   // ── Poll every 2s until verified ──────────────────────────────────────────
   const startPolling = (currentAction) => {
     pollRef.current = setInterval(async () => {

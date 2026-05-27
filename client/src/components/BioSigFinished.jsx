@@ -5,8 +5,6 @@ const BioSigFinished = () => {
   const [showManual, setShowManual] = useState(false);
 
   useEffect(() => {
-    document.title = 'BioSig-ID Verification';
-
     const closeTimer = setTimeout(() => {
       window.close();
       // If still open 800ms later, browser blocked it — show manual button
@@ -29,36 +27,49 @@ const BioSigFinished = () => {
       }}>
         <div style={{
           width: 72, height: 72, borderRadius: '50%',
-          background: 'rgba(34,197,94,0.10)',
-          border: '1px solid rgba(34,197,94,0.30)',
+          background: isFailure ? 'rgba(239,68,68,0.10)' : 'rgba(34,197,94,0.10)',
+          border: isFailure ? '1px solid rgba(239,68,68,0.30)' : '1px solid rgba(34,197,94,0.30)',
           display: 'grid', placeItems: 'center',
           margin: '0 auto 24px',
         }}>
-          <CheckCircle2 size={36} style={{ color: 'rgba(34,197,94,1)' }} />
+          {isFailure ? (
+            <AlertCircle size={36} style={{ color: 'rgba(239,68,68,1)' }} />
+          ) : (
+            <CheckCircle2 size={36} style={{ color: 'rgba(34,197,94,1)' }} />
+          )}
         </div>
 
         <h1 style={{ fontSize: 22, fontWeight: 900, color: '#0a1628', margin: '0 0 10px' }}>
-          Identity Verified!
+          {isFailure ? 'Verification Failed' : 'Identity Verified!'}
         </h1>
 
         <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(10,22,40,0.60)', lineHeight: 1.7, margin: '0 0 28px' }}>
-          {showManual
-            ? 'Your BioSig-ID verification was successful. Please close this tab and return to your course.'
-            : 'Your BioSig-ID verification was successful. This tab will close automatically…'}
+          {isFailure
+            ? 'Your BioSig-ID verification was not successful. Please try again.'
+            : (showManual
+              ? 'Your BioSig-ID verification was successful. Please close this tab and return to your course.'
+              : 'Your BioSig-ID verification was successful. This tab will close automatically…')
+          }
         </p>
 
         {showManual && (
           <button
-            onClick={() => window.close()}
+            onClick={() => {
+              if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'BIOSIG_RESULT', success: !isFailure }, '*');
+              } else {
+                window.close();
+              }
+            }}
             type="button"
             style={{
               width: '100%', padding: '13px', borderRadius: 12,
-              border: 'none', background: '#2EABFE', color: '#fff',
+              border: 'none', background: isFailure ? '#EF4444' : '#2EABFE', color: '#fff',
               fontWeight: 800, fontSize: 15, cursor: 'pointer',
-              boxShadow: '0 4px 16px rgba(46,171,254,0.28)',
+              boxShadow: isFailure ? '0 4px 16px rgba(239,68,68,0.28)' : '0 4px 16px rgba(46,171,254,0.28)',
             }}
           >
-            Close This Tab
+            {isFailure ? 'Return to Course' : 'Close This Tab'}
           </button>
         )}
 
