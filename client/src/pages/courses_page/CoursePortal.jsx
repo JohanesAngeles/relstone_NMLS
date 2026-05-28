@@ -155,7 +155,7 @@ const CoursePortal = () => {
   const [completed, setCompleted]   = useState(() => new Set());
   const [currentIdx, setCurrentIdx] = useState(0);
 
-  // ── BioSig state ──────────────────────────────────────────────────
+  // ── BioSig-ID state ──────────────────────────────────────────────────
   const [bioSigVerified, setBioSigVerified] = useState(false);
   const [showBioSig,     setShowBioSig]     = useState(false);
   const [bioSigAction,   setBioSigAction]   = useState('Begin');
@@ -229,7 +229,7 @@ const CoursePortal = () => {
     }, 250);
   }, [id]);
 
-  // ── Inactivity logout → trigger Resuming BioSig ──────────────────
+  // ── Inactivity logout → trigger Resuming BioSig-ID ──────────────────
   const handleInactivityLogout = useCallback(() => {
     if (course && Number(course.credit_hours || 0) <= 0) return;
     setInactivityWarning(true);
@@ -376,7 +376,7 @@ const CoursePortal = () => {
     load();
   }, [id, saveProgress, refreshAttempts]);
 
-  // ── Milestone BioSig triggers ─────────────────────────────────────
+  // ── Milestone BioSig-ID triggers ─────────────────────────────────────
   // KEY FIX: FinalExam check is placed ABOVE the `bioSigVerified` guard.
   // This ensures it fires even when the user is currently verified (e.g.
   // they completed Begin/Middle and navigated straight to the final exam).
@@ -473,7 +473,7 @@ const CoursePortal = () => {
     setCompleted(allIdxs);
   };
 
-  // ── BioSig verified handler ───────────────────────────────────────
+  // ── BioSig-ID verified handler ───────────────────────────────────────
   const handleBioSigVerified = () => {
     setBioSigVerified(true);
     setShowBioSig(false);
@@ -542,7 +542,7 @@ const CoursePortal = () => {
     <div style={S.page}>
       <style>{css}</style>
 
-      {/* BioSig — shows after instructions, and again at FinalExam / Middle / Resuming */}
+      {/* BioSig-ID — shows after instructions, and again at FinalExam / Middle / Resuming */}
       {!reviewMode && showBioSig && !bioSigVerified && (
         <BioSigModal
           courseId={id}

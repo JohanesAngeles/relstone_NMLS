@@ -90,7 +90,7 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
     }, 2000);
   };
 
-  // ── Start verification ────────────────────────────────────────────────────
+  // ── Start BioSig-ID verification ──────────────────────────────────────────
   const handleVerify = async () => {
     setStep('redirecting');
     setError(null);

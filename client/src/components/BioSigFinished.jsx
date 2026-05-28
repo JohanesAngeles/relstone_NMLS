@@ -8,7 +8,7 @@ const BioSigFinished = () => {
   useEffect(() => {
     document.title = isFailure ? 'BioSig-ID Failed' : 'BioSig-ID Verification';
 
-    // Notify parent window (BioSigModal) if inside an iframe
+    // Notify parent window (BioSig-ID Modal) if inside an iframe
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: 'BIOSIG_RESULT', success: !isFailure }, '*');
     }
