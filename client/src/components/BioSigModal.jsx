@@ -296,7 +296,7 @@ const BioSigModal = ({ courseId, courseName, action = 'Begin', onVerified, onCan
                   <div style={S.failText}>{error}</div>
                   <div style={S.failGuideBox}>
                     <div style={S.failGuideTitle}>What you can do:</div>
-                    {error?.includes('Misconfiguration') ? (
+                    {(error?.includes('Misconfiguration') || error?.includes('D5')) ? (
                       <div style={S.failGuideStep}>• Please contact <strong>Relstone NMLS support</strong> and let them know this course's length needs to be updated.</div>
                     ) : (
                       <>

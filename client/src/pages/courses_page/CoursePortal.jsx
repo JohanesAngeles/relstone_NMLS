@@ -52,7 +52,7 @@ const buildPdfUrl = (baseUrl, startPage) => {
 
 const buildContent = (course) => {
   const content = [];
-  const isNmls = Number(course?.credit_hours || 0) > 0;
+  const isNmls = course?.type === 'PE' || course?.type === 'CE';
 
   if (isNmls) {
     content.push({
@@ -231,7 +231,7 @@ const CoursePortal = () => {
 
   // ── Inactivity logout → trigger Resuming BioSig-ID ──────────────────
   const handleInactivityLogout = useCallback(() => {
-    if (course && Number(course.credit_hours || 0) <= 0) return;
+    if (course && course.type !== 'PE' && course.type !== 'CE') return;
     setInactivityWarning(true);
     setBioSigVerified(false);
     setBioSigAction('Resuming');
@@ -248,7 +248,7 @@ const CoursePortal = () => {
 
   useEffect(() => {
     if (finished || reviewMode || !bioSigVerified) return;
-    if (course && Number(course.credit_hours || 0) <= 0) return;
+    if (course && course.type !== 'PE' && course.type !== 'CE') return;
 
     const item = content[currentIdx];
     if (item && (item.type === 'rocs' || item.type === 'biosig_instructions' || item.type === 'review_summary')) return;
@@ -273,7 +273,7 @@ const CoursePortal = () => {
   const currentModuleOrder = content[currentIdx]?.moduleOrder ?? 0;
   const { flush: flushSeatTime, getSeatSeconds } = useSeatTimer({
     courseId: id, moduleOrder: currentModuleOrder,
-    enabled: !finished && !reviewMode && currentModuleOrder > 0 && (Number(course?.credit_hours || 0) > 0),
+    enabled: !finished && !reviewMode && currentModuleOrder > 0 && (course?.type === 'PE' || course?.type === 'CE'),
     onInactivityLogout: handleInactivityLogout,
   });
 
@@ -315,7 +315,7 @@ const CoursePortal = () => {
         let completed_idxs = Array.isArray(prog.completed_idxs) ? prog.completed_idxs : [];
         let idx = Number.isFinite(prog.current_idx) ? prog.current_idx : 0;
 
-        const needsNmlsAuth = Number(data.credit_hours || 0) > 0;
+        const needsNmlsAuth = data.type === 'PE' || data.type === 'CE';
 
         if (needsNmlsAuth && prog.total_steps === built.length - 2) {
           completed_idxs = completed_idxs.map(n => n + 2);
@@ -383,7 +383,7 @@ const CoursePortal = () => {
   // Middle checks remain below the guard — they only fire during active sessions.
   useEffect(() => {
     if (reviewMode || !content.length) return;
-    if (course && Number(course.credit_hours || 0) <= 0) return;
+    if (course && course.type !== 'PE' && course.type !== 'CE') return;
 
     const item = content[currentIdx];
     if (!item) return;
