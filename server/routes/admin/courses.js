@@ -4,7 +4,9 @@ const Course     = require('../../models/Course');
 const Enrollment = require('../../models/Enrollment');
 const logAction  = require('../../utils/logger');
 
-// GET /api/admin/courses — Get all courses with search & filter
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/courses — List all courses with search, filter & pagination
+// ─────────────────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const { search, type, status, page = 1, limit = 10 } = req.query;
@@ -18,9 +20,10 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    if (type)            query.type      = type;
-    if (status === 'active')   query.is_active = true;
-    if (status === 'inactive') query.is_active = false;
+    if (type)                    query.type      = type;
+    if (status === 'active')     query.is_active = true;
+    if (status === 'inactive')   query.is_active = false;
+    if (status === 'maintenance') query.is_under_maintenance = true;
 
     const total   = await Course.countDocuments(query);
     const courses = await Course.find(query)
@@ -29,7 +32,12 @@ router.get('/', async (req, res) => {
       .limit(Number(limit))
       .select('title nmls_course_id type credit_hours price is_active is_under_maintenance states_approved createdAt');
 
-    res.json({ courses, total, page: Number(page), totalPages: Math.ceil(total / limit) });
+    res.json({
+      courses,
+      total,
+      page:       Number(page),
+      totalPages: Math.ceil(total / limit),
+    });
 
   } catch (err) {
     console.error('Get courses error:', err);
@@ -37,7 +45,71 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/admin/courses/:id — Get single course details
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/courses/stats — Global counts for the stat cards
+// ⚠️  Must stay ABOVE /:id so Express doesn't treat "stats" as an ID
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/stats', async (req, res) => {
+  try {
+    const [total, active, inactive, maintenance] = await Promise.all([
+      Course.countDocuments(),
+      Course.countDocuments({ is_active: true }),
+      Course.countDocuments({ is_active: false }),
+      Course.countDocuments({ is_under_maintenance: true }),
+    ]);
+
+    res.json({ total, active, inactive, maintenance });
+
+  } catch (err) {
+    console.error('Course stats error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/admin/courses/bulk-status — Bulk activate / deactivate
+// ⚠️  Must stay ABOVE /:id so Express doesn't treat "bulk-status" as an ID
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch('/bulk-status', async (req, res) => {
+  try {
+    const { ids, is_active } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No course IDs provided.' });
+    }
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ message: '`is_active` must be a boolean.' });
+    }
+
+    const result = await Course.updateMany(
+      { _id: { $in: ids } },
+      { $set: { is_active } }
+    );
+
+    await logAction(
+      req.user._id,
+      'BULK_TOGGLE_COURSE_STATUS',
+      `Bulk ${is_active ? 'activated' : 'deactivated'} ${ids.length} course(s)`,
+      'Course',
+      null,
+      req.ip
+    );
+
+    res.json({
+      message: `${result.modifiedCount} course(s) ${is_active ? 'activated' : 'deactivated'} successfully.`,
+      updated: result.modifiedCount,
+    });
+
+  } catch (err) {
+    console.error('Bulk status error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/courses/:id — Single course details + enrollment snapshot
+// ─────────────────────────────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -58,9 +130,11 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// PUT /api/admin/courses/:id — Update course
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/admin/courses/:id — Update course fields (safe partial update)
 // Uses $set so only explicitly sent fields are touched.
 // modules and final_exam are NEVER overwritten unless present in the payload.
+// ─────────────────────────────────────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -71,12 +145,12 @@ router.put('/:id', async (req, res) => {
       provider, level, has_textbook, textbook_price,
       states_approved, pdf_url, video_url, is_active,
       modules, final_exam,
-      // strip fields that must never be overwritten
+      // strip read-only fields
       nmls_course_id, _id, __v, createdAt, updatedAt,
       ...rest
     } = req.body;
 
-    // Build the $set payload — only include fields that were actually sent
+    // Build $set payload — only include fields that were actually sent
     const setPayload = {};
 
     if (title           !== undefined) setPayload.title           = title;
@@ -93,20 +167,19 @@ router.put('/:id', async (req, res) => {
     if (video_url       !== undefined) setPayload.video_url       = video_url;
     if (is_active       !== undefined) setPayload.is_active       = is_active;
 
-    // ── Modules: only update if sent AND not empty ────────────────
+    // Modules: only update if sent AND not empty
     if (Array.isArray(modules) && modules.length > 0) {
       setPayload.modules = modules;
     }
 
-    // ── Final exam: only update if sent AND has questions ─────────
+    // Final exam: only update if sent AND has questions — never wipe existing data
     if (final_exam) {
-      const hasQuestions = Array.isArray(final_exam.questions)     && final_exam.questions.length     > 0;
-      const hasBank      = Array.isArray(final_exam.question_bank) && final_exam.question_bank.length > 0;
+      const hasQuestions    = Array.isArray(final_exam.questions)     && final_exam.questions.length     > 0;
+      const hasBank         = Array.isArray(final_exam.question_bank) && final_exam.question_bank.length > 0;
       const existingHasData =
         (course.final_exam?.questions?.length     > 0) ||
         (course.final_exam?.question_bank?.length > 0);
 
-      // Guard: don't wipe existing exam data if payload sends empty arrays
       if (!existingHasData || hasQuestions || hasBank) {
         setPayload.final_exam = final_exam;
       }
@@ -122,7 +195,14 @@ router.put('/:id', async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    await logAction(req.user._id, 'EDIT_COURSE', `Updated course: ${updated.title}`, 'Course', updated._id, req.ip);
+    await logAction(
+      req.user._id,
+      'EDIT_COURSE',
+      `Updated course: ${updated.title}`,
+      'Course',
+      updated._id,
+      req.ip
+    );
 
     res.json({ message: 'Course updated successfully', course: updated });
 
@@ -132,7 +212,9 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
 // PATCH /api/admin/courses/:id/toggle-status — Activate / Deactivate
+// ─────────────────────────────────────────────────────────────────────────────
 router.patch('/:id/toggle-status', async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -141,7 +223,14 @@ router.patch('/:id/toggle-status', async (req, res) => {
     course.is_active = !course.is_active;
     await course.save();
 
-    await logAction(req.user._id, 'TOGGLE_COURSE_STATUS', `Course ${course.is_active ? 'activated' : 'deactivated'}: ${course.title}`, 'Course', course._id, req.ip);
+    await logAction(
+      req.user._id,
+      'TOGGLE_COURSE_STATUS',
+      `Course ${course.is_active ? 'activated' : 'deactivated'}: ${course.title}`,
+      'Course',
+      course._id,
+      req.ip
+    );
 
     res.json({
       message:   `Course ${course.is_active ? 'activated' : 'deactivated'} successfully`,
@@ -154,7 +243,9 @@ router.patch('/:id/toggle-status', async (req, res) => {
   }
 });
 
-// PATCH /api/admin/courses/:id/toggle-maintenance — Under Maintenance
+// ─────────────────────────────────────────────────────────────────────────────
+// PATCH /api/admin/courses/:id/toggle-maintenance — Enable / Disable maintenance
+// ─────────────────────────────────────────────────────────────────────────────
 router.patch('/:id/toggle-maintenance', async (req, res) => {
   try {
     const course = await Course.findById(req.params.id);
@@ -163,10 +254,17 @@ router.patch('/:id/toggle-maintenance', async (req, res) => {
     course.is_under_maintenance = !course.is_under_maintenance;
     await course.save();
 
-    await logAction(req.user._id, 'TOGGLE_COURSE_MAINTENANCE', `Course maintenance ${course.is_under_maintenance ? 'enabled' : 'disabled'}: ${course.title}`, 'Course', course._id, req.ip);
+    await logAction(
+      req.user._id,
+      'TOGGLE_COURSE_MAINTENANCE',
+      `Course maintenance ${course.is_under_maintenance ? 'enabled' : 'disabled'}: ${course.title}`,
+      'Course',
+      course._id,
+      req.ip
+    );
 
     res.json({
-      message:   `Course maintenance ${course.is_under_maintenance ? 'enabled' : 'disabled'} successfully`,
+      message:              `Course maintenance ${course.is_under_maintenance ? 'enabled' : 'disabled'} successfully`,
       is_under_maintenance: course.is_under_maintenance,
     });
 
